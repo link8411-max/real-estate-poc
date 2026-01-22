@@ -22,6 +22,25 @@ fi
 if [ -f "real_estate.db" ]; then
     DB_SIZE=$(du -h real_estate.db | cut -f1)
     echo "[STARTUP] Database ready: real_estate.db ($DB_SIZE)"
+
+    # FTS5 테이블 확인 및 생성
+    echo "[STARTUP] Checking FTS5 table..."
+    sqlite3 real_estate.db <<'EOF'
+-- FTS5 테이블이 없으면 생성
+CREATE VIRTUAL TABLE IF NOT EXISTS apartments_fts USING fts5(
+    name,
+    dong,
+    content='apartments',
+    content_rowid='id',
+    tokenize='trigram'
+);
+
+-- FTS 테이블이 비어있으면 데이터 삽입
+INSERT OR IGNORE INTO apartments_fts(rowid, name, dong)
+SELECT id, name, dong FROM apartments
+WHERE id NOT IN (SELECT rowid FROM apartments_fts);
+EOF
+    echo "[STARTUP] FTS5 table ready"
 else
     echo "[STARTUP] Warning: No database file found"
 fi

@@ -45,3 +45,15 @@ CREATE TABLE transaction_insights (
 CREATE INDEX idx_trans_deal_date ON transactions(deal_date DESC);
 CREATE INDEX idx_trans_apt_id ON transactions(apt_id);
 CREATE INDEX idx_apt_lawd_cd ON apartments(lawd_cd);
+
+-- 6. FTS5 풀텍스트 검색 (trigram 토크나이저로 한글 부분 문자열 검색 지원)
+CREATE VIRTUAL TABLE apartments_fts USING fts5(
+    name,
+    dong,
+    content='apartments',
+    content_rowid='id',
+    tokenize='trigram'
+);
+
+-- FTS 인덱스 초기 데이터 삽입 (테이블 생성 후 실행)
+-- INSERT INTO apartments_fts(rowid, name, dong) SELECT id, name, dong FROM apartments;

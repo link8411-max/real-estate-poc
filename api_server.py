@@ -272,7 +272,7 @@ def find_region_codes_by_name(query: str) -> list:
 
 @app.get("/api/search")
 def search_apartments(q: str, limit: int = 20):
-    """아파트명 또는 지역명으로 검색 (시/구/동 모두 지원)"""
+    """아파트명 또는 지역명으로 검색 (FTS5 trigram + 지역코드)"""
     start_time = time_module.time()
     print(f"[API] Search started: q={q}, time={start_time}")
 
@@ -292,64 +292,63 @@ def search_apartments(q: str, limit: int = 20):
     # 지역명(시/구)으로 매칭되는 코드 찾기
     region_codes = find_region_codes_by_name(q)
 
-    # 지역 코드 조건 생성
-    region_condition = ""
-    params = []
-
-    if region_codes:
-        placeholders = ",".join(["?" for _ in region_codes])
-        region_condition = f"OR lawd_cd IN ({placeholders})"
-        params = region_codes
-
-    # 최적화된 쿼리: 아파트명, 동명, 지역코드로 검색
-    query = f"""
-        WITH matched_apts AS (
-            SELECT id, name, dong, lawd_cd, build_year
-            FROM apartments
-            WHERE name LIKE ? OR dong LIKE ? {region_condition}
-        ),
-        apt_stats AS (
-            SELECT apt_id, COUNT(*) as tx_count
-            FROM transactions
-            WHERE apt_id IN (SELECT id FROM matched_apts)
-            GROUP BY apt_id
-        ),
-        latest_tx AS (
-            SELECT apt_id, amount, area, deal_date,
-                   ROW_NUMBER() OVER (PARTITION BY apt_id ORDER BY deal_date DESC) as rn
-            FROM transactions
-            WHERE apt_id IN (SELECT id FROM matched_apts)
-        )
-        SELECT
-            a.id, a.name, a.dong, a.lawd_cd, a.build_year,
-            COALESCE(s.tx_count, 0) as tx_count,
-            lt.amount as latest_amount,
-            lt.area as latest_area,
-            lt.deal_date as latest_date
-        FROM matched_apts a
-        LEFT JOIN apt_stats s ON a.id = s.apt_id
-        LEFT JOIN latest_tx lt ON a.id = lt.apt_id AND lt.rn = 1
-        ORDER BY tx_count DESC
-        LIMIT ?
-    """
-
     try:
-        search_term = f"%{q}%"
-        query_params = [search_term, search_term] + params + [limit]
-        cursor.execute(query, query_params)
-        print(f"[API] Query executed: {time_module.time() - start_time:.3f}s")
+        # FTS5 trigram 검색으로 아파트 ID 찾기
+        fts_query = """
+            SELECT rowid FROM apartments_fts
+            WHERE apartments_fts MATCH ?
+            LIMIT ?
+        """
+        cursor.execute(fts_query, (q, limit * 2))
+        fts_ids = [row[0] for row in cursor.fetchall()]
+        print(f"[API] FTS5 search done ({len(fts_ids)} ids): {time_module.time() - start_time:.3f}s")
+
+        # 지역 코드로 추가 검색
+        region_ids = []
+        if region_codes:
+            placeholders = ",".join(["?" for _ in region_codes])
+            cursor.execute(f"SELECT id FROM apartments WHERE lawd_cd IN ({placeholders}) LIMIT ?",
+                          region_codes + [limit * 2])
+            region_ids = [row[0] for row in cursor.fetchall()]
+            print(f"[API] Region search done ({len(region_ids)} ids): {time_module.time() - start_time:.3f}s")
+
+        # ID 합치기 (중복 제거)
+        all_ids = list(dict.fromkeys(fts_ids + region_ids))[:limit * 2]
+
+        if not all_ids:
+            CACHE["search"][cache_key] = []
+            return []
+
+        # 상세 정보 조회 (간소화된 쿼리)
+        placeholders = ",".join(["?" for _ in all_ids])
+        detail_query = f"""
+            SELECT
+                a.id, a.name, a.dong, a.lawd_cd, a.build_year,
+                (SELECT COUNT(*) FROM transactions WHERE apt_id = a.id) as tx_count,
+                (SELECT amount FROM transactions WHERE apt_id = a.id ORDER BY deal_date DESC LIMIT 1) as latest_amount,
+                (SELECT area FROM transactions WHERE apt_id = a.id ORDER BY deal_date DESC LIMIT 1) as latest_area,
+                (SELECT deal_date FROM transactions WHERE apt_id = a.id ORDER BY deal_date DESC LIMIT 1) as latest_date
+            FROM apartments a
+            WHERE a.id IN ({placeholders})
+            ORDER BY tx_count DESC
+            LIMIT ?
+        """
+        cursor.execute(detail_query, all_ids + [limit])
+        print(f"[API] Detail query done: {time_module.time() - start_time:.3f}s")
+
         rows = cursor.fetchall()
-        print(f"[API] Rows fetched ({len(rows)}): {time_module.time() - start_time:.3f}s")
         result = []
         for row in rows:
             d = dict(row)
             d['region_name'] = get_region_name(d.get('lawd_cd', ''))
             result.append(d)
+
         # 캐시에 저장
         CACHE["search"][cache_key] = result
         print(f"[API] Search complete (cached): {time_module.time() - start_time:.3f}s")
         return result
     except Exception as e:
+        print(f"[API] Search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
