@@ -1,7 +1,7 @@
 "use client"
 
 import { ArrowLeft, MapPin, Building2, TrendingUp, TrendingDown, Plus } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
@@ -73,12 +73,15 @@ export default function ApartmentDetailPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [selectedArea, setSelectedArea] = useState<number | null>(null);
 
-  // 거래내역 페이징
+  // 거래내역 무한스크롤
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txTotal, setTxTotal] = useState(0);
   const [txLoading, setTxLoading] = useState(false);
   const [txOffset, setTxOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const TX_LIMIT = 20;
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (aptId) {
@@ -94,6 +97,8 @@ export default function ApartmentDetailPage() {
     if (aptId) {
       fetchHistory(selectedArea);
       setTxOffset(0);
+      setHasMore(true);
+      setTransactions([]);
       fetchTransactions(0, selectedArea);
     }
   }, [selectedArea]);
@@ -127,6 +132,7 @@ export default function ApartmentDetailPage() {
   };
 
   const fetchTransactions = async (offset: number, area?: number | null) => {
+    if (txLoading) return;
     setTxLoading(true);
     try {
       const areaParam = area ? `&area=${area}` : '';
@@ -142,6 +148,7 @@ export default function ApartmentDetailPage() {
         }
         setTxTotal(data.total);
         setTxOffset(offset);
+        setHasMore(offset + data.transactions.length < data.total);
       }
     } catch (error) {
       console.error('거래 내역 로딩 실패:', error);
@@ -150,9 +157,20 @@ export default function ApartmentDetailPage() {
     }
   };
 
-  const loadMoreTransactions = () => {
-    fetchTransactions(txOffset + TX_LIMIT, selectedArea);
-  };
+  // 무한스크롤 Intersection Observer
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lastElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (txLoading) return;
+    if (observerRef.current) observerRef.current.disconnect();
+
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore && !txLoading) {
+        fetchTransactions(txOffset + TX_LIMIT, selectedArea);
+      }
+    }, { threshold: 0.1 });
+
+    if (node) observerRef.current.observe(node);
+  }, [txLoading, hasMore, txOffset, selectedArea]);
 
   const handleAreaSelect = (area: number) => {
     if (selectedArea === area) {
@@ -451,17 +469,32 @@ export default function ApartmentDetailPage() {
                 ))}
               </div>
 
-              {/* 더 보기 버튼 */}
-              {transactions.length < txTotal && (
-                <button
-                  onClick={loadMoreTransactions}
-                  disabled={txLoading}
-                  className="w-full mt-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition disabled:opacity-50"
-                >
-                  {txLoading ? '로딩 중...' : `더 보기 (${transactions.length}/${txTotal})`}
-                </button>
+              {/* 무한스크롤 감지 요소 */}
+              {hasMore && (
+                <div ref={lastElementRef} className="py-4 text-center">
+                  {txLoading ? (
+                    <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      불러오는 중...
+                    </div>
+                  ) : (
+                    <div className="h-4" />
+                  )}
+                </div>
+              )}
+
+              {/* 모든 데이터 로드 완료 */}
+              {!hasMore && transactions.length > 0 && (
+                <p className="py-4 text-center text-sm text-gray-400">
+                  모든 거래 내역을 불러왔습니다
+                </p>
               )}
             </>
+          ) : txLoading ? (
+            <div className="py-8 text-center">
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-sm text-gray-500">거래 내역을 불러오는 중...</p>
+            </div>
           ) : (
             <p className="text-gray-500">
               {selectedArea ? `${selectedArea}㎡ 평형의 거래 내역이 없습니다` : '거래 내역이 없습니다'}
