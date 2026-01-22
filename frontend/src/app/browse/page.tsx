@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin, Building2, ChevronRight, ArrowLeft, TrendingUp } from 'lucide-react';
 
@@ -37,7 +37,7 @@ interface RegionData {
   apartments: Apartment[];
 }
 
-export default function BrowsePage() {
+function BrowseContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedCity = searchParams.get('city');
@@ -296,5 +296,32 @@ export default function BrowsePage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <main className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 py-4">
+          <div className="h-6 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+        </div>
+      </header>
+      <div className="max-w-5xl mx-auto px-4 py-6">
+        <div className="grid grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-20 bg-gray-200 rounded-xl animate-pulse"></div>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+export default function BrowsePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <BrowseContent />
+    </Suspense>
   );
 }

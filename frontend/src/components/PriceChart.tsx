@@ -146,7 +146,8 @@ export default function PriceChart({ data, loading, selectedArea }: PriceChartPr
                 borderRadius: '8px',
                 fontSize: '12px',
               }}
-              formatter={(value: number, name: string) => {
+              formatter={(value, name) => {
+                if (typeof value !== 'number') return [String(value), name];
                 if (name === '평균가') return [formatPrice(value), name];
                 if (name === '거래량') return [`${value}건`, name];
                 return [value, name];
