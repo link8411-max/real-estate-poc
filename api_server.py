@@ -319,29 +319,57 @@ def search_apartments(q: str, limit: int = 20):
             CACHE["search"][cache_key] = []
             return []
 
-        # 상세 정보 조회 (간소화된 쿼리)
+        # 상세 정보 조회 (2단계 - 먼저 기본 정보, 그 다음 통계)
         placeholders = ",".join(["?" for _ in all_ids])
-        detail_query = f"""
-            SELECT
-                a.id, a.name, a.dong, a.lawd_cd, a.build_year,
-                (SELECT COUNT(*) FROM transactions WHERE apt_id = a.id) as tx_count,
-                (SELECT amount FROM transactions WHERE apt_id = a.id ORDER BY deal_date DESC LIMIT 1) as latest_amount,
-                (SELECT area FROM transactions WHERE apt_id = a.id ORDER BY deal_date DESC LIMIT 1) as latest_area,
-                (SELECT deal_date FROM transactions WHERE apt_id = a.id ORDER BY deal_date DESC LIMIT 1) as latest_date
-            FROM apartments a
-            WHERE a.id IN ({placeholders})
-            ORDER BY tx_count DESC
-            LIMIT ?
-        """
-        cursor.execute(detail_query, all_ids + [limit])
-        print(f"[API] Detail query done: {time_module.time() - start_time:.3f}s")
 
-        rows = cursor.fetchall()
+        # 1단계: 기본 아파트 정보
+        cursor.execute(f"""
+            SELECT id, name, dong, lawd_cd, build_year
+            FROM apartments WHERE id IN ({placeholders})
+        """, all_ids)
+        apt_rows = {row['id']: dict(row) for row in cursor.fetchall()}
+
+        # 2단계: 거래 통계 (한 번에 조회)
+        cursor.execute(f"""
+            SELECT apt_id, COUNT(*) as tx_count,
+                   MAX(deal_date) as latest_date
+            FROM transactions
+            WHERE apt_id IN ({placeholders})
+            GROUP BY apt_id
+        """, all_ids)
+        stats = {row['apt_id']: dict(row) for row in cursor.fetchall()}
+
+        # 3단계: 최근 거래 정보 (각 아파트별 최신 1건)
+        cursor.execute(f"""
+            SELECT apt_id, amount, area, deal_date
+            FROM transactions
+            WHERE apt_id IN ({placeholders})
+            AND (apt_id, deal_date) IN (
+                SELECT apt_id, MAX(deal_date) FROM transactions
+                WHERE apt_id IN ({placeholders}) GROUP BY apt_id
+            )
+        """, all_ids + all_ids)
+        latest = {row['apt_id']: dict(row) for row in cursor.fetchall()}
+        print(f"[API] Detail queries done: {time_module.time() - start_time:.3f}s")
+
+        # 결과 조합
         result = []
-        for row in rows:
-            d = dict(row)
+        for apt_id in all_ids:
+            if apt_id not in apt_rows:
+                continue
+            d = apt_rows[apt_id]
+            s = stats.get(apt_id, {})
+            l = latest.get(apt_id, {})
+            d['tx_count'] = s.get('tx_count', 0)
+            d['latest_amount'] = l.get('amount')
+            d['latest_area'] = l.get('area')
+            d['latest_date'] = l.get('deal_date')
             d['region_name'] = get_region_name(d.get('lawd_cd', ''))
             result.append(d)
+
+        # 거래 건수 순 정렬
+        result.sort(key=lambda x: x.get('tx_count', 0), reverse=True)
+        result = result[:limit]
 
         # 캐시에 저장
         CACHE["search"][cache_key] = result
