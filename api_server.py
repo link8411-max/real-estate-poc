@@ -253,9 +253,26 @@ async def get_region_distribution():
 # ========== 검색 API ==========
 import time as time_module
 
+def find_region_codes_by_name(query: str) -> list:
+    """검색어와 매칭되는 지역 코드 찾기 (시/구/군 이름 검색)"""
+    query_lower = query.lower()
+    matched_codes = []
+
+    for city, districts in REGION_HIERARCHY.items():
+        # 시/도 이름 매칭 (서울, 경기, 인천)
+        if query_lower in city.lower():
+            matched_codes.extend(districts.keys())
+        else:
+            # 구/군 이름 매칭
+            for code, name in districts.items():
+                if query_lower in name.lower():
+                    matched_codes.append(code)
+
+    return matched_codes
+
 @app.get("/api/search")
 def search_apartments(q: str, limit: int = 20):
-    """아파트명 또는 지역명으로 검색"""
+    """아파트명 또는 지역명으로 검색 (시/구/동 모두 지원)"""
     start_time = time_module.time()
     print(f"[API] Search started: q={q}, time={start_time}")
 
@@ -272,12 +289,24 @@ def search_apartments(q: str, limit: int = 20):
     cursor = conn.cursor()
     print(f"[API] DB connected: {time_module.time() - start_time:.3f}s")
 
-    # 최적화된 쿼리: JOIN 사용, 서브쿼리 최소화
-    query = """
+    # 지역명(시/구)으로 매칭되는 코드 찾기
+    region_codes = find_region_codes_by_name(q)
+
+    # 지역 코드 조건 생성
+    region_condition = ""
+    params = []
+
+    if region_codes:
+        placeholders = ",".join(["?" for _ in region_codes])
+        region_condition = f"OR lawd_cd IN ({placeholders})"
+        params = region_codes
+
+    # 최적화된 쿼리: 아파트명, 동명, 지역코드로 검색
+    query = f"""
         WITH matched_apts AS (
             SELECT id, name, dong, lawd_cd, build_year
             FROM apartments
-            WHERE name LIKE ? OR dong LIKE ?
+            WHERE name LIKE ? OR dong LIKE ? {region_condition}
         ),
         apt_stats AS (
             SELECT apt_id, COUNT(*) as tx_count
@@ -306,7 +335,8 @@ def search_apartments(q: str, limit: int = 20):
 
     try:
         search_term = f"%{q}%"
-        cursor.execute(query, (search_term, search_term, limit))
+        query_params = [search_term, search_term] + params + [limit]
+        cursor.execute(query, query_params)
         print(f"[API] Query executed: {time_module.time() - start_time:.3f}s")
         rows = cursor.fetchall()
         print(f"[API] Rows fetched ({len(rows)}): {time_module.time() - start_time:.3f}s")
@@ -401,9 +431,62 @@ async def get_apartment_detail(apt_id: int):
         conn.close()
 
 
+@app.get("/api/apartments/{apt_id}/transactions")
+async def get_apartment_transactions(
+    apt_id: int,
+    limit: int = 20,
+    offset: int = 0,
+    area: Optional[float] = None
+):
+    """거래 내역 페이징 API"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # area 필터 조건
+        area_condition = ""
+        params = [apt_id]
+
+        if area:
+            area_condition = "AND t.area BETWEEN ? AND ?"
+            params.extend([area - 2, area + 2])
+
+        # 전체 개수
+        count_query = f"""
+            SELECT COUNT(*) FROM transactions t
+            WHERE t.apt_id = ? {area_condition}
+        """
+        cursor.execute(count_query, params)
+        total = cursor.fetchone()[0]
+
+        # 거래 내역
+        params.extend([limit, offset])
+        query = f"""
+            SELECT t.*, i.summary_text
+            FROM transactions t
+            LEFT JOIN transaction_insights i ON t.id = i.transaction_id
+            WHERE t.apt_id = ? {area_condition}
+            ORDER BY t.deal_date DESC
+            LIMIT ? OFFSET ?
+        """
+        cursor.execute(query, params)
+        transactions = [dict(row) for row in cursor.fetchall()]
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "transactions": transactions
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
 @app.get("/api/apartments/{apt_id}/history")
-async def get_apartment_history(apt_id: int, months: int = 36, area: Optional[float] = None):
-    """거래 이력 (차트용) - 월별 평균가. area 파라미터로 평형 필터 가능"""
+async def get_apartment_history(apt_id: int, months: int = 240, area: Optional[float] = None):
+    """거래 이력 (차트용) - 월별 평균가. area 파라미터로 평형 필터 가능. 기본 240개월(20년)"""
     # 캐시 확인
     cache_key = f"{apt_id}:{months}:{area}"
     if cache_key in CACHE["history"]:

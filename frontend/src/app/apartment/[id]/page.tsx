@@ -73,18 +73,28 @@ export default function ApartmentDetailPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [selectedArea, setSelectedArea] = useState<number | null>(null);
 
+  // 거래내역 페이징
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [txTotal, setTxTotal] = useState(0);
+  const [txLoading, setTxLoading] = useState(false);
+  const [txOffset, setTxOffset] = useState(0);
+  const TX_LIMIT = 20;
+
   useEffect(() => {
     if (aptId) {
       fetchApartmentDetail();
       fetchHistory();
+      fetchTransactions(0, null);
       loadCompareList();
     }
   }, [aptId]);
 
-  // 평수 선택 변경 시 차트 데이터 다시 로드
+  // 평수 선택 변경 시 차트 및 거래내역 다시 로드
   useEffect(() => {
     if (aptId) {
       fetchHistory(selectedArea);
+      setTxOffset(0);
+      fetchTransactions(0, selectedArea);
     }
   }, [selectedArea]);
 
@@ -105,7 +115,7 @@ export default function ApartmentDetailPage() {
     setHistoryLoading(true);
     try {
       const areaParam = area ? `&area=${area}` : '';
-      const res = await fetch(`${API_BASE}/api/apartments/${aptId}/history?months=60${areaParam}`);
+      const res = await fetch(`${API_BASE}/api/apartments/${aptId}/history?months=240${areaParam}`);
       if (res.ok) {
         setHistoryData(await res.json());
       }
@@ -114,6 +124,34 @@ export default function ApartmentDetailPage() {
     } finally {
       setHistoryLoading(false);
     }
+  };
+
+  const fetchTransactions = async (offset: number, area?: number | null) => {
+    setTxLoading(true);
+    try {
+      const areaParam = area ? `&area=${area}` : '';
+      const res = await fetch(
+        `${API_BASE}/api/apartments/${aptId}/transactions?limit=${TX_LIMIT}&offset=${offset}${areaParam}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (offset === 0) {
+          setTransactions(data.transactions);
+        } else {
+          setTransactions(prev => [...prev, ...data.transactions]);
+        }
+        setTxTotal(data.total);
+        setTxOffset(offset);
+      }
+    } catch (error) {
+      console.error('거래 내역 로딩 실패:', error);
+    } finally {
+      setTxLoading(false);
+    }
+  };
+
+  const loadMoreTransactions = () => {
+    fetchTransactions(txOffset + TX_LIMIT, selectedArea);
   };
 
   const handleAreaSelect = (area: number) => {
@@ -199,11 +237,11 @@ export default function ApartmentDetailPage() {
     );
   }
 
-  const { apartment, transactions, area_stats } = data;
+  const { apartment, transactions: initialTransactions, area_stats } = data;
   const isInCompare = compareList.includes(parseInt(aptId));
 
-  // 최근 거래 정보
-  const latestTx = transactions.length > 0 ? transactions[0] : null;
+  // 최근 거래 정보 (초기 로드된 데이터 또는 페이징 데이터 사용)
+  const latestTx = transactions.length > 0 ? transactions[0] : (initialTransactions.length > 0 ? initialTransactions[0] : null);
   const latestAmount = latestTx?.amount || 0;
   const latestArea = latestTx?.area || 0;
 
@@ -386,31 +424,44 @@ export default function ApartmentDetailPage() {
               )}
             </h3>
             <span className="text-sm text-gray-500">
-              {getFilteredTransactions().length}건
+              총 {txTotal.toLocaleString()}건
             </span>
           </div>
 
-          {getFilteredTransactions().length > 0 ? (
-            <div className="space-y-0 divide-y divide-gray-100">
-              {getFilteredTransactions().map((tx) => (
-                <div key={tx.id} className="py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm text-gray-500 w-24">{tx.deal_date}</div>
-                    <div className="text-sm">
-                      <span className="text-gray-900">{tx.area}㎡</span>
-                      <span className="text-gray-400 mx-1">·</span>
-                      <span className="text-gray-500">{tx.floor}층</span>
+          {transactions.length > 0 ? (
+            <>
+              <div className="space-y-0 divide-y divide-gray-100">
+                {transactions.map((tx) => (
+                  <div key={tx.id} className="py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-gray-500 w-24">{tx.deal_date}</div>
+                      <div className="text-sm">
+                        <span className="text-gray-900">{tx.area}㎡</span>
+                        <span className="text-gray-400 mx-1">·</span>
+                        <span className="text-gray-500">{tx.floor}층</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900">{formatPrice(tx.amount)}</p>
+                      {tx.summary_text && (
+                        <p className="text-xs text-gray-500">{tx.summary_text}</p>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">{formatPrice(tx.amount)}</p>
-                    {tx.summary_text && (
-                      <p className="text-xs text-gray-500">{tx.summary_text}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              {/* 더 보기 버튼 */}
+              {transactions.length < txTotal && (
+                <button
+                  onClick={loadMoreTransactions}
+                  disabled={txLoading}
+                  className="w-full mt-4 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition disabled:opacity-50"
+                >
+                  {txLoading ? '로딩 중...' : `더 보기 (${transactions.length}/${txTotal})`}
+                </button>
+              )}
+            </>
           ) : (
             <p className="text-gray-500">
               {selectedArea ? `${selectedArea}㎡ 평형의 거래 내역이 없습니다` : '거래 내역이 없습니다'}
