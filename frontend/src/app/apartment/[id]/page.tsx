@@ -449,24 +449,41 @@ export default function ApartmentDetailPage() {
           {transactions.length > 0 ? (
             <>
               <div className="space-y-0 divide-y divide-gray-100">
-                {transactions.map((tx) => (
-                  <div key={tx.id} className="py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-gray-500 w-24">{tx.deal_date}</div>
-                      <div className="text-sm">
-                        <span className="text-gray-900">{tx.area}㎡</span>
-                        <span className="text-gray-400 mx-1">·</span>
-                        <span className="text-gray-500">{tx.floor}층</span>
+                {transactions.map((tx) => {
+                  // 선택된 평형 또는 해당 거래의 평형 기준 전고점 계산
+                  const targetArea = selectedArea || Math.round(tx.area);
+                  const areaStat = area_stats.find(s => Math.abs(s.area - targetArea) <= 2);
+                  const peakAmount = areaStat?.max_amount || 0;
+                  const dropPercent = peakAmount > 0 && tx.amount < peakAmount
+                    ? Math.round((1 - tx.amount / peakAmount) * 100)
+                    : 0;
+
+                  return (
+                    <div key={tx.id} className="py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm text-gray-500 w-24">{tx.deal_date}</div>
+                        <div className="text-sm">
+                          <span className="text-gray-900">{tx.area}㎡</span>
+                          <span className="text-gray-400 mx-1">·</span>
+                          <span className="text-gray-500">{tx.floor}층</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">{formatPrice(tx.amount)}</p>
+                        {peakAmount > 0 && dropPercent > 0 && (
+                          <p className="text-xs text-blue-600">
+                            전고점 대비 -{dropPercent}%
+                          </p>
+                        )}
+                        {peakAmount > 0 && dropPercent <= 0 && tx.amount >= peakAmount && (
+                          <p className="text-xs text-red-500">
+                            신고가
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">{formatPrice(tx.amount)}</p>
-                      {tx.summary_text && (
-                        <p className="text-xs text-gray-500">{tx.summary_text}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* 무한스크롤 감지 요소 */}
