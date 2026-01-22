@@ -211,13 +211,28 @@ async def get_market_stats():
         cursor.execute("SELECT COUNT(*) FROM apartments")
         apt_count = cursor.fetchone()[0]
 
+        # 데이터 범위 (기준 시점 정보)
+        cursor.execute("SELECT MIN(deal_date), MAX(deal_date) FROM transactions")
+        date_range = cursor.fetchone()
+
+        # DB 파일 수정 시각 (데이터 갱신 시점)
+        import os
+        from datetime import datetime
+        db_mtime = os.path.getmtime(DB_PATH)
+        data_updated_at = datetime.fromtimestamp(db_mtime).isoformat()
+
         result = {
             "growth_rate": "12.4%", # 실시간 계산 로직은 추후 고도화
             "buying_power": "72.4%",
             "active_nodes": "66",
             "recent_transactions_30d": recent_count,
             "total_apartments": apt_count,
-            "status": "BULLISH"
+            "status": "BULLISH",
+            "data_updated_at": data_updated_at,
+            "data_range": {
+                "min_date": date_range[0] if date_range else None,
+                "max_date": date_range[1] if date_range else None
+            }
         }
         # 캐시에 저장
         CACHE["stats"][cache_key] = result
@@ -382,7 +397,28 @@ def search_apartments(q: str, limit: int = 20):
         conn.close()
 
 
-# ========== 단지 상세 API ==========
+# ========== 단지 목록/상세 API ==========
+@app.get("/api/apartments/ids")
+async def get_apartment_ids():
+    """sitemap 생성용 전체 아파트 ID 목록 (거래 내역이 있는 아파트만)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT DISTINCT a.id
+            FROM apartments a
+            JOIN transactions t ON a.id = t.apt_id
+            ORDER BY a.id
+        """)
+        ids = [row[0] for row in cursor.fetchall()]
+        return ids
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
 @app.get("/api/apartments/{apt_id}")
 async def get_apartment_detail(apt_id: int):
     """단지 기본 정보 + 최근 거래 내역"""
@@ -418,7 +454,7 @@ async def get_apartment_detail(apt_id: int):
         """, (apt_id,))
         transactions = [dict(row) for row in cursor.fetchall()]
 
-        # 평형별 시세 요약 (최근 거래가 + 최근 3개월 평균 포함)
+        # 평형별 시세 요약 (최근 거래가 + 최근 3개월 평균 + 전고점 날짜 포함)
         cursor.execute("""
             SELECT
                 ROUND(area, 0) as area,
@@ -434,18 +470,104 @@ async def get_apartment_detail(apt_id: int):
                  ORDER BY t2.deal_date DESC LIMIT 1) as latest_date,
                 (SELECT ROUND(AVG(amount), 0) FROM transactions t2
                  WHERE t2.apt_id = ? AND ROUND(t2.area, 0) = ROUND(t.area, 0)
-                 AND t2.deal_date >= date('now', '-3 months')) as recent_avg
+                 AND t2.deal_date >= date('now', '-3 months')) as recent_avg,
+                (SELECT deal_date FROM transactions t2
+                 WHERE t2.apt_id = ? AND ROUND(t2.area, 0) = ROUND(t.area, 0)
+                 AND t2.amount = (SELECT MAX(amount) FROM transactions t3 WHERE t3.apt_id = ? AND ROUND(t3.area, 0) = ROUND(t.area, 0))
+                 ORDER BY t2.deal_date DESC LIMIT 1) as peak_date
             FROM transactions t
             WHERE apt_id = ?
             GROUP BY ROUND(area, 0)
             ORDER BY area
-        """, (apt_id, apt_id, apt_id, apt_id,))
+        """, (apt_id, apt_id, apt_id, apt_id, apt_id, apt_id,))
         area_stats = [dict(row) for row in cursor.fetchall()]
+
+        # 5가지 지표 계산
+        metrics = {}
+
+        if transactions:
+            latest_tx = transactions[0]
+
+            # 1. 급매 지수: 최근 거래가 - 직전 3개월 평균
+            cursor.execute("""
+                SELECT ROUND(AVG(amount), 0) as avg_3m
+                FROM transactions
+                WHERE apt_id = ?
+                  AND area BETWEEN ? - 2 AND ? + 2
+                  AND deal_date < ?
+                  AND deal_date >= date(?, '-3 months')
+            """, (apt_id, latest_tx['area'], latest_tx['area'], latest_tx['deal_date'], latest_tx['deal_date']))
+            avg_3m_row = cursor.fetchone()
+            if avg_3m_row and avg_3m_row['avg_3m']:
+                avg_3m = avg_3m_row['avg_3m']
+                bargain_amount = latest_tx['amount'] - avg_3m
+                bargain_percent = round((bargain_amount / avg_3m) * 100, 1) if avg_3m > 0 else 0
+                metrics['bargain_amount'] = bargain_amount
+                metrics['bargain_percent'] = bargain_percent
+
+            # 2. 층별 프리미엄: 해당 층 vs 평균층 가격 차이
+            cursor.execute("""
+                SELECT ROUND(AVG(amount), 0) as avg_floor_price
+                FROM transactions
+                WHERE apt_id = ?
+                  AND area BETWEEN ? - 2 AND ? + 2
+                  AND deal_date >= date('now', '-1 year')
+            """, (apt_id, latest_tx['area'], latest_tx['area']))
+            avg_floor_row = cursor.fetchone()
+            if avg_floor_row and avg_floor_row['avg_floor_price'] and avg_floor_row['avg_floor_price'] > 0:
+                floor_premium = round((latest_tx['amount'] / avg_floor_row['avg_floor_price'] - 1) * 100, 1)
+                metrics['floor_premium'] = floor_premium
+
+            # 3. 전고점 회복률
+            same_area_stat = next((s for s in area_stats if abs(s['area'] - latest_tx['area']) <= 2), None)
+            if same_area_stat and same_area_stat['max_amount'] and same_area_stat['max_amount'] > 0:
+                recovery_rate = round((latest_tx['amount'] / same_area_stat['max_amount']) * 100, 1)
+                metrics['recovery_rate'] = recovery_rate
+                metrics['peak_date'] = same_area_stat.get('peak_date')
+
+        # 4. 동네 가성비 랭킹: 법정동 내 평당가 순위
+        dong = apt_dict.get('dong', '')
+        lawd_cd = apt_dict.get('lawd_cd', '')
+        if lawd_cd and area_stats:
+            # 최근 거래 기준 평당가 계산
+            main_area_stat = area_stats[0] if area_stats else None
+            if main_area_stat and main_area_stat['latest_amount'] and main_area_stat['area'] > 0:
+                apt_price_per_area = main_area_stat['latest_amount'] / main_area_stat['area']
+
+                cursor.execute("""
+                    SELECT a.id, a.name,
+                           (SELECT t.amount / t.area FROM transactions t
+                            WHERE t.apt_id = a.id
+                            ORDER BY t.deal_date DESC LIMIT 1) as price_per_area
+                    FROM apartments a
+                    WHERE a.lawd_cd = ?
+                      AND EXISTS (SELECT 1 FROM transactions t WHERE t.apt_id = a.id)
+                    ORDER BY price_per_area ASC
+                """, (lawd_cd,))
+                ranking_rows = cursor.fetchall()
+                dong_total = len(ranking_rows)
+                dong_rank = next((i + 1 for i, r in enumerate(ranking_rows) if r['id'] == apt_id), None)
+                if dong_rank:
+                    metrics['dong_rank'] = dong_rank
+                    metrics['dong_total'] = dong_total
+
+        # 5. 거래 공백기: 현재 - 마지막 거래일
+        if transactions:
+            from datetime import datetime, date as date_type
+            try:
+                latest_date_str = transactions[0]['deal_date']
+                latest_date = datetime.strptime(latest_date_str, '%Y-%m-%d').date()
+                today = date_type.today()
+                days_since_last_tx = (today - latest_date).days
+                metrics['days_since_last_tx'] = days_since_last_tx
+            except:
+                pass
 
         result = {
             "apartment": apt_dict,
             "transactions": transactions,
-            "area_stats": area_stats
+            "area_stats": area_stats,
+            "metrics": metrics
         }
         # 캐시에 저장
         CACHE["apartment"][cache_key] = result

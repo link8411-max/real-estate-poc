@@ -46,12 +46,25 @@ interface AreaStat {
   latest_amount: number | null;
   latest_date: string | null;
   recent_avg: number | null;
+  peak_date: string | null;
+}
+
+interface Metrics {
+  bargain_amount?: number;
+  bargain_percent?: number;
+  floor_premium?: number;
+  recovery_rate?: number;
+  peak_date?: string;
+  dong_rank?: number;
+  dong_total?: number;
+  days_since_last_tx?: number;
 }
 
 interface ApartmentDetail {
   apartment: Apartment;
   transactions: Transaction[];
   area_stats: AreaStat[];
+  metrics?: Metrics;
 }
 
 interface HistoryData {
@@ -255,7 +268,7 @@ export default function ApartmentDetailPage() {
     );
   }
 
-  const { apartment, transactions: initialTransactions, area_stats } = data;
+  const { apartment, transactions: initialTransactions, area_stats, metrics } = data;
   const isInCompare = compareList.includes(parseInt(aptId));
 
   // 최근 거래 정보 (초기 로드된 데이터 또는 페이징 데이터 사용)
@@ -353,7 +366,7 @@ export default function ApartmentDetailPage() {
                 <div className="mt-4">
                   <div className="flex justify-between text-xs text-gray-500 mb-1">
                     <span>최근 거래 ({latestTx.area}㎡)</span>
-                    <span>{latestTx.area}㎡ 전고점 {formatPrice(peakAmount)}</span>
+                    <span>{latestTx.area}㎡ 전고점 {formatPrice(peakAmount)} {sameAreaStat?.peak_date && `(${sameAreaStat.peak_date})`}</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
@@ -361,6 +374,48 @@ export default function ApartmentDetailPage() {
                       style={{ width: `${Math.min((latestAmount / peakAmount) * 100, 100)}%` }}
                     ></div>
                   </div>
+                </div>
+              )}
+
+              {/* 인사이트 배지들 */}
+              {metrics && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {metrics.bargain_percent !== undefined && metrics.bargain_percent < -5 && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-red-100 text-red-700">
+                      <span>🔥</span> 급매 {formatPrice(Math.abs(metrics.bargain_amount || 0))} 저렴
+                    </span>
+                  )}
+                  {metrics.bargain_percent !== undefined && metrics.bargain_percent > 5 && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-orange-100 text-orange-700">
+                      <span>📈</span> 평균 대비 {metrics.bargain_percent.toFixed(1)}% 높음
+                    </span>
+                  )}
+                  {metrics.recovery_rate !== undefined && metrics.recovery_rate < 80 && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
+                      <span>📉</span> 전고점 대비 {(100 - metrics.recovery_rate).toFixed(0)}% 하락
+                    </span>
+                  )}
+                  {metrics.dong_rank !== undefined && metrics.dong_rank <= 3 && metrics.dong_total && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                      <span>💰</span> {apartment.region_name?.split(' ')[1] || apartment.dong} 내 가성비 {metrics.dong_rank}위
+                    </span>
+                  )}
+                  {metrics.days_since_last_tx !== undefined && metrics.days_since_last_tx > 180 && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+                      <span>⏸️</span> {metrics.days_since_last_tx}일간 거래 없음
+                    </span>
+                  )}
+                  {metrics.floor_premium !== undefined && Math.abs(metrics.floor_premium) > 5 && (
+                    <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium ${
+                      metrics.floor_premium > 0 ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700'
+                    }`}>
+                      <span>{metrics.floor_premium > 0 ? '🏢' : '💵'}</span>
+                      {metrics.floor_premium > 0
+                        ? `고층 프리미엄 +${metrics.floor_premium.toFixed(1)}%`
+                        : `저층 할인 ${metrics.floor_premium.toFixed(1)}%`
+                      }
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -472,7 +527,7 @@ export default function ApartmentDetailPage() {
                         <p className="font-semibold text-gray-900">{formatPrice(tx.amount)}</p>
                         {peakAmount > 0 && dropPercent > 0 && (
                           <p className="text-xs text-blue-600">
-                            전고점 대비 -{dropPercent}%
+                            전고점{areaStat?.peak_date && ` (${areaStat.peak_date})`} 대비 -{dropPercent}%
                           </p>
                         )}
                         {peakAmount > 0 && dropPercent <= 0 && tx.amount >= peakAmount && (
