@@ -1,0 +1,31 @@
+# Render 배포 설정
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: real-estate-api
+    runtime: python
+    region: singapore  # 한국에서 가장 가까운 리전
+    plan: free
+
+    # 빌드 설정
+    buildCommand: pip install -r requirements.txt
+
+    # 시작 명령 (startup.sh 사용)
+    startCommand: ./startup.sh
+
+    # 환경변수 (Render 대시보드에서 설정 필요)
+    envVars:
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11"
+
+    # 헬스체크
+    healthCheckPath: /api/stats

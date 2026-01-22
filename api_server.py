@@ -8,6 +8,32 @@ import time as time_module
 
 app = FastAPI(title="Sudogwon Insight API")
 
+# ========== 전역 캐시 저장소 (TTL 없음 - 이벤트로 무효화) ==========
+CACHE = {
+    "search": {},        # key: "검색어:limit"
+    "stats": {},         # key: "market"
+    "stats_regions": {}, # key: "all"
+    "hierarchy": {},     # key: "all"
+    "transactions": {},  # key: "limit:{n}"
+    "apartment": {},     # key: "{apt_id}"
+    "history": {},       # key: "{apt_id}:{months}:{area}"
+    "region_apartments": {},  # key: "{lawd_cd}:{limit}:{offset}:{sort}"
+    "region_stats": {},  # key: "{lawd_cd}"
+}
+
+def clear_all_cache():
+    """수집 완료 시 호출 - 모든 캐시 클리어"""
+    for cache_name, cache in CACHE.items():
+        cache.clear()
+    print(f"[CACHE] All caches cleared at {time_module.time()}")
+
+def get_cache_stats():
+    """캐시 통계 반환"""
+    stats = {}
+    for name, cache in CACHE.items():
+        stats[name] = len(cache)
+    return stats
+
 # 요청 타이밍 미들웨어 - 모든 요청의 시작/종료 시간 기록
 class TimingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -132,6 +158,11 @@ def get_db_connection():
 @app.get("/api/transactions")
 async def get_transactions(limit: int = 20):
     """최근 실거래 데이터 목록 반환"""
+    # 캐시 확인
+    cache_key = f"limit:{limit}"
+    if cache_key in CACHE["transactions"]:
+        return CACHE["transactions"][cache_key]
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -152,6 +183,8 @@ async def get_transactions(limit: int = 20):
             d = dict(row)
             d['region_name'] = get_region_name(d.get('lawd_cd', ''))
             result.append(d)
+        # 캐시에 저장
+        CACHE["transactions"][cache_key] = result
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -161,19 +194,24 @@ async def get_transactions(limit: int = 20):
 @app.get("/api/stats")
 async def get_market_stats():
     """수도권 시장 주요 지표 반환 (PoC용 더미 + 일부 실데이터)"""
+    # 캐시 확인
+    cache_key = "market"
+    if cache_key in CACHE["stats"]:
+        return CACHE["stats"][cache_key]
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     try:
         # 최근 30일 거래량
         cursor.execute("SELECT COUNT(*) FROM transactions WHERE deal_date >= date('now', '-30 days')")
         recent_count = cursor.fetchone()[0]
-        
+
         # 전체 등록된 아파트 수
         cursor.execute("SELECT COUNT(*) FROM apartments")
         apt_count = cursor.fetchone()[0]
-        
-        return {
+
+        result = {
             "growth_rate": "12.4%", # 실시간 계산 로직은 추후 고도화
             "buying_power": "72.4%",
             "active_nodes": "66",
@@ -181,6 +219,9 @@ async def get_market_stats():
             "total_apartments": apt_count,
             "status": "BULLISH"
         }
+        # 캐시에 저장
+        CACHE["stats"][cache_key] = result
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -220,6 +261,12 @@ def search_apartments(q: str, limit: int = 20):
 
     if not q or len(q) < 2:
         raise HTTPException(status_code=400, detail="검색어는 2자 이상 입력해주세요")
+
+    # 캐시 확인
+    cache_key = f"{q}:{limit}"
+    if cache_key in CACHE["search"]:
+        print(f"[API] Search cache HIT: {time_module.time() - start_time:.3f}s")
+        return CACHE["search"][cache_key]
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -268,7 +315,9 @@ def search_apartments(q: str, limit: int = 20):
             d = dict(row)
             d['region_name'] = get_region_name(d.get('lawd_cd', ''))
             result.append(d)
-        print(f"[API] Search complete: {time_module.time() - start_time:.3f}s")
+        # 캐시에 저장
+        CACHE["search"][cache_key] = result
+        print(f"[API] Search complete (cached): {time_module.time() - start_time:.3f}s")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -280,6 +329,11 @@ def search_apartments(q: str, limit: int = 20):
 @app.get("/api/apartments/{apt_id}")
 async def get_apartment_detail(apt_id: int):
     """단지 기본 정보 + 최근 거래 내역"""
+    # 캐시 확인
+    cache_key = str(apt_id)
+    if cache_key in CACHE["apartment"]:
+        return CACHE["apartment"][cache_key]
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -331,11 +385,14 @@ async def get_apartment_detail(apt_id: int):
         """, (apt_id, apt_id, apt_id, apt_id,))
         area_stats = [dict(row) for row in cursor.fetchall()]
 
-        return {
+        result = {
             "apartment": apt_dict,
             "transactions": transactions,
             "area_stats": area_stats
         }
+        # 캐시에 저장
+        CACHE["apartment"][cache_key] = result
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -347,6 +404,11 @@ async def get_apartment_detail(apt_id: int):
 @app.get("/api/apartments/{apt_id}/history")
 async def get_apartment_history(apt_id: int, months: int = 36, area: Optional[float] = None):
     """거래 이력 (차트용) - 월별 평균가. area 파라미터로 평형 필터 가능"""
+    # 캐시 확인
+    cache_key = f"{apt_id}:{months}:{area}"
+    if cache_key in CACHE["history"]:
+        return CACHE["history"][cache_key]
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -376,7 +438,10 @@ async def get_apartment_history(apt_id: int, months: int = 36, area: Optional[fl
     try:
         cursor.execute(query, params)
         rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        result = [dict(row) for row in rows]
+        # 캐시에 저장
+        CACHE["history"][cache_key] = result
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -585,6 +650,11 @@ async def get_collection_progress():
 @app.get("/api/regions/hierarchy")
 async def get_region_hierarchy():
     """지역 계층 구조 반환 (시/도 > 구/군)"""
+    # 캐시 확인
+    cache_key = "all"
+    if cache_key in CACHE["hierarchy"]:
+        return CACHE["hierarchy"][cache_key]
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -609,6 +679,8 @@ async def get_region_hierarchy():
                 })
             # 거래 수 기준 정렬
             result[city].sort(key=lambda x: x["tx_count"], reverse=True)
+        # 캐시에 저장
+        CACHE["hierarchy"][cache_key] = result
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -737,8 +809,13 @@ async def get_region_stats(lawd_cd: str):
 
 # ========== 지역 통계 API ==========
 @app.get("/api/stats/regions")
-async def get_region_stats():
+async def get_region_stats_api():
     """지역별 통계 (평균가, 거래량, 전년비)"""
+    # 캐시 확인
+    cache_key = "all"
+    if cache_key in CACHE["stats_regions"]:
+        return CACHE["stats_regions"][cache_key]
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -822,7 +899,7 @@ async def get_region_stats():
         # 정렬 (거래량 순)
         regions_data.sort(key=lambda x: x['tx_count'], reverse=True)
 
-        return {
+        result = {
             "regions": regions_data,
             "summary": {
                 "seoul_avg": seoul_avg,
@@ -830,10 +907,32 @@ async def get_region_stats():
                 "incheon_avg": incheon_avg
             }
         }
+        # 캐시에 저장
+        CACHE["stats_regions"][cache_key] = result
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+
+# ========== 캐시 관리 API ==========
+@app.post("/api/cache/clear")
+async def clear_cache(secret: str = ""):
+    """수집 완료 시 캐시 무효화 (간단한 보안)"""
+    if secret != "수집완료":
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    clear_all_cache()
+    return {"status": "cleared", "time": time_module.time()}
+
+
+@app.get("/api/cache/stats")
+async def cache_stats():
+    """캐시 통계 반환 (디버깅용)"""
+    return {
+        "stats": get_cache_stats(),
+        "time": time_module.time()
+    }
 
 
 if __name__ == "__main__":

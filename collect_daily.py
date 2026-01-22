@@ -15,11 +15,16 @@ import os
 from datetime import datetime, timedelta
 from insight_engine import generate_deal_hash, analyze_transaction
 
-# 설정 (환경변수 우선)
+# 설정 (환경변수에서 로드)
 DB_PATH = os.environ.get("DB_PATH", "real_estate.db")
-API_KEY = os.environ.get("MOLIT_API_KEY", "f66a6c1920c0ba414d04b64772a4f5dbba208cfaf208374eed8c3e0f2f14ac14")
+API_KEY = os.environ.get("MOLIT_API_KEY")  # 필수 - 환경변수로만 설정
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")  # 캐시 무효화용
 BASE_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
+
+if not API_KEY:
+    print("ERROR: MOLIT_API_KEY 환경변수가 설정되지 않았습니다.")
+    print("GitHub Actions에서는 Secrets에 MOLIT_API_KEY를 설정하세요.")
+    exit(1)
 
 # API 설정
 TIMEOUT = 30

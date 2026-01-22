@@ -21,12 +21,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from insight_engine import generate_deal_hash, analyze_transaction
 
-# 설정
-DB_PATH = "real_estate.db"
+# 설정 (환경변수에서 로드)
+DB_PATH = os.environ.get("DB_PATH", "real_estate.db")
 PROGRESS_FILE = "progress.json"
 LOG_FILE = "collect_robust.log"
-API_KEY = "f66a6c1920c0ba414d04b64772a4f5dbba208cfaf208374eed8c3e0f2f14ac14"
+API_KEY = os.environ.get("MOLIT_API_KEY")  # 필수 - 환경변수로만 설정
+API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")  # 캐시 무효화용
 BASE_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
+
+if not API_KEY:
+    print("ERROR: MOLIT_API_KEY 환경변수가 설정되지 않았습니다.")
+    print("  export MOLIT_API_KEY='your_api_key'")
+    print("  또는 .env 파일에 MOLIT_API_KEY=your_api_key 추가")
+    sys.exit(1)
 
 # 개선된 설정값
 TIMEOUT = 30  # 30초
@@ -76,6 +83,22 @@ def log(message):
         print(line)
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
+
+
+def notify_cache_clear():
+    """API 서버 캐시 무효화"""
+    try:
+        response = requests.post(
+            f"{API_URL}/api/cache/clear",
+            params={"secret": "수집완료"},
+            timeout=5
+        )
+        if response.status_code == 200:
+            log("[수집] 캐시 무효화 완료")
+        else:
+            log(f"[수집] 캐시 무효화 실패: HTTP {response.status_code}")
+    except Exception as e:
+        log(f"[수집] 캐시 무효화 실패 (서버 꺼져있음): {e}")
 
 
 def exponential_backoff(attempt, base=2, max_wait=60):
@@ -313,6 +336,10 @@ def main():
     log(f"=== 수집 완료 ===")
     log(f"완료: {len(progress['completed'])}개, 실패: {len(progress['failed'])}개")
     log(f"총 저장: {progress['stats']['total_saved']:,}건")
+
+    # 신규 데이터가 있으면 캐시 무효화
+    if total_saved > 0:
+        notify_cache_clear()
 
 
 if __name__ == "__main__":

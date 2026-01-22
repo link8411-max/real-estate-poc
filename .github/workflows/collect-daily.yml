@@ -28,15 +28,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests
+          pip install -r requirements.txt
 
-      - name: Download database from storage
+      - name: Download database from R2
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
         run: |
-          # TODO: Supabase나 다른 스토리지에서 DB 다운로드
-          # 현재는 placeholder
-          echo "Database download step (to be implemented with Supabase)"
+          python r2_utils.py download || echo "No existing DB found, starting fresh"
+
+      - name: Show DB info before collection
+        run: |
+          if [ -f real_estate.db ]; then
+            echo "DB exists: $(du -h real_estate.db)"
+          else
+            echo "No DB file found"
+          fi
 
       - name: Run daily collection
         env:
@@ -46,12 +55,20 @@ jobs:
         run: |
           python collect_daily.py
 
-      - name: Upload database to storage
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Show DB info after collection
         run: |
-          # TODO: 수집 완료 후 DB 업로드
-          echo "Database upload step (to be implemented with Supabase)"
+          if [ -f real_estate.db ]; then
+            echo "DB size: $(du -h real_estate.db)"
+          fi
+
+      - name: Upload database to R2
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          python r2_utils.py upload
 
       - name: Summary
         run: |
@@ -59,3 +76,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Time**: $(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_STEP_SUMMARY
           echo "- **Months collected**: Current + Previous" >> $GITHUB_STEP_SUMMARY
+          if [ -f real_estate.db ]; then
+            echo "- **DB Size**: $(du -h real_estate.db | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          fi
