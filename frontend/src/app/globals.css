@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+:root {
+  /* 라이트 테마 - 깔끔한 부동산 서비스 */
+  --base-bg: #F8FAFC;
+  --layer-bg: #FFFFFF;
+  --accent: #2563EB;       /* 블루 - 신뢰감 */
+  --accent-red: #DC2626;   /* 하락 */
+  --accent-green: #16A34A; /* 상승 */
+  --text-main: #1E293B;
+  --text-muted: #64748B;
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-active: rgba(0, 0, 0, 0.12);
+}
+
+@theme {
+  --color-base: var(--base-bg);
+  --color-layer: var(--layer-bg);
+  --color-accent: var(--accent);
+  --color-accent-red: var(--accent-red);
+  --color-accent-green: var(--accent-green);
+  --color-muted: var(--text-muted);
+  --color-main: var(--text-main);
+  --border-subtle: var(--border-subtle);
+  --border-active: var(--border-active);
+}
+
+@layer base {
+  body {
+    @apply bg-base text-main antialiased;
+    font-family: 'Pretendard', 'Inter', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  /* 카드 스타일 */
+  .card {
+    background: var(--layer-bg);
+    border: 1px solid var(--border-subtle);
+    @apply rounded-2xl transition-all duration-200;
+  }
+
+  .card:hover {
+    border-color: var(--border-active);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  /* 검색창 */
+  .search-input {
+    @apply w-full py-4 px-5 rounded-xl border border-gray-200 text-lg;
+    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply placeholder:text-gray-400;
+  }
+
+  /* 버튼 */
+  .btn-primary {
+    @apply bg-blue-600 text-white font-semibold py-3 px-6 rounded-xl;
+    @apply transition-all hover:bg-blue-700 active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg;
+    @apply transition-all hover:bg-gray-200;
+  }
+
+  /* 가격 표시 */
+  .price {
+    @apply font-bold text-xl text-gray-900;
+  }
+
+  .price-up {
+    @apply text-red-500;
+  }
+
+  .price-down {
+    @apply text-blue-500;
+  }
+
+  /* 라벨 */
+  .label {
+    @apply text-xs font-medium text-gray-500 uppercase tracking-wide;
+  }
+
+  /* 배지 */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-blue {
+    @apply bg-blue-100 text-blue-800;
+  }
+
+  .badge-red {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .badge-green {
+    @apply bg-green-100 text-green-800;
+  }
+
+  /* 거래 내역 행 */
+  .transaction-row {
+    @apply flex items-center justify-between py-3 border-b border-gray-100;
+    @apply last:border-b-0;
+  }
+}
+
+/* 스크롤바 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
