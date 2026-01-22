@@ -1,0 +1,61 @@
+name: Daily Collection
+
+on:
+  schedule:
+    # 하루 3회 (KST 기준)
+    - cron: '0 22 * * *'   # KST 07:00 (UTC 22:00 전날)
+    - cron: '0 4 * * *'    # KST 13:00
+    - cron: '0 10 * * *'   # KST 19:00
+  workflow_dispatch:  # 수동 실행 가능
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Download database from storage
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          # TODO: Supabase나 다른 스토리지에서 DB 다운로드
+          # 현재는 placeholder
+          echo "Database download step (to be implemented with Supabase)"
+
+      - name: Run daily collection
+        env:
+          MOLIT_API_KEY: ${{ secrets.MOLIT_API_KEY }}
+          DB_PATH: real_estate.db
+          API_URL: ${{ secrets.API_URL }}
+        run: |
+          python collect_daily.py
+
+      - name: Upload database to storage
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          # TODO: 수집 완료 후 DB 업로드
+          echo "Database upload step (to be implemented with Supabase)"
+
+      - name: Summary
+        run: |
+          echo "### Daily Collection Complete! :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time**: $(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Months collected**: Current + Previous" >> $GITHUB_STEP_SUMMARY
