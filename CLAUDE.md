@@ -18,11 +18,11 @@
 
 ## 배포 환경
 
-| 서비스 | 플랫폼 | 자동배포 |
-|--------|--------|----------|
-| Frontend | Vercel | main 브랜치 push 시 |
-| Backend | Render | main 브랜치 push 시 |
-| CDN/DNS | Cloudflare | - |
+| 서비스 | 플랫폼 | URL | 자동배포 |
+|--------|--------|-----|----------|
+| Frontend | Vercel | https://real-estate-poc-self.vercel.app | main push 시 |
+| Backend | Render | https://real-estate-poc-jcez.onrender.com | main push 시 |
+| CDN/DNS | Cloudflare | - | - |
 
 ---
 
