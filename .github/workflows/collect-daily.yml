@@ -87,9 +87,10 @@ jobs:
           MOLIT_API_KEY: ${{ secrets.MOLIT_API_KEY }}
           DB_PATH: real_estate.db
           API_URL: ${{ secrets.API_URL }}
+          PYTHONUNBUFFERED: "1"
         run: |
           echo "Starting daily collection..."
-          python collect_daily.py
+          python -u collect_daily.py
           echo "Collection completed with exit code: $?"
 
       - name: Show DB info after collection
