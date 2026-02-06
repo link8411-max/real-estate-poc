@@ -272,17 +272,16 @@ import time as time_module
 
 def find_region_codes_by_name(query: str) -> list:
     """검색어와 매칭되는 지역 코드 찾기 (시/구/군 이름 검색)"""
-    query_lower = query.lower()
     matched_codes = []
 
     for city, districts in REGION_HIERARCHY.items():
-        # 시/도 이름 매칭 (서울, 경기, 인천)
-        if query_lower in city.lower():
+        # 시/도 이름 매칭 (서울, 경기, 인천) - 한글은 lower() 불필요
+        if query in city:
             matched_codes.extend(districts.keys())
         else:
             # 구/군 이름 매칭
             for code, name in districts.items():
-                if query_lower in name.lower():
+                if query in name:
                     matched_codes.append(code)
 
     return matched_codes
@@ -329,8 +328,15 @@ def search_apartments(q: str, limit: int = 20):
             region_ids = [row[0] for row in cursor.fetchall()]
             print(f"[API] Region search done ({len(region_ids)} ids): {time_module.time() - start_time:.3f}s")
 
+        # 동(dong) 이름으로 추가 검색 (예: "반포" -> "반포동" 포함된 아파트)
+        dong_ids = []
+        cursor.execute("SELECT id FROM apartments WHERE dong LIKE ? LIMIT ?",
+                      (f"%{q}%", limit * 2))
+        dong_ids = [row[0] for row in cursor.fetchall()]
+        print(f"[API] Dong search done ({len(dong_ids)} ids): {time_module.time() - start_time:.3f}s")
+
         # ID 합치기 (중복 제거)
-        all_ids = list(dict.fromkeys(fts_ids + region_ids))[:limit * 2]
+        all_ids = list(dict.fromkeys(fts_ids + region_ids + dong_ids))[:limit * 2]
 
         if not all_ids:
             CACHE["search"][cache_key] = []

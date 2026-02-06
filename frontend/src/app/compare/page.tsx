@@ -91,6 +91,23 @@ function CompareContent() {
     return `${amount.toLocaleString()}만`;
   };
 
+  // 평당가 계산 (3.3058㎡ = 1평)
+  const calcPricePerPyeong = (amount: number | null | undefined, area: number | null | undefined) => {
+    if (!amount || !area || area === 0) return null;
+    const pyeong = area / 3.3058;
+    return Math.round(amount / pyeong);
+  };
+
+  const formatPricePerPyeong = (pricePerPyeong: number | null) => {
+    if (!pricePerPyeong) return '-';
+    if (pricePerPyeong >= 10000) {
+      const uk = Math.floor(pricePerPyeong / 10000);
+      const man = pricePerPyeong % 10000;
+      return man > 0 ? `${uk}억 ${man.toLocaleString()}만/평` : `${uk}억/평`;
+    }
+    return `${pricePerPyeong.toLocaleString()}만/평`;
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50">
@@ -212,6 +229,28 @@ function CompareContent() {
                         {formatPrice(data.latest_transaction?.amount)}
                       </td>
                     ))}
+                  </tr>
+                  <tr className="border-b border-gray-50">
+                    <td className="p-4 text-sm text-gray-500">면적</td>
+                    {compareData.map((data) => (
+                      <td key={data.apartment.id} className="p-4 text-center text-sm text-gray-900">
+                        {data.latest_transaction?.area ? `${data.latest_transaction.area}㎡ (${(data.latest_transaction.area / 3.3058).toFixed(1)}평)` : '-'}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-gray-50 bg-blue-50">
+                    <td className="p-4 text-sm text-blue-700 font-medium">평당가</td>
+                    {compareData.map((data) => {
+                      const pricePerPyeong = calcPricePerPyeong(
+                        data.latest_transaction?.amount,
+                        data.latest_transaction?.area
+                      );
+                      return (
+                        <td key={data.apartment.id} className="p-4 text-center font-semibold text-blue-700">
+                          {formatPricePerPyeong(pricePerPyeong)}
+                        </td>
+                      );
+                    })}
                   </tr>
                   <tr className="border-b border-gray-50">
                     <td className="p-4 text-sm text-gray-500">전고점</td>

@@ -30,6 +30,7 @@ function SearchContent() {
   const [searchQuery, setSearchQuery] = useState(query);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     console.log('[Search] useEffect triggered, query:', query, 'time:', new Date().toISOString());
@@ -41,6 +42,7 @@ function SearchContent() {
     const doSearch = async () => {
       console.log('[Search] performSearch started, q:', query, 'time:', new Date().toISOString());
       setLoading(true);
+      setError(null);
       try {
         console.log('[Search] fetch started, time:', new Date().toISOString());
         const res = await fetch(
@@ -52,10 +54,13 @@ function SearchContent() {
           const data = await res.json();
           console.log('[Search] json parsed, results:', data.length, 'time:', new Date().toISOString());
           setResults(data);
+        } else {
+          setError('검색 중 오류가 발생했습니다. 다시 시도해주세요.');
         }
-      } catch (error: unknown) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('검색 실패:', error);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          console.error('검색 실패:', err);
+          setError('네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.');
         }
       } finally {
         setLoading(false);
@@ -174,17 +179,42 @@ function SearchContent() {
               </a>
             ))}
           </div>
+        ) : error ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Search className="w-8 h-8 text-red-400" />
+            </div>
+            <p className="text-red-600 font-medium">{error}</p>
+            <button
+              onClick={() => {
+                setError(null);
+                if (query) {
+                  router.push(`/search?q=${encodeURIComponent(query)}&t=${Date.now()}`);
+                }
+              }}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              다시 시도
+            </button>
+          </div>
         ) : query ? (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Search className="w-8 h-8 text-gray-400" />
             </div>
-            <p className="text-gray-500">
+            <p className="text-gray-500 font-medium">
               &quot;{query}&quot;에 대한 검색 결과가 없습니다
             </p>
             <p className="text-sm text-gray-400 mt-2">
-              다른 검색어로 시도해 보세요
+              검색 팁: 구/군 이름으로 검색해보세요 (예: 강남구, 분당구)
             </p>
+            <button
+              onClick={() => router.push('/browse')}
+              className="mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 mx-auto"
+            >
+              <MapPin className="w-4 h-4" />
+              지역탐색으로 찾기
+            </button>
           </div>
         ) : (
           <div className="text-center py-16">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MapPin, Building2, ChevronRight, ArrowLeft, TrendingUp } from 'lucide-react';
+import { MapPin, Building2, ChevronRight, ArrowLeft, TrendingUp, ArrowUpDown } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -46,6 +46,7 @@ function BrowseContent() {
   const [hierarchy, setHierarchy] = useState<RegionHierarchy | null>(null);
   const [regionData, setRegionData] = useState<RegionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<'tx_count' | 'latest_amount' | 'name'>('tx_count');
 
   useEffect(() => {
     fetchHierarchy();
@@ -53,11 +54,11 @@ function BrowseContent() {
 
   useEffect(() => {
     if (selectedCode) {
-      fetchRegionApartments(selectedCode);
+      fetchRegionApartments(selectedCode, sortBy);
     } else {
       setRegionData(null);
     }
-  }, [selectedCode]);
+  }, [selectedCode, sortBy]);
 
   const fetchHierarchy = async () => {
     try {
@@ -72,10 +73,10 @@ function BrowseContent() {
     }
   };
 
-  const fetchRegionApartments = async (code: string) => {
+  const fetchRegionApartments = async (code: string, sort: string = 'tx_count') => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/regions/${code}/apartments?limit=100`);
+      const res = await fetch(`${API_BASE}/api/regions/${code}/apartments?limit=100&sort=${sort}`);
       if (res.ok) {
         setRegionData(await res.json());
       }
@@ -143,9 +144,21 @@ function BrowseContent() {
             <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded-lg transition">
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
-            <div>
+            <div className="flex-1">
               <h1 className="font-semibold text-gray-900">{regionData.region_name}</h1>
               <p className="text-sm text-gray-500">{regionData.total}개 단지</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="w-4 h-4 text-gray-400" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'tx_count' | 'latest_amount' | 'name')}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none"
+              >
+                <option value="tx_count">거래 많은 순</option>
+                <option value="latest_amount">가격 높은 순</option>
+                <option value="name">이름순</option>
+              </select>
             </div>
           </div>
         </header>
