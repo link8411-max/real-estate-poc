@@ -5,8 +5,12 @@
 echo "=== Starting API Server ==="
 echo "Time: $(date)"
 
-# 빈 DB 생성 (서버 시작용)
-if [ ! -f "real_estate.db" ]; then
+# DB 파일 확인 (1MB 이상이면 유효한 DB로 간주)
+if [ -f "real_estate.db" ] && [ $(stat -f%z "real_estate.db" 2>/dev/null || stat -c%s "real_estate.db" 2>/dev/null) -gt 1000000 ]; then
+    DB_SIZE=$(du -h real_estate.db | cut -f1)
+    echo "[STARTUP] Existing database found: $DB_SIZE - skipping download"
+    SKIP_DOWNLOAD=1
+elif [ ! -f "real_estate.db" ]; then
     echo "[STARTUP] Creating empty database for initial startup..."
     sqlite3 real_estate.db <<'EOF'
 CREATE TABLE IF NOT EXISTS apartments (
@@ -50,8 +54,10 @@ SERVER_PID=$!
 # 서버가 시작될 때까지 잠시 대기
 sleep 3
 
-# R2에서 DB 다운로드 (서버 실행 중에 백그라운드로)
-if [ -n "$R2_ENDPOINT" ]; then
+# R2에서 DB 다운로드 (이미 유효한 DB가 있으면 건너뜀)
+if [ "$SKIP_DOWNLOAD" = "1" ]; then
+    echo "[STARTUP] Skipping R2 download - using existing database"
+elif [ -n "$R2_ENDPOINT" ]; then
     echo "[STARTUP] Downloading database from R2 in background..."
     (
         python r2_utils.py download && {
