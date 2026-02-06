@@ -335,8 +335,15 @@ def search_apartments(q: str, limit: int = 20):
         dong_ids = [row[0] for row in cursor.fetchall()]
         print(f"[API] Dong search done ({len(dong_ids)} ids): {time_module.time() - start_time:.3f}s")
 
+        # 아파트 이름으로 추가 검색 (FTS5 trigram이 한글 처리 못하는 경우 대비)
+        name_ids = []
+        cursor.execute("SELECT id FROM apartments WHERE name LIKE ? LIMIT ?",
+                      (f"%{q}%", limit * 2))
+        name_ids = [row[0] for row in cursor.fetchall()]
+        print(f"[API] Name search done ({len(name_ids)} ids): {time_module.time() - start_time:.3f}s")
+
         # ID 합치기 (중복 제거)
-        all_ids = list(dict.fromkeys(fts_ids + region_ids + dong_ids))[:limit * 2]
+        all_ids = list(dict.fromkeys(fts_ids + region_ids + dong_ids + name_ids))[:limit * 2]
 
         if not all_ids:
             CACHE["search"][cache_key] = []
