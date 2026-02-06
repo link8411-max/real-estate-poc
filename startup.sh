@@ -54,28 +54,25 @@ SERVER_PID=$!
 # 서버가 시작될 때까지 잠시 대기
 sleep 3
 
-# R2에서 DB 다운로드 (이미 유효한 DB가 있으면 건너뜀)
+# R2에서 DB 다운로드
 if [ "$SKIP_DOWNLOAD" = "1" ]; then
     echo "[STARTUP] Skipping R2 download - using existing database"
 elif [ -n "$R2_ENDPOINT" ]; then
     echo "[STARTUP] Downloading database from R2 in background..."
     (
-        python r2_utils.py download && {
-            DB_SIZE=$(du -h real_estate.db | cut -f1)
-            echo "[STARTUP] Database downloaded: $DB_SIZE"
+        # 서버가 시작될 때까지 대기
+        sleep 5
 
-            # FTS5 인덱스 확인
-            sqlite3 real_estate.db "SELECT COUNT(*) FROM apartments_fts;" 2>/dev/null || {
-                echo "[STARTUP] Rebuilding FTS5 index..."
-                sqlite3 real_estate.db <<'EOF'
-CREATE VIRTUAL TABLE IF NOT EXISTS apartments_fts USING fts5(
-    name, dong, content='apartments', content_rowid='id', tokenize='trigram'
-);
-INSERT OR IGNORE INTO apartments_fts(rowid, name, dong)
-SELECT id, name, dong FROM apartments WHERE id NOT IN (SELECT rowid FROM apartments_fts);
-EOF
+        # DB 다운로드를 직접 하지 않고 API로 요청
+        echo "[STARTUP] Triggering DB reload via API..."
+        curl -s -X POST "http://localhost:${PORT:-8000}/api/db/reload?secret=%EC%88%98%EC%A7%91%EC%99%84%EB%A3%8C" --max-time 300 && {
+            echo "[STARTUP] Database reload complete!"
+        } || {
+            echo "[STARTUP] API reload failed, trying direct download..."
+            python r2_utils.py download && {
+                DB_SIZE=$(du -h real_estate.db | cut -f1)
+                echo "[STARTUP] Database downloaded: $DB_SIZE"
             }
-            echo "[STARTUP] Database ready!"
         }
     ) &
 else
