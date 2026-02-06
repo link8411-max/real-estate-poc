@@ -30,6 +30,36 @@ jobs:
         run: |
           pip install -r requirements.txt
 
+      - name: Debug - Check secrets availability
+        run: |
+          echo "=== Checking Secrets Configuration ==="
+          if [ -z "${{ secrets.R2_ENDPOINT }}" ]; then
+            echo "❌ R2_ENDPOINT is NOT set"
+          else
+            echo "✅ R2_ENDPOINT is set"
+          fi
+          if [ -z "${{ secrets.R2_ACCESS_KEY_ID }}" ]; then
+            echo "❌ R2_ACCESS_KEY_ID is NOT set"
+          else
+            echo "✅ R2_ACCESS_KEY_ID is set"
+          fi
+          if [ -z "${{ secrets.R2_SECRET_ACCESS_KEY }}" ]; then
+            echo "❌ R2_SECRET_ACCESS_KEY is NOT set"
+          else
+            echo "✅ R2_SECRET_ACCESS_KEY is set"
+          fi
+          if [ -z "${{ secrets.R2_BUCKET_NAME }}" ]; then
+            echo "❌ R2_BUCKET_NAME is NOT set"
+          else
+            echo "✅ R2_BUCKET_NAME is set"
+          fi
+          if [ -z "${{ secrets.MOLIT_API_KEY }}" ]; then
+            echo "❌ MOLIT_API_KEY is NOT set"
+          else
+            echo "✅ MOLIT_API_KEY is set"
+          fi
+          echo "==================================="
+
       - name: Download database from R2
         env:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
@@ -37,15 +67,20 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
         run: |
-          python r2_utils.py download || echo "No existing DB found, starting fresh"
+          echo "Attempting to download DB from R2..."
+          python r2_utils.py download || echo "⚠️ No existing DB found, starting fresh"
 
       - name: Show DB info before collection
         run: |
+          echo "=== DB Status Before Collection ==="
           if [ -f real_estate.db ]; then
-            echo "DB exists: $(du -h real_estate.db)"
+            echo "✅ DB exists: $(du -h real_estate.db)"
+            echo "Tables:"
+            sqlite3 real_estate.db ".tables" 2>/dev/null || echo "sqlite3 not available"
           else
-            echo "No DB file found"
+            echo "⚠️ No DB file found - will create new"
           fi
+          echo "==================================="
 
       - name: Run daily collection
         env:
@@ -53,13 +88,19 @@ jobs:
           DB_PATH: real_estate.db
           API_URL: ${{ secrets.API_URL }}
         run: |
+          echo "Starting daily collection..."
           python collect_daily.py
+          echo "Collection completed with exit code: $?"
 
       - name: Show DB info after collection
         run: |
+          echo "=== DB Status After Collection ==="
           if [ -f real_estate.db ]; then
-            echo "DB size: $(du -h real_estate.db)"
+            echo "✅ DB size: $(du -h real_estate.db)"
+          else
+            echo "❌ DB file not found after collection"
           fi
+          echo "==================================="
 
       - name: Upload database to R2
         env:
@@ -68,9 +109,12 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
         run: |
+          echo "Uploading DB to R2..."
           python r2_utils.py upload
+          echo "Upload completed with exit code: $?"
 
       - name: Summary
+        if: always()
         run: |
           echo "### Daily Collection Complete! :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -78,4 +122,6 @@ jobs:
           echo "- **Months collected**: Current + Previous" >> $GITHUB_STEP_SUMMARY
           if [ -f real_estate.db ]; then
             echo "- **DB Size**: $(du -h real_estate.db | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **DB**: Not created (check logs)" >> $GITHUB_STEP_SUMMARY
           fi
