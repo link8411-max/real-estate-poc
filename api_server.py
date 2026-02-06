@@ -5,6 +5,8 @@ import sqlite3
 from typing import List, Optional
 import json
 import time as time_module
+import os
+import shutil
 
 app = FastAPI(title="Sudogwon Insight API")
 
@@ -1165,6 +1167,56 @@ async def cache_stats():
         "stats": get_cache_stats(),
         "time": time_module.time()
     }
+
+
+@app.post("/api/db/reload")
+async def reload_database(secret: str = ""):
+    """R2에서 최신 DB 다운로드 및 교체 (수집 완료 후 호출)"""
+    if secret != "수집완료":
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    try:
+        from r2_utils import download_db
+
+        db_path = os.environ.get("DB_PATH", "real_estate.db")
+        temp_path = db_path + ".new"
+        backup_path = db_path + ".backup"
+
+        # 새 DB 다운로드
+        print(f"[DB] Downloading new database from R2...")
+        success = download_db(temp_path)
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to download DB from R2")
+
+        # 파일 크기 확인 (0바이트 방지)
+        new_size = os.path.getsize(temp_path)
+        if new_size < 1000000:  # 1MB 미만이면 오류
+            os.remove(temp_path)
+            raise HTTPException(status_code=500, detail=f"Downloaded DB too small: {new_size} bytes")
+
+        # 기존 DB 백업 및 교체
+        if os.path.exists(db_path):
+            shutil.copy2(db_path, backup_path)
+        shutil.move(temp_path, db_path)
+
+        # 캐시 클리어
+        clear_all_cache()
+
+        new_size_mb = new_size / (1024 * 1024)
+        print(f"[DB] Database reloaded successfully: {new_size_mb:.1f} MB")
+
+        return {
+            "status": "reloaded",
+            "size_mb": round(new_size_mb, 1),
+            "time": time_module.time()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[DB] Reload failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

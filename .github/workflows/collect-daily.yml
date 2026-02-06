@@ -114,6 +114,13 @@ jobs:
           python r2_utils.py upload
           echo "Upload completed with exit code: $?"
 
+      - name: Notify server to reload DB
+        run: |
+          echo "Notifying server to reload database..."
+          curl -s -X POST "https://real-estate-poc-jcez.onrender.com/api/db/reload?secret=수집완료" \
+            --max-time 120 \
+            -H "Content-Type: application/json" || echo "⚠️ Server reload notification failed (server might be sleeping)"
+
       - name: Summary
         if: always()
         run: |
