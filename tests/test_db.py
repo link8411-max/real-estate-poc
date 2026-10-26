@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+import sqlite3
+
+import pytest
+
+from pipeline.db import (
+    connect, insert_rent, insert_trade, mark_changed, migrate, pop_changed, upsert_apartment,
+)
+from pipeline.molit_client import RentItem, TradeItem
+
+
+@pytest.fixture
+def conn():
+    c = sqlite3.connect(":memory:")
+    migrate(c)
+    return c
+
+
+def trade(**kw):
+    base = dict(apt_name="래미안", apt_seq="11680-1", lawd_cd="11680", dong="역삼동", jibun="1",
+                build_year=2000, deal_date="2026-09-01", amount=202500, area=84.97, floor=9,
+                cancel_date=None)
+    base.update(kw)
+    return TradeItem(**base)
+
+
+def rent(**kw):
+    base = dict(apt_name="래미안", apt_seq="11680-1", lawd_cd="11680", dong="역삼동", jibun="1",
+                build_year=2000, deal_date="2026-09-01", deposit=50000, monthly_rent=100, area=84.97,
+                floor=9, contract_type="신규", contract_term="26.09~28.09", use_rr_right=None,
+                pre_deposit=None, pre_monthly_rent=None)
+    base.update(kw)
+    return RentItem(**base)
+
+
+def apt(conn, **kw):
+    base = dict(name="래미안", lawd_cd="11680", dong="역삼동", jibun="1", build_year=2000,
+                apt_seq="11680-1")
+    base.update(kw)
+    return upsert_apartment(conn, **base)
+
+
+def test_migrate_is_idempotent_and_adds_columns(conn):
+    migrate(conn)
+    migrate(conn)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(apartments)")}
+    assert {"apt_seq", "household_count"} <= cols
+    assert conn.execute("select succeeded_by from regions where code='28260'").fetchone()[0] == "28275,28290"
+    assert conn.execute("select count(*) from regions").fetchone()[0] == 88
+    assert conn.execute("select district_name from regions where code='41590'").fetchone()[0] == "(폐지) 화성"
+
+
+def test_migrate_on_production_shape():
+    c = sqlite3.connect(":memory:")
+    c.executescript("""
+        CREATE TABLE apartments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+            lawd_cd TEXT NOT NULL, dong TEXT, jibun TEXT, build_year INT,
+            UNIQUE(name, lawd_cd, dong, jibun));
+        CREATE TABLE regions (code TEXT PRIMARY KEY, city_name TEXT, district_name TEXT);
+        INSERT INTO regions VALUES ('11680', '서울', '강남구');
+        INSERT INTO apartments(name, lawd_cd, dong, jibun) VALUES ('a', '11680', 'd', '1');
+    """)
+    migrate(c)
+    assert "succeeded_by" in {r[1] for r in c.execute("PRAGMA table_info(regions)")}
+    assert c.execute("select count(*) from regions").fetchone()[0] == 88
+    assert c.execute("select count(*) from apartments").fetchone()[0] == 1
+
+
+def test_upsert_matches_by_apt_seq_then_address(conn):
+    a = apt(conn)
+    b = apt(conn, apt_seq=None)
+    c = apt(conn, name="다른이름", jibun="2")
+    assert a == b == c
+
+
+def test_upsert_fills_missing_apt_seq(conn):
+    a = apt(conn, apt_seq=None)
+    assert apt(conn) == a
+    assert conn.execute("select apt_seq from apartments where id=?", (a,)).fetchone()[0] == "11680-1"
+
+
+def test_upsert_old_incheon_code_merges_into_new(conn):
+    old = apt(conn, name="청라X", lawd_cd="28260", dong="청라동", jibun="5", apt_seq=None)
+    new = apt(conn, name="청라X", lawd_cd="28275", dong="청라동", jibun="5", apt_seq="28275-9")
+    assert old == new
+    assert tuple(conn.execute("select lawd_cd, apt_seq from apartments where id=?", (old,)).fetchone()) == ("28275", "28275-9")
+
+
+def test_insert_trade_dedup_and_cancel_marks_changed(conn):
+    a = apt(conn)
+    assert insert_trade(conn, a, trade()) is True
+    assert pop_changed(conn) == [a]
+    assert insert_trade(conn, a, trade()) is False
+    assert pop_changed(conn) == []
+    assert insert_trade(conn, a, trade(cancel_date="2026-09-20")) is True
+    assert pop_changed(conn) == [a]
+    row = conn.execute("select cancel_date, is_canceled from transactions").fetchone()
+    assert tuple(row) == ("2026-09-20", 1)
+    assert conn.execute("select count(*) from transactions").fetchone()[0] == 1
+    assert insert_trade(conn, a, trade(cancel_date="2026-09-20")) is False
+
+
+def test_insert_rent_dedup(conn):
+    a = apt(conn)
+    assert insert_rent(conn, a, rent()) is True
+    assert insert_rent(conn, a, rent()) is False
+    assert insert_rent(conn, a, rent(monthly_rent=120)) is True
+    assert conn.execute("select count(*) from rents").fetchone()[0] == 2
+    assert pop_changed(conn) == [a]
+
+
+def test_pop_changed_sorted_and_clears(conn):
+    mark_changed(conn, [5, 3, 5, 9])
+    assert pop_changed(conn) == [3, 5, 9]
+    assert pop_changed(conn) == []
+
+
+def test_connect_uses_row_factory(tmp_path):
+    c = connect(str(tmp_path / "x.db"))
+    assert c.execute("pragma journal_mode").fetchone()[0] == "wal"
+    assert c.execute("select 1 as a").fetchone()["a"] == 1

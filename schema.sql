@@ -57,3 +57,39 @@ CREATE VIRTUAL TABLE apartments_fts USING fts5(
 
 -- FTS 인덱스 초기 데이터 삽입 (테이블 생성 후 실행)
 -- INSERT INTO apartments_fts(rowid, name, dong) SELECT id, name, dong FROM apartments;
+
+-- ============================================================
+-- 1단계 재구축 추가분 (pipeline/db.py migrate()가 멱등으로 적용)
+-- ============================================================
+-- regions.succeeded_by TEXT  : 폐지 코드의 후속 코드들을 쉼표로 연결 ("28275,28290"). 83개 + 폐지 5개 = 88행
+-- apartments.apt_seq TEXT    : 국토부 단지 일련번호 (매칭 1순위)
+-- apartments.household_count INT
+CREATE UNIQUE INDEX IF NOT EXISTS idx_apt_seq ON apartments(apt_seq) WHERE apt_seq IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS rents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    apt_id INT REFERENCES apartments(id),
+    deposit INT NOT NULL,            -- 보증금(만원)
+    monthly_rent INT NOT NULL,       -- 월세(만원), 전세는 0
+    area REAL NOT NULL,
+    floor INT,
+    deal_date TEXT NOT NULL,
+    contract_type TEXT,
+    contract_term TEXT,
+    use_rr_right INT,
+    pre_deposit INT,
+    pre_monthly_rent INT,
+    unique_hash TEXT UNIQUE,         -- md5("R|이름|층|면적|일자|보증금|월세")
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS apartment_aliases (
+    old_id INTEGER PRIMARY KEY,
+    canonical_id INT NOT NULL
+);
+
+-- 이번 수집으로 바뀐 단지 (인사이트 재계산 대상). pop_changed()가 읽고 비운다.
+CREATE TABLE IF NOT EXISTS changed_apartments (
+    apt_id INTEGER PRIMARY KEY,
+    changed_at TEXT
+);
