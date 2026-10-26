@@ -38,6 +38,12 @@ describe("DealList", () => {
     render(<DealList transactions={many} area={59} />);
     expect(screen.getByText("70건")).toBeInTheDocument();
     expect(rows()).toHaveLength(50);
+    rows().forEach((r) => expect(r).toHaveTextContent("전용 18.1평"));
+  });
+
+  test("㎡ 모드: 실제 면적을 ㎡로", () => {
+    localStorage.setItem("areaUnit", "m2");
+    render(<DealList transactions={many} area={59} />);
     rows().forEach((r) => expect(r).toHaveTextContent("59.9㎡"));
   });
 
@@ -98,7 +104,7 @@ describe("DealList", () => {
 
     await userEvent.click(screen.getByRole("row", { name: /84㎡/ }));
     expect(rows()).toHaveLength(50);
-    rows().forEach((r) => expect(r).toHaveTextContent("84.2㎡"));
+    rows().forEach((r) => expect(r).toHaveTextContent("전용 25.5평"));
     await userEvent.click(screen.getByRole("button", { name: /더 보기/ }));
     expect(rows()).toHaveLength(80);
   });

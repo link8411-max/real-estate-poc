@@ -20,12 +20,18 @@ const stat = (area: number, latest: number, max: number, count: number): AreaSta
 const stats = [stat(60, 30000, 45000, 603), stat(84, 38500, 58800, 1289), stat(122, 52000, 70000, 191)];
 
 describe("AreaStatsTable", () => {
-  test("면적·평·금액을 표시한다", () => {
+  test("기본(평): 전용 평 (㎡)·금액을 표시한다", () => {
     render(<AreaStatsTable stats={stats} selected={null} onSelect={() => {}} />);
-    const row = screen.getByRole("row", { name: /84㎡ \(전용 25평\)/ });
+    const row = screen.getByRole("row", { name: /전용 25평 \(84㎡\)/ });
     expect(within(row).getByText("3억 8,500")).toBeInTheDocument();
     expect(within(row).getByText("5억 8,800")).toBeInTheDocument();
     expect(within(row).getByText("1,289건")).toBeInTheDocument();
+  });
+
+  test("㎡ 모드: 84㎡ (전용 25평)", () => {
+    localStorage.setItem("areaUnit", "m2");
+    render(<AreaStatsTable stats={stats} selected={null} onSelect={() => {}} />);
+    expect(screen.getByRole("row", { name: /84㎡ \(전용 25평\)/ })).toBeInTheDocument();
   });
 
   test("행 클릭 시 평형 선택", async () => {

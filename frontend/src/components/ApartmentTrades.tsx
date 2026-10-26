@@ -4,15 +4,17 @@ import { useMemo, useState } from "react";
 import AreaStatsTable from "@/components/AreaStatsTable";
 import DealList from "@/components/DealList";
 import PriceChart from "@/components/PriceChart";
+import { useAreaUnit } from "@/lib/areaUnit";
 import { formatArea } from "@/lib/format";
 import { monthlyHistory } from "@/lib/history";
 import type { AreaStat, Transaction } from "@/lib/types";
 
 /** 상세 페이지의 평형 선택 → 차트·거래목록 연동 */
 export default function ApartmentTrades({ stats, transactions }: { stats: AreaStat[]; transactions: Transaction[] }) {
+  const [unit] = useAreaUnit();
   const [area, setArea] = useState<number | null>(null);
   const history = useMemo(() => monthlyHistory(transactions, { area, valueKey: "amount" }), [transactions, area]);
-  const scope = area == null ? "전체 평형" : formatArea(area);
+  const scope = area == null ? "전체 평형" : formatArea(area, unit);
 
   return (
     <div className="space-y-4">

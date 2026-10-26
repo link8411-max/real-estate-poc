@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { LoadMoreButton, useLoadMore } from "@/components/LoadMore";
 import PriceChart from "@/components/PriceChart";
 import SelectableRow from "@/components/SelectableRow";
-import { areaGroup, formatArea, formatDeal, formatManwon } from "@/lib/format";
+import { useAreaUnit } from "@/lib/areaUnit";
+import { areaGroup, formatArea, formatDeal, formatExactArea, formatManwon } from "@/lib/format";
 import { monthlyHistory } from "@/lib/history";
 import type { AptRent, Rent } from "@/lib/types";
 
@@ -23,6 +24,7 @@ function AreaTable({ rows, avg, tab, selected, onSelect }: {
   selected: number | null;
   onSelect: (area: number | null) => void;
 }) {
+  const [unit] = useAreaUnit();
   const groups = useMemo(() => {
     const by = new Map<number, Rent[]>();
     for (const r of rows) by.set(areaGroup(r.area), [...(by.get(areaGroup(r.area)) ?? []), r]);
@@ -49,7 +51,7 @@ function AreaTable({ rows, avg, tab, selected, onSelect }: {
             const a = avg.get(area);
             return (
               <SelectableRow key={area} selected={isSelected} onSelect={toggle}>
-                <td className={`py-3 pr-3 font-semibold ${isSelected ? "text-blue-700" : "text-gray-900"}`}>{formatArea(area)}</td>
+                <td className={`py-3 pr-3 font-semibold ${isSelected ? "text-blue-700" : "text-gray-900"}`}>{formatArea(area, unit)}</td>
                 <td className="py-3 pr-3 text-right">
                   <span className="font-semibold text-gray-900">{priceLabel(latest.deposit, latest.monthly_rent)}</span>
                   <span className="ml-1 text-xs text-gray-400">{formatDeal(latest.deal_date)}</span>
@@ -68,6 +70,7 @@ function AreaTable({ rows, avg, tab, selected, onSelect }: {
 }
 
 function RentList({ rows, resetKey }: { rows: Rent[]; resetKey: string }) {
+  const [unit] = useAreaUnit();
   const { count, hasMore, showMore, buttonRef } = useLoadMore(rows.length, resetKey);
   if (rows.length === 0) return <p className="py-8 text-center text-sm text-gray-500">거래 내역이 없습니다</p>;
 
@@ -79,7 +82,7 @@ function RentList({ rows, resetKey }: { rows: Rent[]; resetKey: string }) {
           <li key={r.id} className="flex items-center justify-between gap-2 border-b border-gray-100 py-3 last:border-b-0">
             <div className="flex items-center gap-3 text-sm">
               <span className="w-16 text-gray-500">{formatDeal(r.deal_date)}</span>
-              <span className="text-gray-700">{+r.area.toFixed(2)}㎡</span>
+              <span className="text-gray-700">{formatExactArea(r.area, unit)}</span>
               {r.floor != null && <span className="text-gray-400">{r.floor}층</span>}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -100,6 +103,7 @@ function RentList({ rows, resetKey }: { rows: Rent[]; resetKey: string }) {
 
 /** 단지 상세의 전세·월세 탭 본문: 평형표 → 보증금 추이 → 거래 목록 */
 export default function RentSection({ rent, tab }: { rent: AptRent; tab: Tab }) {
+  const [unit] = useAreaUnit();
   const [sel, setSel] = useState<{ tab: Tab; area: number | null }>({ tab, area: null });
   const area = sel.tab === tab ? sel.area : null; // 탭이 바뀌면 선택 해제
 
@@ -110,7 +114,7 @@ export default function RentSection({ rent, tab }: { rent: AptRent; tab: Tab }) 
   const avg = useMemo(() => new Map(rent.rent_area_stats.map((s) => [s.area, s.recent_jeonse_avg])), [rent.rent_area_stats]);
   const history = useMemo(() => monthlyHistory(rows, { area, valueKey: "deposit" }), [rows, area]);
   const shown = useMemo(() => (area == null ? rows : rows.filter((r) => areaGroup(r.area) === area)), [rows, area]);
-  const scope = area == null ? "전체 평형" : formatArea(area);
+  const scope = area == null ? "전체 평형" : formatArea(area, unit);
   const label = tab === "jeonse" ? "전세" : "월세";
 
   return (

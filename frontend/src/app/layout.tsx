@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AreaUnitToggle from "@/components/AreaUnitToggle";
 import "./globals.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sudogwon.com";
@@ -30,13 +31,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Link href="/" className="text-lg font-bold text-gray-900">
               수도권 실거래가
             </Link>
-            <nav className="flex items-center gap-4 text-sm">
-              {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className="text-gray-600 hover:text-gray-900">
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
+            <div className="flex items-center gap-4">
+              <nav className="flex items-center gap-4 text-sm">
+                {NAV.map((n) => (
+                  <Link key={n.href} href={n.href} className="text-gray-600 hover:text-gray-900">
+                    {n.label}
+                  </Link>
+                ))}
+              </nav>
+              <AreaUnitToggle />
+            </div>
           </div>
         </header>
         {children}

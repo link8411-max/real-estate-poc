@@ -1,6 +1,7 @@
 "use client";
 
 import SelectableRow from "@/components/SelectableRow";
+import { useAreaUnit } from "@/lib/areaUnit";
 import { formatArea, formatDeal, formatManwon } from "@/lib/format";
 import type { AreaStat } from "@/lib/types";
 
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function AreaStatsTable({ stats, selected, onSelect }: Props) {
+  const [unit] = useAreaUnit();
   const toggle = (area: number) => onSelect(selected === area ? null : area);
 
   return (
@@ -37,7 +39,7 @@ export default function AreaStatsTable({ stats, selected, onSelect }: Props) {
             return (
               <SelectableRow key={s.area} selected={isSelected} onSelect={() => toggle(s.area)}>
                 <td className={`py-3 pr-3 font-semibold ${isSelected ? "text-blue-700" : "text-gray-900"}`}>
-                  {formatArea(s.area)}
+                  {formatArea(s.area, unit)}
                 </td>
                 <td className="py-3 pr-3 text-right">
                   <span className="font-semibold text-gray-900">{formatManwon(s.latest_amount)}</span>

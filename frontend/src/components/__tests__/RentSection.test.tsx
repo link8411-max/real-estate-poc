@@ -52,10 +52,22 @@ describe("RentSection", () => {
   test("전세 평형표: 전세 거래가 있는 평형만, 3개월 평균 포함", () => {
     render(<RentSection rent={mixed} tab="jeonse" />);
     const table = screen.getByRole("table");
-    expect(within(table).getByText("84㎡ (전용 25평)")).toBeInTheDocument();
+    expect(within(table).getByText("전용 25평 (84㎡)")).toBeInTheDocument();
     expect(within(table).queryByText(/^59㎡/)).not.toBeInTheDocument();
     expect(within(table).getByText("5억 2,000")).toBeInTheDocument();
     expect(within(table).getByText("2건")).toBeInTheDocument();
+  });
+
+  test("기본(평): 거래 목록은 실제 면적을 평으로", () => {
+    render(<RentSection rent={mixed} tab="jeonse" />);
+    expect(items()[0]).toHaveTextContent("전용 25.5평");
+  });
+
+  test("㎡ 모드: 평형표와 거래 목록이 ㎡", () => {
+    localStorage.setItem("areaUnit", "m2");
+    render(<RentSection rent={mixed} tab="jeonse" />);
+    expect(within(screen.getByRole("table")).getByText("84㎡ (전용 25평)")).toBeInTheDocument();
+    expect(items()[0]).toHaveTextContent("84.2㎡");
   });
 
   test("월세 탭은 보증금 / 월세 형식", () => {
@@ -64,7 +76,7 @@ describe("RentSection", () => {
     expect(within(items()[0]).getByText("2억 / 100")).toBeInTheDocument();
     const table = screen.getByRole("table");
     expect(within(table).getByText("1억 / 150")).toBeInTheDocument();
-    expect(within(table).getByText("59㎡ (전용 18평)")).toBeInTheDocument();
+    expect(within(table).getByText("전용 18평 (59㎡)")).toBeInTheDocument();
   });
 
   test("갱신·갱신요구권·이전 보증금 표시", () => {

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { type AreaUnit, useAreaUnit } from "@/lib/areaUnit";
 import { formatArea, formatManwon } from "@/lib/format";
 import type { AptTrade, AreaStat } from "@/lib/types";
 
@@ -11,10 +14,10 @@ const mainArea = (d: AptTrade): AreaStat | undefined =>
 const won = (n: number | null | undefined) => (n == null ? DASH : formatManwon(n));
 const pct = (n: number | undefined) => (n == null ? DASH : `${Math.round(n)}%`);
 
-const ROWS: [string, (d: AptTrade, s: AreaStat | undefined) => string][] = [
+const ROWS: [string, (d: AptTrade, s: AreaStat | undefined, unit: AreaUnit) => string][] = [
   ["지역", (d) => `${d.apartment.region_name} ${d.apartment.dong}`],
   ["준공", (d) => (d.apartment.build_year == null ? DASH : `${d.apartment.build_year}년`)],
-  ["대표 평형", (_, s) => (s ? formatArea(s.area) : DASH)],
+  ["대표 평형", (_, s, unit) => (s ? formatArea(s.area, unit) : DASH)],
   ["최근 실거래", (_, s) => won(s?.latest_amount)],
   ["최고가", (_, s) => won(s?.max_amount)],
   ["최근 1년 평균", (_, s) => won(s?.recent_avg)],
@@ -24,6 +27,7 @@ const ROWS: [string, (d: AptTrade, s: AreaStat | undefined) => string][] = [
 ];
 
 export default function CompareTable({ items }: { items: AptTrade[] }) {
+  const [unit] = useAreaUnit();
   const mains = items.map(mainArea);
   return (
     <div className="overflow-x-auto">
@@ -47,7 +51,7 @@ export default function CompareTable({ items }: { items: AptTrade[] }) {
                 {label}
               </th>
               {items.map((d, i) => {
-                const v = get(d, mains[i]);
+                const v = get(d, mains[i], unit);
                 return (
                   <td key={d.apartment.id} className={`px-2 py-3 ${v === DASH ? "text-gray-400" : "text-gray-900"}`}>
                     {v}

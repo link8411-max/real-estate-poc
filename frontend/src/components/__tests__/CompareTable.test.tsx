@@ -54,9 +54,15 @@ describe("CompareTable", () => {
     expect(screen.getByRole("link", { name: "빈 단지" })).toHaveAttribute("href", "/apartment/2");
   });
 
-  test("대표 평형(거래 최다) 기준 값과 지표", () => {
+  test("㎡ 모드의 대표 평형", () => {
+    localStorage.setItem("areaUnit", "m2");
     render(<CompareTable items={[full, empty]} />);
     expect(rowValues("대표 평형")).toEqual(["85㎡ (전용 26평)", "—"]);
+  });
+
+  test("대표 평형(거래 최다) 기준 값과 지표", () => {
+    render(<CompareTable items={[full, empty]} />);
+    expect(rowValues("대표 평형")).toEqual(["전용 26평 (85㎡)", "—"]);
     expect(rowValues("최근 실거래")).toEqual(["24억 5,000", "—"]);
     expect(rowValues("최고가")).toEqual(["27억", "—"]);
     expect(rowValues("최근 1년 평균")).toEqual(["24억", "—"]);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { areaToPyeong, formatArea, formatDeal, formatManwon, formatPrice } from "@/lib/format";
+import { areaToPyeong, formatArea, formatExactArea, formatDeal, formatManwon, formatPrice } from "@/lib/format";
 
 describe("formatManwon", () => {
   test("억 단위", () => {
@@ -28,10 +28,27 @@ test("formatDeal", () => {
 });
 
 describe("formatArea", () => {
-  test("버림 ㎡ + 전용 평 (평형 그룹과 같은 기준)", () => {
-    expect(formatArea(84)).toBe("84㎡ (전용 25평)");
-    expect(formatArea(84.88)).toBe("84㎡ (전용 25평)");
-    expect(formatArea(59.53)).toBe("59㎡ (전용 18평)");
+  test("기본은 평: 전용 평 (㎡), 평형 그룹(버림) 기준", () => {
+    expect(formatArea(84)).toBe("전용 25평 (84㎡)");
+    expect(formatArea(84.88)).toBe("전용 25평 (84㎡)");
+    expect(formatArea(59.53, "pyeong")).toBe("전용 18평 (59㎡)");
+  });
+  test("㎡ 모드: 기존 형식", () => {
+    expect(formatArea(84, "m2")).toBe("84㎡ (전용 25평)");
+    expect(formatArea(84.88, "m2")).toBe("84㎡ (전용 25평)");
+    expect(formatArea(59.53, "m2")).toBe("59㎡ (전용 18평)");
+  });
+});
+
+describe("formatExactArea", () => {
+  test("평: 소수 1자리", () => {
+    expect(formatExactArea(80.87, "pyeong")).toBe("전용 24.5평");
+    expect(formatExactArea(80.87)).toBe("전용 24.5평");
+  });
+  test("㎡: 소수 2자리까지, 끝 0 제거", () => {
+    expect(formatExactArea(80.87, "m2")).toBe("80.87㎡");
+    expect(formatExactArea(84.2, "m2")).toBe("84.2㎡");
+    expect(formatExactArea(84, "m2")).toBe("84㎡");
   });
 });
 
