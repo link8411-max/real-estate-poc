@@ -67,3 +67,30 @@ def candidate_codes(code: str) -> list[str]:
 def city_of(code: str) -> str:
     """법정동 코드 앞 2자리로 시/도 표시명을 반환한다."""
     return CITY_OF[code[:2]]
+
+
+def _build_fullnames() -> dict[str, str]:
+    """REGIONS 짧은 이름 -> 카카오 검색용 전체 이름("경기 성남시 분당구")."""
+    split_cities = ["수원", "성남", "안양", "부천", "안산", "고양", "용인", "화성"]
+    gun = {"연천", "가평", "양평"}
+    out: dict[str, str] = {}
+    for code, short in REGIONS.items():
+        city = city_of(code)
+        if city == "서울":
+            name = short
+        elif city == "인천":
+            name = short if short.endswith(("구", "군")) else short + "구"
+        else:
+            prefix = next((c for c in split_cities if short.startswith(c)), None)
+            if prefix and short != prefix:
+                name = f"{prefix}시 {short[len(prefix):]}구"
+            elif short in gun:
+                name = short + "군"
+            else:
+                name = short + "시"
+        out[code] = f"{city} {name}"
+    return out
+
+
+# 카카오 주소검색 질의 접두 (예: "11680" -> "서울 강남구")
+REGION_FULLNAME: dict[str, str] = _build_fullnames()

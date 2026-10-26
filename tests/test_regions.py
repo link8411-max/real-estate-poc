@@ -22,3 +22,12 @@ def test_predecessors_and_candidates():
 
 def test_city_of():
     assert city_of("11680") == "서울" and city_of("41135") == "경기" and city_of("28290") == "인천"
+
+
+def test_region_fullname_covers_all_regions_with_city_prefix():
+    from pipeline.regions import REGION_FULLNAME
+    assert set(REGION_FULLNAME) == set(REGIONS)
+    for code, full in REGION_FULLNAME.items():
+        assert full.startswith(city_of(code) + " ")
+    assert REGION_FULLNAME["41135"] == "경기 성남시 분당구"
+    assert REGION_FULLNAME["28710"] == "인천 강화군"
