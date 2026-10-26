@@ -2,7 +2,11 @@ const KEY = "compare_ids";
 export const MAX_COMPARE = 2;
 
 function write(ids: number[]): number[] {
-  localStorage.setItem(KEY, JSON.stringify(ids));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(ids));
+  } catch {
+    // 저장 불가(사파리 개인 모드, 용량 초과 등): 이번 화면에서만 반영된다
+  }
   return ids;
 }
 

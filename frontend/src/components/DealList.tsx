@@ -2,20 +2,20 @@
 
 import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatDeal, formatManwon } from "@/lib/format";
+import { areaGroup, formatDeal, formatManwon } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 
 export const PAGE_SIZE = 50;
 
 interface Props {
   transactions: Transaction[];
-  /** 반올림 면적(평형 그룹). null이면 전체. */
+  /** 평형 그룹(버림 면적). null이면 전체. */
   area: number | null;
 }
 
 export default function DealList({ transactions, area }: Props) {
   const filtered = useMemo(
-    () => (area == null ? transactions : transactions.filter((t) => Math.round(t.area) === area)),
+    () => (area == null ? transactions : transactions.filter((t) => areaGroup(t.area) === area)),
     [transactions, area],
   );
 
@@ -23,6 +23,7 @@ export default function DealList({ transactions, area }: Props) {
   const [shown, setShown] = useState({ area, count: PAGE_SIZE });
   const count = shown.area === area ? shown.count : PAGE_SIZE;
   const hasMore = count < filtered.length;
+  const cancelledCount = filtered.filter((t) => t.cancel_date != null).length;
   const showMore = () =>
     setShown((s) => ({ area, count: (s.area === area ? s.count : PAGE_SIZE) + PAGE_SIZE }));
 
@@ -42,7 +43,10 @@ export default function DealList({ transactions, area }: Props) {
 
   return (
     <div>
-      <p className="mb-2 text-xs text-gray-500">{filtered.length.toLocaleString("en-US")}건</p>
+      <p className="mb-2 text-xs text-gray-500">
+        {`${filtered.length.toLocaleString("en-US")}건`}
+        {cancelledCount > 0 && ` (취소 ${cancelledCount.toLocaleString("en-US")}건 포함)`}
+      </p>
       <ul>
         {filtered.slice(0, count).map((t) => {
           const cancelled = t.cancel_date != null;

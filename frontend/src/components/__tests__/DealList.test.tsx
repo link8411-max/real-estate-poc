@@ -34,11 +34,26 @@ describe("DealList", () => {
     expect(screen.queryByRole("button", { name: /더 보기/ })).not.toBeInTheDocument();
   });
 
-  test("선택 평형(반올림 면적)만 보여준다", () => {
-    render(<DealList transactions={many} area={60} />);
+  test("선택 평형(버림 면적)만 보여준다", () => {
+    render(<DealList transactions={many} area={59} />);
     expect(screen.getByText("70건")).toBeInTheDocument();
     expect(rows()).toHaveLength(50);
     rows().forEach((r) => expect(r).toHaveTextContent("59.9㎡"));
+  });
+
+  test("59.53㎡와 59.4㎡는 같은 59 평형", () => {
+    render(<DealList transactions={[tx(1, 59.53), tx(2, 59.4), tx(3, 60.2)]} area={59} />);
+    expect(rows()).toHaveLength(2);
+  });
+
+  test("취소 거래가 있으면 건수에 포함 사실을 밝힌다", () => {
+    render(<DealList transactions={[tx(1, 81.2, 61000, "2026-02-01"), tx(2, 81.2), tx(3, 81.5)]} area={81} />);
+    expect(screen.getByText("3건 (취소 1건 포함)")).toBeInTheDocument();
+  });
+
+  test("취소 거래가 없으면 건수만", () => {
+    render(<DealList transactions={[tx(1, 81.2), tx(2, 81.5)]} area={81} />);
+    expect(screen.getByText("2건")).toBeInTheDocument();
   });
 
   test("취소 거래는 취소선과 취소 뱃지", () => {

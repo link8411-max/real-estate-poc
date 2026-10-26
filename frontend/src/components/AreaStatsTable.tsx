@@ -24,6 +24,13 @@ export default function AreaStatsTable({ stats, selected, onSelect }: Props) {
           </tr>
         </thead>
         <tbody>
+          {stats.length === 0 && (
+            <tr>
+              <td colSpan={4} className="py-8 text-center text-gray-500">
+                거래 내역이 없습니다
+              </td>
+            </tr>
+          )}
           {stats.map((s) => {
             const isSelected = selected === s.area;
             return (

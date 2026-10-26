@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { fetchAptTrade } from "@/lib/data";
-import { formatPrice } from "@/lib/format";
+import { areaGroup, formatPrice } from "@/lib/format";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `${apt.name} 실거래가`;
   const description = [
     `${apt.region_name} ${apt.dong} ${apt.name}`,
-    latest && `최근 거래 ${formatPrice(latest.amount)} (${Math.round(latest.area)}㎡, ${latest.deal_date})`,
+    latest && `최근 거래 ${formatPrice(latest.amount)} (${areaGroup(latest.area)}㎡, ${latest.deal_date})`,
     apt.build_year && `${apt.build_year}년 준공`,
   ]
     .filter(Boolean)

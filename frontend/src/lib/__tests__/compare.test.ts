@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { clearCompare, getCompareIds, toggleCompare } from "../compare";
 
 describe("compare", () => {
@@ -33,5 +33,15 @@ describe("compare", () => {
     expect(getCompareIds()).toEqual([]);
     localStorage.setItem("compare_ids", JSON.stringify(["x", 5, 6, 7]));
     expect(getCompareIds()).toEqual([6, 7]);
+  });
+});
+
+describe("compare 저장 실패", () => {
+  test("localStorage.setItem이 던져도 toggleCompare는 새 목록을 돌려준다", () => {
+    const spy = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    expect(toggleCompare(7)).toEqual([7]);
+    spy.mockRestore();
   });
 });

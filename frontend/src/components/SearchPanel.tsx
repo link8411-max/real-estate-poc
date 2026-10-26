@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import SearchBox from "@/components/SearchBox";
 import { fetchSearchIndex } from "@/lib/data";
+import { districtLabel } from "@/lib/regions";
 import { searchIndex } from "@/lib/search";
 import type { SearchIndexRow } from "@/lib/types";
 
@@ -48,7 +49,7 @@ export default function SearchPanel() {
           <p className="py-10 text-center text-sm text-gray-500">&lsquo;{deferred.trim()}&rsquo; 검색 결과가 없습니다</p>
         ) : (
           <ul className="space-y-2">
-            {results.map(([id, name, dong, , buildYear]) => (
+            {results.map(([id, name, dong, lawdCd, buildYear]) => (
               <li key={id}>
                 <Link
                   href={`/apartment/${id}`}
@@ -59,8 +60,7 @@ export default function SearchPanel() {
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-gray-900">{name}</p>
                       <p className="text-xs text-gray-500">
-                        {dong}
-                        {buildYear ? ` · ${buildYear}년` : ""}
+                        {[districtLabel(lawdCd), dong, buildYear && `${buildYear}년`].filter(Boolean).join(" · ")}
                       </p>
                     </div>
                   </div>

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatManwon } from "@/lib/format";
-import type { MonthPoint } from "@/lib/history";
+import { type MonthPoint, slicePeriod } from "@/lib/history";
 
 const PERIODS = [
   { label: "1년", years: 1 },
@@ -13,14 +13,6 @@ const PERIODS = [
 ] as const;
 
 type Years = (typeof PERIODS)[number]["years"];
-
-/** 마지막 달 기준 N년 이내만 */
-function slicePeriod(data: MonthPoint[], years: Years): MonthPoint[] {
-  if (years == null || data.length === 0) return data;
-  const last = data[data.length - 1].month;
-  const cutoff = `${Number(last.slice(0, 4)) - years}${last.slice(4)}`;
-  return data.filter((d) => d.month > cutoff);
-}
 
 const eok = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)}억` : `${Math.round(v / 1000) / 10}억`);
 
@@ -48,8 +40,8 @@ export default function PriceChart({ data }: { data: MonthPoint[] }) {
       {shown.length === 0 ? (
         <p className="py-16 text-center text-sm text-gray-500">표시할 거래가 없습니다</p>
       ) : (
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-64 w-full min-w-0">
+          <ResponsiveContainer width="100%" height={256} minWidth={0}>
             <ComposedChart data={shown} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
               <CartesianGrid stroke="#F1F5F9" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94A3B8" }} tickLine={false} minTickGap={24} />

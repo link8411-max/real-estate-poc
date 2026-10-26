@@ -28,9 +28,10 @@ test("formatDeal", () => {
 });
 
 describe("formatArea", () => {
-  test("반올림 ㎡ + 평", () => {
-    expect(formatArea(84)).toBe("84㎡ (25평)");
-    expect(formatArea(84.88)).toBe("85㎡ (26평)");
+  test("버림 ㎡ + 전용 평 (평형 그룹과 같은 기준)", () => {
+    expect(formatArea(84)).toBe("84㎡ (전용 25평)");
+    expect(formatArea(84.88)).toBe("84㎡ (전용 25평)");
+    expect(formatArea(59.53)).toBe("59㎡ (전용 18평)");
   });
 });
 

@@ -14,8 +14,14 @@ export const areaToPyeong = (m2: number): number => Math.round(m2 / 3.3058);
 /** "2026-10-06" → "26.10.06" */
 export const formatDeal = (d: string): string => d.slice(2).replaceAll("-", ".");
 
-/** 84 → "84㎡ (25평)" (전용면적 기준 평) */
-export const formatArea = (m2: number): string => `${Math.round(m2)}㎡ (${areaToPyeong(m2)}평)`;
+/** 평형 그룹 키: 전용면적 정수부(버림). 파이프라인의 CAST(area AS INTEGER)와 같다. 59.53, 59.4 → 59 */
+export const areaGroup = (m2: number): number => Math.floor(m2);
+
+/** 84.88 → "84㎡ (전용 25평)" — 평형 그룹 기준으로 표시 */
+export const formatArea = (m2: number): string => {
+  const g = areaGroup(m2);
+  return `${g}㎡ (전용 ${areaToPyeong(g)}평)`;
+};
 
 /** 문장용: 245000 → "24억 5,000만원", 100000 → "10억원" */
 export const formatPrice = (n: number): string =>

@@ -1,6 +1,6 @@
 import { ImageResponse } from "@vercel/og";
 import { fetchAptTrade } from "@/lib/data";
-import { formatPrice } from "@/lib/format";
+import { areaGroup, formatPrice } from "@/lib/format";
 
 export const runtime = "edge";
 
@@ -49,7 +49,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           <div style={{ display: "flex", alignItems: "baseline", marginTop: 24 }}>
             <span style={{ fontSize: 76, fontWeight: 700, color: "#2563EB" }}>{formatPrice(latest.amount)}</span>
             <span style={{ fontSize: 30, color: "#64748B", marginLeft: 24 }}>
-              {Math.round(latest.area)}㎡ · {latest.deal_date}
+              {areaGroup(latest.area)}㎡ · {latest.deal_date}
             </span>
           </div>
         ) : (

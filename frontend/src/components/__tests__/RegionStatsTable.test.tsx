@@ -46,6 +46,12 @@ describe("RegionStatsTable", () => {
     expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
+  test("행은 tbody 안에 있다(하이드레이션 안전)", () => {
+    const { container } = render(<RegionStatsTable regions={regions} sort="name" />);
+    expect(container.querySelectorAll("table > tbody > tr")).toHaveLength(4);
+    expect(container.querySelectorAll("table > tr")).toHaveLength(0);
+  });
+
   test("지역 이름은 탐색 페이지로 연결", () => {
     render(<RegionStatsTable regions={regions} sort="name" />);
     expect(screen.getByRole("link", { name: "강남구" })).toHaveAttribute(

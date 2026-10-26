@@ -56,7 +56,7 @@ describe("CompareTable", () => {
 
   test("대표 평형(거래 최다) 기준 값과 지표", () => {
     render(<CompareTable items={[full, empty]} />);
-    expect(rowValues("대표 평형")).toEqual(["85㎡ (26평)", "—"]);
+    expect(rowValues("대표 평형")).toEqual(["85㎡ (전용 26평)", "—"]);
     expect(rowValues("최근 실거래")).toEqual(["24억 5,000", "—"]);
     expect(rowValues("최고가")).toEqual(["27억", "—"]);
     expect(rowValues("최근 1년 평균")).toEqual(["24억", "—"]);
@@ -65,6 +65,12 @@ describe("CompareTable", () => {
     expect(rowValues("마지막 거래")).toEqual(["12일 전", "—"]);
     expect(rowValues("준공")).toEqual(["2008년", "—"]);
     expect(rowValues("지역")).toEqual(["서울 송파구 잠실동", "서울 송파구 잠실동"]);
+  });
+
+  test("행은 tbody 안에 있다(하이드레이션 안전)", () => {
+    const { container } = render(<CompareTable items={[full, empty]} />);
+    expect(container.querySelectorAll("table > tbody > tr").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll("table > tr")).toHaveLength(0);
   });
 
   test("한 단지만 있어도 렌더링", () => {

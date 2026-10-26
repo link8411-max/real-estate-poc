@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { monthlyHistory } from "../history";
+import { monthlyHistory, slicePeriod } from "../history";
 
 const tx = (amount: number, area: number, deal_date: string, cancel_date: string | null = null) => ({
   id: 0,
@@ -28,9 +28,9 @@ describe("monthlyHistory", () => {
     expect(monthlyHistory(items, { valueKey: "amount" })).toEqual([{ month: "2026-01", avg: 100000, count: 1 }]);
   });
 
-  test("area는 반올림 면적으로 거른다", () => {
-    const items = [tx(100000, 84.9, "2026-01-20"), tx(60000, 59.8, "2026-01-20"), tx(62000, 60.2, "2026-01-21")];
-    expect(monthlyHistory(items, { area: 60, valueKey: "amount" })).toEqual([
+  test("area는 버림 면적으로 거른다: 59.53과 59.4는 같은 59", () => {
+    const items = [tx(100000, 84.9, "2026-01-20"), tx(60000, 59.53, "2026-01-20"), tx(62000, 59.4, "2026-01-21"), tx(1, 60.2, "2026-01-21")];
+    expect(monthlyHistory(items, { area: 59, valueKey: "amount" })).toEqual([
       { month: "2026-01", avg: 61000, count: 2 },
     ]);
   });
@@ -50,5 +50,23 @@ describe("monthlyHistory", () => {
 
   test("빈 입력 → 빈 배열", () => {
     expect(monthlyHistory([], { valueKey: "amount" })).toEqual([]);
+  });
+});
+
+describe("slicePeriod", () => {
+  const months = ["2020-12", "2021-01", "2023-06", "2024-01", "2025-02", "2026-01"].map((month) => ({ month, avg: 1, count: 1 }));
+  const ms = (d: { month: string }[]) => d.map((x) => x.month);
+
+  test("1년: 마지막 달 기준 12개월", () => {
+    expect(ms(slicePeriod(months, 1))).toEqual(["2025-02", "2026-01"]);
+  });
+  test("3년", () => {
+    expect(ms(slicePeriod(months, 3))).toEqual(["2023-06", "2024-01", "2025-02", "2026-01"]);
+  });
+  test("전체(null)는 그대로", () => {
+    expect(slicePeriod(months, null)).toBe(months);
+  });
+  test("빈 배열", () => {
+    expect(slicePeriod([], 1)).toEqual([]);
   });
 });
