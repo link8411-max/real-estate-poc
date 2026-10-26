@@ -414,20 +414,34 @@ test("formatManwon", () => { expect(formatManwon(125000)).toBe("12억 5,000"); e
 
 ---
 
-### Task 13: 기존 페이지를 정적 데이터로 전환
+### Task 13: 페이지 재구축 (기존 페이지 코드는 버리고 새로 만든다)
+
+사용자 지시(10/27): 기존 페이지는 버그가 많으므로 고쳐 쓰지 않고 **새로 만든다.** 페이지 파일은 얇게 두고 로직과 UI는 `components/`·`lib/`의 작은 단위로 쪼개 각각 테스트를 붙인다. 기존 `page.tsx`들은 참고만 하고 코드를 복사하지 않는다.
 
 **Files:**
-- Modify: `frontend/src/app/page.tsx`, `search/page.tsx`, `browse/page.tsx`, `stats/page.tsx`, `compare/page.tsx`, `apartment/[id]/page.tsx`, `apartment/[id]/layout.tsx`, `sitemap.ts`, `api/og/[id]/route.tsx`, `layout.tsx`
+- Rewrite(내용 전부 교체): `frontend/src/app/page.tsx`, `search/page.tsx`, `browse/page.tsx`, `stats/page.tsx`, `compare/page.tsx`, `apartment/[id]/page.tsx`, `apartment/[id]/layout.tsx`, `sitemap.ts`, `api/og/[id]/route.tsx`, `layout.tsx`, `components/PriceChart.tsx`
+- Create: `frontend/src/lib/history.ts`, `frontend/src/lib/compare.ts`(비교 목록 localStorage 읽기/쓰기, 최대 2개), `frontend/src/components/SearchBox.tsx`, `RegionBrowser.tsx`, `ApartmentHeader.tsx`, `InsightBadges.tsx`, `AreaStatsTable.tsx`, `DealList.tsx`(무한스크롤은 클라이언트 슬라이스 50건씩), `CompareTable.tsx`, `RegionStatsTable.tsx`(정렬 6종), `RecentDeals.tsx`
+- Create tests (`frontend/src/**/__tests__/*.test.ts(x)`): `history.test.ts`, `compare.test.ts`, `SearchBox.test.tsx`, `InsightBadges.test.tsx`, `AreaStatsTable.test.tsx`, `DealList.test.tsx`, `RegionStatsTable.test.tsx`, `CompareTable.test.tsx`
 - Delete: `frontend/src/app/monitor/`, `frontend/src/app/perf-test/`
 - Modify: `frontend/.env.local`(`NEXT_PUBLIC_API_URL` 삭제), `robots.ts`(Disallow에서 `/monitor`, `/perf-test` 제거)
 
-**Interfaces:** 모든 `fetch(${API_BASE}/api/...)`를 Task 12 함수로 바꾼다. 매핑: 홈 통계·최근거래 → `fetchStats()`+`fetchMeta()`(최근 거래 6건은 `stats.recent`로 Task 6 `build_stats`에 `recent:[{apt_id,name,region_name,amount,area,deal_date}]` 6건 추가); 검색 → `fetchSearchIndex()`+`searchIndex`; 탐색 → `fetchStats().regions`(시/도별 묶음) + `fetchRegion(code)`; 통계 → `fetchStats()`; 상세 → `fetchAptTrade(id)` 한 번(거래 목록 무한스크롤은 클라이언트 슬라이스, 차트 데이터는 `transactions`를 월별로 묶어 PriceChart에 전달 — `lib/history.ts`에 `monthlyHistory(transactions, area?)` 추가 + 단위 테스트 1개); 비교 → `fetchAptTrade` 2번; 메타·OG·sitemap → `fetchAptTrade`/`fetchSearchIndex`.
+**Interfaces:**
+- 데이터는 전부 Task 12 함수로. 홈 최근 거래 6건은 `stats.recent`(Task 6 `build_stats`의 `recent:[{apt_id,name,region_name,amount,area,deal_date}]` 6건).
+- `history.ts`: `monthlyHistory(items, {area?, valueKey:"amount"|"deposit"}) -> {month:"YYYY-MM", avg, count}[]` — 취소 거래 제외, 오름차순.
+- `compare.ts`: `getCompareIds(): number[]`, `toggleCompare(id): number[]`(2개 초과면 가장 오래된 것 제거), `clearCompare()`.
+- `InsightBadges({metrics})`: `bargain_percent ≤ -5` → "급매", `recovery_rate < 80` → "전고점 대비 -N%", `days_since_last_tx ≥ 180` → "거래 없음 N일", `jeonse_ratio` 있으면 "전세가율 N%". 없으면 아무것도 렌더링하지 않는다.
+- `AreaStatsTable({stats, selected, onSelect})`: 행 클릭 시 평형 선택(토글). 금액은 `formatManwon`, 면적은 "84㎡ (34평)".
+- `DealList({transactions, area})`: 선택 평형 필터, 취소 거래는 취소선 + "취소" 뱃지, 50건씩 더 보기(IntersectionObserver).
+- `RegionStatsTable({regions, sort})`: 정렬 키 `name|avg_desc|avg_asc|count_desc|count_asc|yoy_desc|yoy_asc`.
+- 컴포넌트 테스트는 `@testing-library/react` + `jsdom`으로 렌더링 결과와 상호작용(클릭 후 상태)을 확인한다. 기존 디자인(Tailwind, lucide 아이콘, 카드 레이아웃)은 유지하되 코드는 새로 쓴다.
 
-- [ ] **Step 1: `lib/history.ts` 테스트와 구현** — `monthlyHistory([...])`가 `[{month:"2026-10", avg, count}]`를 취소 제외로 반환.
-- [ ] **Step 2: 페이지 전환** — 한 페이지 바꿀 때마다 `npm run dev`로 열어 확인. 삭제 페이지 제거.
-- [ ] **Step 3: 빌드 확인** — `cd frontend && npx tsc --noEmit && npm run build` → 0 errors. `grep -r NEXT_PUBLIC_API_URL src` → 없음.
-- [ ] **Step 4: 브라우저 확인** — `/`, `/search?q=래미안`, `/browse?city=인천`(새 구 4개 보이고 옛 구는 새 구 아래 묶임), `/apartment/<id>`(배지·차트·목록), `/compare`, `/stats` 스크린샷.
-- [ ] **Step 5: Commit** — `git commit -m "feat(web): 페이지 데이터 소스를 R2 정적 JSON으로 전환, 모니터/성능 페이지 삭제"`
+- [ ] **Step 1: 테스트 환경** — `npm i -D @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom`, `vitest.config.ts`에 `environment: "jsdom"`, `setupFiles`. 빈 컴포넌트 테스트 하나로 환경 동작 확인.
+- [ ] **Step 2: `history.ts`, `compare.ts` 테스트 → 구현**
+- [ ] **Step 3: 컴포넌트별로 "테스트 작성 → 실패 확인 → 구현 → 통과" 반복** — 위 8개 테스트 파일 순서대로.
+- [ ] **Step 4: 페이지 조립** — 각 `page.tsx`를 컴포넌트 조합으로 새로 작성. 옛 페이지 삭제(monitor, perf-test).
+- [ ] **Step 5: 빌드 확인** — `cd frontend && npm test && npx tsc --noEmit && npm run build` → 모두 통과. `grep -r NEXT_PUBLIC_API_URL src` → 없음.
+- [ ] **Step 6: 브라우저 확인** — `/`, `/search?q=래미안`, `/search?q=ㄹㅁㅇ`, `/browse?city=인천`(새 구 4개, 옛 구는 새 구 아래 묶임), `/apartment/<id>`(배지·차트·평형 선택·목록·취소 표시), `/compare?ids=a,b`, `/stats`(정렬) — 스크린샷, 콘솔 에러 0.
+- [ ] **Step 7: Commit** — `git commit -m "feat(web): 페이지 재구축 (정적 데이터, 컴포넌트 분리, 테스트)"`
 
 ---
 
@@ -439,9 +453,9 @@ test("formatManwon", () => { expect(formatManwon(125000)).toBe("12억 5,000"); e
 
 **Interfaces:** `DealTabs` — `매매 | 전세 | 월세` 세그먼트, URL 쿼리 `?tab=trade|jeonse|wolse`. `RentSection({ rent: AptRent, tab })` — 평형별 카드(`rent_area_stats`), 전세 차트(`monthlyHistory`를 deposit 기준으로 재사용: `lib/history.ts`에 `valueKey` 인자 추가), 목록(계약구분·갱신요구권·이전 보증금 표시). 매매 탭 요약에 `metrics.jeonse_ratio`가 있으면 "전세가율 NN%" 배지.
 
-- [ ] **Step 1: `monthlyHistory` valueKey 테스트 추가 후 구현**
-- [ ] **Step 2: 컴포넌트 구현, 상세 페이지에서 `fetchAptRent`를 병렬 호출**
-- [ ] **Step 3: 확인** — `npx tsc --noEmit`; 브라우저에서 전세·월세 탭, 전월세만 있는 단지(Review Focus 4)에서 매매 탭이 "거래 없음"을 보여주는지.
+- [ ] **Step 1: `RentSection.test.tsx`, `DealTabs.test.tsx` 작성(탭 전환, 전세/월세 분리, 갱신 표시) → 실패 확인 → 구현**
+- [ ] **Step 2: 상세 페이지에서 `fetchAptRent`를 병렬 호출해 조립**
+- [ ] **Step 3: 확인** — `npm test && npx tsc --noEmit`; 브라우저에서 전세·월세 탭, 전월세만 있는 단지(Review Focus 4)에서 매매 탭이 "거래 없음"을 보여주는지.
 - [ ] **Step 4: Commit** — `git commit -m "feat(web): 단지 상세 전월세 탭과 전세가율"`
 
 ---
@@ -476,8 +490,8 @@ test("formatManwon", () => { expect(formatManwon(125000)).toBe("12억 5,000"); e
 
 **Interfaces:** `KakaoMap({ center, level, onIdle(bounds, level) })` — `window.kakao.maps.load` 후 지도 생성, `idle` 이벤트 debounce 300ms. `useMapData(bounds, level, mode, filters)` — `/api/v1/map` 호출, 이전 요청 AbortController로 취소. 마커: 단지 모드는 `CustomOverlay`에 `formatManwon(latest)` 라벨(전세 모드는 보증금), 클릭 → `/apartment/[id]`; 지역 모드는 지역명 + 평균가 원형 오버레이, 클릭 → 그 지역으로 줌(level 6). `FilterPanel` — Task 15 필터 중 가격대·평형·준공·거래종류, 데스크톱은 좌측 패널, 모바일(<768px)은 하단 시트; 상태는 URL 쿼리에 동기화. 초기 center 서울시청 `(37.5665, 126.978)`, level 8.
 
-- [ ] **Step 1: 구현**
-- [ ] **Step 2: 확인** — 브라우저: 줌 8에서 지역 원, 줌 5에서 단지 라벨, 전세 토글, 필터 적용 시 마커 수 변화, 모바일 폭(375px)에서 하단 시트. 콘솔 에러 0.
+- [ ] **Step 1: `FilterPanel.test.tsx`(값 변경이 URL 쿼리에 반영), `useMapData.test.ts`(bounds 변경 시 이전 요청 abort, 응답 type 분기) 작성 → 실패 확인 → 구현.** `KakaoMap`은 SDK 의존이라 테스트하지 않고 `window.kakao` 부재 시 안내 문구만 렌더링하는지 확인.
+- [ ] **Step 2: 확인** — `npm test`; 브라우저: 줌 8에서 지역 원, 줌 5에서 단지 라벨, 전세 토글, 필터 적용 시 마커 수 변화, 모바일 폭(375px)에서 하단 시트. 콘솔 에러 0.
 - [ ] **Step 3: Commit** — `git commit -m "feat(web): 카카오맵 기반 지도 탐색과 필터"`
 
 ---
