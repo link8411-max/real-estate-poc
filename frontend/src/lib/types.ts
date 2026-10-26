@@ -61,7 +61,7 @@ export interface Rent {
   floor: number | null;
   deal_date: string;
   contract_type: string | null;
-  use_rr_right: string | null;
+  use_rr_right: boolean | number | null;
   pre_deposit: number | null;
   pre_monthly_rent: number | null;
 }

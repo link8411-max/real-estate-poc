@@ -16,7 +16,7 @@ type Years = (typeof PERIODS)[number]["years"];
 
 const eok = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)}억` : `${Math.round(v / 1000) / 10}억`);
 
-export default function PriceChart({ data }: { data: MonthPoint[] }) {
+export default function PriceChart({ data, valueLabel = "평균가" }: { data: MonthPoint[]; valueLabel?: string }) {
   const [years, setYears] = useState<Years>(null);
   const shown = useMemo(() => slicePeriod(data, years), [data, years]);
 
@@ -57,7 +57,7 @@ export default function PriceChart({ data }: { data: MonthPoint[] }) {
               <YAxis yAxisId="count" orientation="right" hide allowDecimals={false} />
               <Tooltip
                 formatter={(value, name) =>
-                  name === "avg" ? [formatManwon(Number(value)), "평균가"] : [`${value}건`, "거래"]
+                  name === "avg" ? [formatManwon(Number(value)), valueLabel] : [`${value}건`, "거래"]
                 }
                 labelStyle={{ color: "#1E293B" }}
               />

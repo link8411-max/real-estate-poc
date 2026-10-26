@@ -1,11 +1,9 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import { LoadMoreButton, useLoadMore } from "@/components/LoadMore";
 import { areaGroup, formatDeal, formatManwon } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
-
-export const PAGE_SIZE = 50;
 
 interface Props {
   transactions: Transaction[];
@@ -19,25 +17,8 @@ export default function DealList({ transactions, area }: Props) {
     [transactions, area],
   );
 
-  // 평형이 바뀌면 렌더 중에 표시 개수를 초기화한다(이펙트 없이).
-  const [shown, setShown] = useState({ area, count: PAGE_SIZE });
-  const count = shown.area === area ? shown.count : PAGE_SIZE;
-  const hasMore = count < filtered.length;
+  const { count, hasMore, showMore, buttonRef } = useLoadMore(filtered.length, area);
   const cancelledCount = filtered.filter((t) => t.cancel_date != null).length;
-  const showMore = () =>
-    setShown((s) => ({ area, count: (s.area === area ? s.count : PAGE_SIZE) + PAGE_SIZE }));
-
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    const el = buttonRef.current;
-    if (!el || !hasMore) return;
-    // 버튼이 화면에 들어오면 자동으로 누른다(무한 스크롤).
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) el.click();
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [hasMore, count]);
 
   if (filtered.length === 0) return <p className="py-8 text-center text-sm text-gray-500">거래 내역이 없습니다</p>;
 
@@ -69,17 +50,7 @@ export default function DealList({ transactions, area }: Props) {
           );
         })}
       </ul>
-      {hasMore && (
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={showMore}
-          className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg bg-gray-100 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
-        >
-          더 보기 ({(filtered.length - count).toLocaleString("en-US")}건 남음)
-          <ChevronDown className="h-4 w-4" aria-hidden />
-        </button>
-      )}
+      {hasMore && <LoadMoreButton remaining={filtered.length - count} onClick={showMore} buttonRef={buttonRef} />}
     </div>
   );
 }
