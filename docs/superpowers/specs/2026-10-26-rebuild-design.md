@@ -74,7 +74,7 @@
 - **API는 Next.js Route Handler(Vercel 서버 함수).** 별도 백엔드 프로세스를 두지 않는다. DB를 들고 있지 않으니 콜드스타트가 1초 안이다. `/api/v1/*` 경로에 두고 JSON 응답 계약을 문서화해서 앱이 그대로 쓴다.
 - **지도는 카카오맵 JS SDK.** 국내 지도 품질과 무료 한도가 넉넉하다. 대안(MapLibre + VWorld 타일)은 빌더가 카카오 약관이나 한도에서 문제를 발견하면 바꿔도 된다.
 - **좌표는 카카오 로컬 API로 채운다.** 지번 주소(동 + 지번)가 전 단지에 있다. 남은 5,678개 + 신규 단지. 하루 10만 회 한도 안.
-- **인증은 Supabase Auth. Google 로그인 + 이메일로 시작한다.** (사용자 결정) 카카오 로그인은 카카오가 이메일 제공을 비즈 앱(사업자 등록)에만 허용해서 지금은 못 붙인다. 비즈 앱이 가능해지면 추가하되, 2단계 출시 조건은 아니다. 커뮤니티와 앱에서 같은 계정을 쓴다.
+- **인증은 Supabase Auth. Google 로그인 + 이메일로 시작한다.** (사용자 결정) 카카오 로그인은 카카오가 이메일 제공을 비즈 앱에만 허용해서 지금은 못 붙인다. 카카오 콘솔 확인 결과, 사업자 번호가 없는 개인도 본인인증 + 카카오비즈니스 통합 약관 동의 + 앱 아이콘 등록으로 비즈 앱 전환이 가능하다. 그래도 2단계 출시 조건은 아니고, 사용자가 원할 때 추가한다. 커뮤니티와 앱에서 같은 계정을 쓴다.
 - **웹 푸시(VAPID).** 수집이 끝난 뒤 같은 GitHub Actions 작업이 알림 조건을 평가해서 보낸다. 별도 서버 없음. 안드로이드 Chrome에서 동작. iOS Safari는 홈 화면 설치 후에만 되므로 비목표.
 - **수집은 GitHub Actions 유지.** 하루 3번. 60일 비활성으로 꺼지는 문제는 워크플로가 매 실행마다 레포에 작은 상태 파일을 커밋해서 막는다. (GitHub는 커밋이 있으면 활성으로 본다.)
 - **수집 작업용 원본 SQLite는 유지.** R2에 보관하고 Actions가 내려받아 쓴다. 중복 판정, 백필, 재생성의 기준이다. 서비스는 이 파일을 읽지 않는다.
@@ -117,9 +117,11 @@
 ### 5.1 수집
 - 매매: 기존 `collect_daily.py` 유지. 대상 월 = 이번달·지난달.
 - 전월세: 같은 패턴으로 `RTMSDataSvcAptRent` 수집기 추가. 보증금·월세·계약구분(신규/갱신)·계약기간·갱신요구권 사용·이전 보증금/월세를 저장한다. 동/호는 제공되지 않는다.
-- 단지 매칭: 매매와 전월세는 (lawd_cd, dong, jibun, 단지명)으로 같은 apartments 행에 붙인다. 이름 표기가 다른 경우의 처리(공백·괄호 차이)는 빌더가 정한다. 매칭 실패는 로그로 남기고 새 단지로 만든다.
+- 단지 매칭: **국토부 API가 매매·전월세 모두 `aptSeq`(예: `11680-578`)라는 단지 고유번호를 준다(10/26 실호출로 확인).** 이것을 1차 매칭 키로 쓴다. `apartments`에 `apt_seq` 컬럼을 추가하고, 기존 단지는 백필 때 (lawd_cd, dong, jibun, 단지명)으로 한 번 맞춰 채운다. aptSeq가 비어 있거나 기존 단지와 못 맞춘 경우에만 (lawd_cd, dong, jibun, 단지명) 매칭으로 떨어진다. 매칭 실패는 로그로 남기고 새 단지로 만든다. 인천 개편 지역은 aptSeq 앞 5자리가 새 코드로 바뀌었을 수 있으므로, aptSeq 비교는 뒤쪽 일련번호가 아니라 전체 문자열로 하되 실패 시 주소 매칭으로 떨어진다.
+- 전월세 API 응답 필드(확인): aptNm, aptSeq, buildYear, dealYear/Month/Day, deposit(만원, 쉼표), monthlyRent(만원), excluUseAr, floor, jibun, umdNm, contractType(신규/갱신, 공백 가능), contractTerm, useRRRight(갱신요구권 사용), preDeposit, preMonthlyRent, sggCd. 매매 API도 aptSeq·sggCd·cdealDay·dealingGbn·buyerGbn 등을 준다.
 - 백필: `workflow_dispatch`에 시작월·끝월·종류(매매/전월세) 입력을 받는 수동 실행. 매매 2026-02~08(78×7=546회), 전월세 전 기간(78×약 180개월≈14,000회, 개발계정 한도상 2일에 나눠서).
 - 비활성 방지: 매 실행 끝에 `data/last_run.json`을 커밋한다.
+- **인천 행정구역 개편(2026-07-01) 반영.** 중구+동구 내륙 → 제물포구 `28125`, 영종 → 영종구 `28155`, 서구 남측 → 서해구 `28275`, 서구 북측 → 검단구 `28290`. 옹진군 `28720`과 나머지 6개 구는 그대로. 기존 코드 `28110`(중구)·`28140`(동구)·`28260`(서구)는 2026-07 이후 조회가 비므로 수집 대상에서 빼고 새 코드 4개를 넣는다(지역 수 78 → 79). 2026-07 이후 이 네 구의 매매 데이터는 현재 비어 있으므로 백필 범위에 포함한다. 과거 데이터(옛 코드로 수집된 단지)는 그대로 두되, `regions` 테이블에 `succeeded_by` 컬럼으로 옛 코드 → 새 코드 관계를 적어 지역 탐색에서 옛 구가 새 구 아래에 묶여 보이게 한다. 같은 단지가 옛 코드와 새 코드로 두 번 생기지 않도록, 단지 매칭 키의 lawd_cd는 `succeeded_by`를 따라 새 코드로 정규화한 값을 쓴다. (코드 출처: 카카오 로컬 API 주소 검색 b_code, 10/26 확인.)
 - 좌표: 수집 후 좌표 없는 단지를 카카오 로컬 API로 채우는 단계를 넣는다. 실패한 단지는 `geocode_quality`에 사유를 남기고 지도에서 빼되 목록·검색에는 나온다.
 
 ### 5.2 R2 파일 레이아웃 (공개 읽기, 커스텀 도메인 또는 r2.dev)
@@ -204,9 +206,10 @@
 - GitHub Actions 30분 제한 안에서 전월세 백필을 나누는 방법.
 
 ## 7. 사용자가 해야 할 일 (코드 밖)
-1. data.go.kr에서 **아파트 전월세 실거래가 API 활용신청** (매매 키와 같은 계정). 승인 후 키는 같은 키일 수도, 다를 수도 있다. GitHub Secrets에 `MOLIT_RENT_API_KEY`로 넣는다.
-2. **Supabase 프로젝트 생성**(무료), URL·anon key·service role key를 Vercel 환경변수와 GitHub Secrets에 넣는다.
-3. **Kakao Developers 앱 생성**, JavaScript 키(지도)와 REST API 키(좌표)를 발급받고 Vercel 도메인을 플랫폼에 등록한다. (로그인은 쓰지 않으므로 비즈 앱 전환 불필요.)
+1. ~~아파트 전월세 실거래가 API 활용신청~~ → **완료(10/26, 즉시 승인, 2028-10-26 만료)**. 기존 `MOLIT_API_KEY` 하나로 매매·전월세 둘 다 호출됨을 확인했다(별도 키 불필요). 새 인천 코드 4개도 매매 API에서 데이터가 나오고, 옛 서구 코드 28260은 0건임을 확인했다. 원래 메모: data.go.kr에서 **아파트 전월세 실거래가 API 활용신청** (매매 키와 같은 계정, 네이버 로그인으로 접근 확인됨. 매매 API는 2026-01-20 승인, 2028-01-20 만료). 자동승인이며 개발계정 하루 10,000회. 공공데이터포털은 계정당 인증키 하나를 모든 API에 공통으로 쓰므로 기존 `MOLIT_API_KEY`가 그대로 쓰일 가능성이 높다. 승인 후 확인해서 다르면 `MOLIT_RENT_API_KEY`를 추가한다. 엔드포인트: `https://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent`.
+2. ~~Supabase 프로젝트 생성~~ → **완료(10/26)**: `real-estate`, ref `dytfzufccqsakigehjkx`, 서울 리전. URL과 publishable key는 Vercel 환경변수(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`)와 `frontend/.env.local`에 넣었다. **남은 것:** Supabase 대시보드(GitHub 로그인)에서 service role key를 복사해 `.env`에 `SUPABASE_SERVICE_ROLE_KEY=`로 추가 → `bash scripts/sync_github_secrets.sh` 실행(GitHub Secrets 반영; Claude는 시크릿 쓰기 권한이 없어 사용자가 실행). Vercel에도 `SUPABASE_SERVICE_ROLE_KEY`를 Secret 타입으로 추가(서버 함수용).
+2-1. Vercel 대시보드에 "Enabling Agentic Infrastructure" 약관 변경 안내가 떠 있다. "Improve models with my data" 토글이 기본 ON이므로 끄고 닫는 것을 권한다. (Claude는 약관 동의를 대신 누르지 않았다.)
+3. ~~Kakao Developers 앱 생성~~ → **완료(10/26)**: 기존 앱 `부동산실거래가`(ID 1397022) 재사용. 카카오맵 ON, 무료 쿼터 보유(첫 활성화 앱에만 주어지므로 새 앱을 만들면 안 됨), JS SDK 도메인에 localhost:3000과 Vercel 도메인 등록됨. 키는 `.env`(REST)와 `frontend/.env.local`(JS)에 저장. Vercel 환경변수 등록은 남음.
 3-1. **Google Cloud에서 OAuth 클라이언트 생성**, Supabase Auth의 Google provider에 등록한다.
 4. 1단계 완료 후 **Render 서비스 삭제**.
 5. GitHub Personal Access Token(1월 발급분) 폐기 — 로컬 remote에 박혀 있던 것. 이미 remote에서는 제거했다.
