@@ -13,3 +13,6 @@ export const areaToPyeong = (m2: number): number => Math.round(m2 / 3.3058);
 
 /** "2026-10-06" → "26.10.06" */
 export const formatDeal = (d: string): string => d.slice(2).replaceAll("-", ".");
+
+/** 84 → "84㎡ (25평)" (전용면적 기준 평) */
+export const formatArea = (m2: number): string => `${Math.round(m2)}㎡ (${areaToPyeong(m2)}평)`;

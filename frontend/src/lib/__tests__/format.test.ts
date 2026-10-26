@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { areaToPyeong, formatDeal, formatManwon } from "@/lib/format";
+import { areaToPyeong, formatArea, formatDeal, formatManwon } from "@/lib/format";
 
 describe("formatManwon", () => {
   test("억 단위", () => {
@@ -25,4 +25,11 @@ test("areaToPyeong", () => {
 
 test("formatDeal", () => {
   expect(formatDeal("2026-10-06")).toBe("26.10.06");
+});
+
+describe("formatArea", () => {
+  test("반올림 ㎡ + 평", () => {
+    expect(formatArea(84)).toBe("84㎡ (25평)");
+    expect(formatArea(84.88)).toBe("85㎡ (26평)");
+  });
 });

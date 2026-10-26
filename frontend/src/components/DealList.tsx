@@ -1,0 +1,81 @@
+"use client";
+
+import { ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { formatDeal, formatManwon } from "@/lib/format";
+import type { Transaction } from "@/lib/types";
+
+export const PAGE_SIZE = 50;
+
+interface Props {
+  transactions: Transaction[];
+  /** 반올림 면적(평형 그룹). null이면 전체. */
+  area: number | null;
+}
+
+export default function DealList({ transactions, area }: Props) {
+  const filtered = useMemo(
+    () => (area == null ? transactions : transactions.filter((t) => Math.round(t.area) === area)),
+    [transactions, area],
+  );
+
+  // 평형이 바뀌면 렌더 중에 표시 개수를 초기화한다(이펙트 없이).
+  const [shown, setShown] = useState({ area, count: PAGE_SIZE });
+  const count = shown.area === area ? shown.count : PAGE_SIZE;
+  const hasMore = count < filtered.length;
+  const showMore = () =>
+    setShown((s) => ({ area, count: (s.area === area ? s.count : PAGE_SIZE) + PAGE_SIZE }));
+
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = buttonRef.current;
+    if (!el || !hasMore) return;
+    // 버튼이 화면에 들어오면 자동으로 누른다(무한 스크롤).
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) el.click();
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, count]);
+
+  if (filtered.length === 0) return <p className="py-8 text-center text-sm text-gray-500">거래 내역이 없습니다</p>;
+
+  return (
+    <div>
+      <p className="mb-2 text-xs text-gray-500">{filtered.length.toLocaleString("en-US")}건</p>
+      <ul>
+        {filtered.slice(0, count).map((t) => {
+          const cancelled = t.cancel_date != null;
+          return (
+            <li key={t.id} className="flex items-center justify-between border-b border-gray-100 py-3 last:border-b-0">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="w-16 text-gray-500">{formatDeal(t.deal_date)}</span>
+                <span className="text-gray-700">{+t.area.toFixed(2)}㎡</span>
+                {t.floor != null && <span className="text-gray-400">{t.floor}층</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                {cancelled && (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">취소</span>
+                )}
+                <span className={`font-semibold ${cancelled ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                  {formatManwon(t.amount)}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {hasMore && (
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={showMore}
+          className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg bg-gray-100 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
+        >
+          더 보기 ({(filtered.length - count).toLocaleString("en-US")}건 남음)
+          <ChevronDown className="h-4 w-4" aria-hidden />
+        </button>
+      )}
+    </div>
+  );
+}
