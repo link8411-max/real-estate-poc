@@ -40,3 +40,6 @@ Thumbs.db
 # Claude
 .claude/
 .env
+
+# Local worktrees
+.worktrees/
