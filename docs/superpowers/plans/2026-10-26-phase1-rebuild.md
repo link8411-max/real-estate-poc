@@ -485,6 +485,28 @@ test("formatManwon", () => { expect(formatManwon(125000)).toBe("12억 5,000"); e
 
 ---
 
+### Task 14b: 면적 단위 전환 (㎡ ↔ 평)
+
+사용자 요청(10/27): "평으로 변경도 있으면 좋을 것 같은데 한국이니깐". 면적 표시 단위를 ㎡와 평 사이에서 바꿀 수 있게 한다. **기본값은 평.**
+
+**Files:**
+- Create: `frontend/src/lib/areaUnit.ts`, `frontend/src/components/AreaUnitToggle.tsx`, `frontend/src/lib/__tests__/areaUnit.test.ts`, `frontend/src/components/__tests__/AreaUnitToggle.test.tsx`
+- Modify: `frontend/src/lib/format.ts`(`formatArea`), `frontend/src/app/layout.tsx`(헤더에 토글), 면적을 보여주는 모든 컴포넌트(AreaStatsTable, DealList, RentSection, CompareTable, RecentDeals, ApartmentTrades 범위 라벨 등)와 그 테스트
+
+**Interfaces:**
+- `areaUnit.ts`: `type AreaUnit = "pyeong" | "m2"`; `DEFAULT_AREA_UNIT = "pyeong"`; `useAreaUnit(): [AreaUnit, (u: AreaUnit) => void]` — `useSyncExternalStore`로 localStorage 키 `areaUnit`을 구독(서버 스냅샷은 기본값 → 하이드레이션 안전), setItem은 try/catch, 같은 탭의 모든 구독자에게 변경 통지.
+- `format.ts`: `formatArea(m2: number, unit: AreaUnit = "pyeong")` — 평 모드 `"전용 25평 (84㎡)"`, ㎡ 모드 `"84㎡ (전용 25평)"`(현재 형식 유지). 평형 그룹 표시는 `areaGroup()` 정수 기준을 그대로 쓴다. 개별 거래의 실제 면적(예: `80.87㎡`)은 평 모드에서 `"전용 24.5평"`(소수 1자리)으로 표시하는 `formatExactArea(m2, unit)`을 추가한다.
+- `AreaUnitToggle`(client): 헤더 오른쪽 `평 | ㎡` 2단 토글, 접근성 `role="radiogroup"`.
+- 면적을 보여주는 모든 컴포넌트는 `useAreaUnit()`으로 단위를 읽는다. 서버 컴포넌트에서 면적을 그리는 곳은 클라이언트 리프 컴포넌트로 내린다.
+- 지도 라벨(Task 16)도 이 함수를 쓴다.
+
+- [ ] **Step 1: 테스트 먼저** — `areaUnit.test.ts`(기본값 평, 저장·복원, 깨진 값 → 기본값, setItem 예외 무시), `format.test.ts`(두 단위 형식, `formatExactArea` 소수 1자리), `AreaUnitToggle.test.tsx`(클릭 시 단위 변경 + 다른 구독 컴포넌트 갱신), 기존 컴포넌트 테스트에 평/㎡ 두 경우 추가 → 실패 확인
+- [ ] **Step 2: 구현** → 통과
+- [ ] **Step 3: 확인** — `npm test && npx tsc --noEmit`; 브라우저에서 단지 상세(매매·전세·월세)·비교·홈 최근 거래에서 토글 즉시 반영, 새로고침 후 유지, 콘솔 하이드레이션 오류 0.
+- [ ] **Step 4: Commit** — `git commit -m "feat(web): 면적 단위 ㎡/평 전환 (기본 평)"`
+
+---
+
 ### Task 16: 지도 페이지와 필터 패널
 
 **Files:**
