@@ -102,7 +102,7 @@ def _slim_all(conn: sqlite3.Connection, codes: set[str] | None = None) -> dict[s
     best: dict[int, tuple[str, int, int]] = {}  # apt -> (최신일, 평형, 금액)
     seen: set[tuple[int, int]] = set()
     for apt_id, grp, amount, deal_date in conn.execute(
-        "SELECT apt_id, CAST(ROUND(area, 0) AS INTEGER), amount, deal_date FROM transactions "
+        "SELECT apt_id, CAST(area AS INTEGER), amount, deal_date FROM transactions "
         "WHERE cancel_date IS NULL ORDER BY deal_date DESC, id DESC"
     ):
         if apt_id not in apts:

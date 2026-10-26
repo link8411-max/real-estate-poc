@@ -18,10 +18,10 @@ def _cutoff(today: date) -> str:
 
 
 def trade_area_stats(conn: sqlite3.Connection, apt_id: int, today: date) -> list[AreaStat]:
-    """취소되지 않은 매매를 반올림 전용면적(㎡)별로 묶어 시세 요약을 만든다."""
+    """취소되지 않은 매매를 전용면적 정수부(㎡, 버림)별로 묶어 시세 요약을 만든다."""
     cutoff = _cutoff(today)
     rows = conn.execute(
-        "SELECT CAST(ROUND(area, 0) AS INTEGER) AS grp, amount, deal_date FROM transactions "
+        "SELECT CAST(area AS INTEGER) AS grp, amount, deal_date FROM transactions "
         "WHERE apt_id = ? AND cancel_date IS NULL ORDER BY deal_date DESC, id DESC",
         (apt_id,),
     ).fetchall()
@@ -50,10 +50,10 @@ def trade_area_stats(conn: sqlite3.Connection, apt_id: int, today: date) -> list
 
 
 def rent_area_stats(conn: sqlite3.Connection, apt_id: int, today: date) -> list[RentAreaStat]:
-    """전세(월세 0)와 월세를 반올림 전용면적별로 묶어 요약한다."""
+    """전세(월세 0)와 월세를 전용면적 정수부(버림)별로 묶어 요약한다."""
     cutoff = _cutoff(today)
     rows = conn.execute(
-        "SELECT CAST(ROUND(area, 0) AS INTEGER) AS grp, deposit, monthly_rent, deal_date FROM rents "
+        "SELECT CAST(area AS INTEGER) AS grp, deposit, monthly_rent, deal_date FROM rents "
         "WHERE apt_id = ? ORDER BY deal_date DESC, id DESC",
         (apt_id,),
     ).fetchall()

@@ -129,6 +129,16 @@ def test_build_region(conn):
         "latest_trade_date", "latest_jeonse_deposit", "lat", "lng"}
 
 
+def test_region_latest_trade_groups_area_by_floor(conn):
+    # 같은 날 59.53㎡(나중 id)와 59.4㎡: 버림이면 같은 59 평형 → 최신(id 큰) 59.53 거래가 대표.
+    # 반올림이면 60/59 로 갈려 작은 평형(59.4) 거래가 대표가 된다.
+    _trade(conn, 3, 41000, 59.4, "2026-10-20")
+    _trade(conn, 3, 43000, 59.53, "2026-10-20")
+    conn.commit()
+    apt = next(a for a in build_region(conn, "11440", TODAY)["apartments"] if a["id"] == 3)
+    assert apt["trade_count"] == 2 and apt["latest_trade_amount"] == 43000
+
+
 def test_build_stats_recent_and_region_yoy(conn):
     s = build_stats(conn, TODAY)
     assert s["total_apartments"] == 3

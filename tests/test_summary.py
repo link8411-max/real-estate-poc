@@ -41,7 +41,7 @@ def apt_id(conn):
                          build_year=2010, apt_seq="A1")
     conn.execute("UPDATE apartments SET latitude=37.55, longitude=126.95 WHERE id=?", (i,))
     _trade(conn, i, 100000, 84.42, "2024-05-01")            # 전고점
-    _trade(conn, i, 90000, 83.6, "2025-03-10")
+    _trade(conn, i, 90000, 84.6, "2025-03-10")            # 버림 → 84
     _trade(conn, i, 88000, 84.0, "2026-08-10")              # 최근 3개월
     _trade(conn, i, 92000, 84.0, "2026-09-15")              # 최근 3개월, 최신 유효
     _trade(conn, i, 80000, 84.0, "2026-10-01", "2026-10-05")  # 취소
@@ -62,7 +62,7 @@ def rent_only_id(conn):
     return i
 
 
-def test_trade_area_stats_excludes_cancelled_and_groups_by_rounded_area(conn, apt_id):
+def test_trade_area_stats_excludes_cancelled_and_groups_by_floored_area(conn, apt_id):
     stats = trade_area_stats(conn, apt_id, TODAY)
     assert [s["area"] for s in stats] == [59, 84]
     s84 = stats[1]
@@ -74,6 +74,17 @@ def test_trade_area_stats_excludes_cancelled_and_groups_by_rounded_area(conn, ap
     assert s84["peak_date"] == "2024-05-01"
     s59 = stats[0]
     assert s59["count"] == 1 and s59["recent_count"] == 0 and s59["recent_avg"] is None
+
+
+def test_area_group_is_floor_59_53_and_59_4_together(conn, apt_id):
+    _trade(conn, apt_id, 61000, 59.53, "2026-06-02")  # 반올림이면 60, 버림이면 59
+    _rent(conn, apt_id, 40000, 0, 59.53, "2026-06-03")
+    _rent(conn, apt_id, 41000, 0, 59.4, "2026-06-04")
+    stats = trade_area_stats(conn, apt_id, TODAY)
+    assert [s["area"] for s in stats] == [59, 84]
+    assert stats[0]["count"] == 2 and stats[0]["latest_amount"] == 61000
+    rents = rent_area_stats(conn, apt_id, TODAY)
+    assert [r["area"] for r in rents] == [59, 84] and rents[0]["jeonse_count"] == 2
 
 
 def test_recent_window_is_inclusive_90_days(conn, apt_id):
