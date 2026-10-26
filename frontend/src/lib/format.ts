@@ -16,3 +16,7 @@ export const formatDeal = (d: string): string => d.slice(2).replaceAll("-", ".")
 
 /** 84 → "84㎡ (25평)" (전용면적 기준 평) */
 export const formatArea = (m2: number): string => `${Math.round(m2)}㎡ (${areaToPyeong(m2)}평)`;
+
+/** 문장용: 245000 → "24억 5,000만원", 100000 → "10억원" */
+export const formatPrice = (n: number): string =>
+  `${formatManwon(n)}${n >= 10000 && n % 10000 === 0 ? "원" : "만원"}`;

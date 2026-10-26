@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { areaToPyeong, formatArea, formatDeal, formatManwon } from "@/lib/format";
+import { areaToPyeong, formatArea, formatDeal, formatManwon, formatPrice } from "@/lib/format";
 
 describe("formatManwon", () => {
   test("억 단위", () => {
@@ -31,5 +31,13 @@ describe("formatArea", () => {
   test("반올림 ㎡ + 평", () => {
     expect(formatArea(84)).toBe("84㎡ (25평)");
     expect(formatArea(84.88)).toBe("85㎡ (26평)");
+  });
+});
+
+describe("formatPrice", () => {
+  test("단위 붙인 문장용 금액", () => {
+    expect(formatPrice(245000)).toBe("24억 5,000만원");
+    expect(formatPrice(100000)).toBe("10억원");
+    expect(formatPrice(9500)).toBe("9,500만원");
   });
 });
