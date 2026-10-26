@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { LoadMoreButton, useLoadMore } from "@/components/LoadMore";
 import PriceChart from "@/components/PriceChart";
+import SelectableRow from "@/components/SelectableRow";
 import { areaGroup, formatArea, formatDeal, formatManwon } from "@/lib/format";
 import { monthlyHistory } from "@/lib/history";
 import type { AptRent, Rent } from "@/lib/types";
@@ -47,21 +48,7 @@ function AreaTable({ rows, avg, tab, selected, onSelect }: {
             const toggle = () => onSelect(isSelected ? null : area);
             const a = avg.get(area);
             return (
-              <tr
-                key={area}
-                aria-selected={isSelected}
-                tabIndex={0}
-                onClick={toggle}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    toggle();
-                  }
-                }}
-                className={`cursor-pointer border-b border-gray-50 transition last:border-b-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
-                  isSelected ? "bg-blue-50" : "hover:bg-gray-50"
-                }`}
-              >
+              <SelectableRow key={area} selected={isSelected} onSelect={toggle}>
                 <td className={`py-3 pr-3 font-semibold ${isSelected ? "text-blue-700" : "text-gray-900"}`}>{formatArea(area)}</td>
                 <td className="py-3 pr-3 text-right">
                   <span className="font-semibold text-gray-900">{priceLabel(latest.deposit, latest.monthly_rent)}</span>
@@ -71,7 +58,7 @@ function AreaTable({ rows, avg, tab, selected, onSelect }: {
                   <td className="py-3 pr-3 text-right text-gray-700">{a != null ? formatManwon(a) : "-"}</td>
                 )}
                 <td className="py-3 text-right text-gray-500">{count.toLocaleString("en-US")}건</td>
-              </tr>
+              </SelectableRow>
             );
           })}
         </tbody>

@@ -99,10 +99,25 @@ describe("RentSection", () => {
     expect(items()).toHaveLength(3);
   });
 
-  test("탭이 바뀌면 선택 평형이 초기화되어도 목록이 맞다(전세→월세)", () => {
+  test("탭이 바뀌면 선택 평형이 해제되어 전체 목록이 나온다", async () => {
     const { rerender } = render(<RentSection rent={mixed} tab="jeonse" />);
+    await userEvent.click(screen.getByRole("row", { name: /84㎡/ }));
+    expect(screen.getByRole("row", { name: /84㎡/ })).toHaveAttribute("aria-selected", "true");
     rerender(<RentSection rent={mixed} tab="wolse" />);
     expect(items()).toHaveLength(2);
+    screen.getAllByRole("row").slice(1).forEach((r) => expect(r).toHaveAttribute("aria-selected", "false"));
+  });
+
+  test("use_rr_right가 1(숫자)이어도 갱신요구권 표시", () => {
+    render(<RentSection rent={data([rent(1, { use_rr_right: 1 as unknown as boolean })])} tab="jeonse" />);
+    expect(screen.getByText("갱신요구권")).toBeInTheDocument();
+  });
+
+  test("3개월 평균이 null이면 '-'", () => {
+    const d = data([rent(1, { area: 59.5 })]);
+    d.rent_area_stats[1] = { ...d.rent_area_stats[1], jeonse_count: 1, recent_jeonse_avg: null };
+    render(<RentSection rent={d} tab="jeonse" />);
+    expect(within(screen.getByRole("row", { name: /59㎡/ })).getByText("-")).toBeInTheDocument();
   });
 
   test("50건씩 더 보기", async () => {
