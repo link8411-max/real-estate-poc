@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - 운영 비용 0원. 유료 플랜·유료 API 전환 없음.
-- 지역 수 79: 기존 78에서 인천 옛 코드 `28110`, `28140`, `28260`을 빼고 `28125`(제물포구), `28155`(영종구), `28275`(서해구), `28290`(검단구)를 더한다. `succeeded_by`: `28110→28125`, `28140→28125`, `28260→28275`.
+- 지역 수 **83** (10/27 API 실측으로 정정: 기존 목록은 77개였고 부천·화성·인천이 분구됐다). 기존 77에서 폐지 코드 `28110`(인천중구), `28140`(인천동구), `28260`(인천서구), `41190`(부천), `41590`(화성)을 빼고 다음 11개를 더한다: `28125` 제물포구, `28155` 영종구, `28275` 서해구, `28290` 검단구, `41192` 부천원미, `41194` 부천소사, `41196` 부천오정, `41591` 화성만세, `41593` 화성효행, `41595` 화성병점, `41597` 화성동탄. 서울 25 + 경기 47 + 인천 11 = 83. `28720` 옹진군은 거래가 0건이지만 목록에 남긴다.
+- 폐지 코드 → 새 코드는 1:N이다(`SUCCEEDED_BY: dict[str, list[str]]`): `28110→[28125,28155]`, `28140→[28125]`, `28260→[28275,28290]`, `41190→[41192,41194,41196]`, `41590→[41591,41593,41595,41597]`. 국토부 API는 과거 거래도 새 코드로 재배정해 준다(옛 코드는 전 기간 0건)이므로 백필은 새 코드로만 돌린다. 옛 코드로 저장된 기존 단지는 `(dong, jibun, name)`이 같고 lawd_cd가 새 코드의 `PREDECESSORS`에 속하면 같은 단지로 보고 lawd_cd를 새 코드로 갱신한다.
 - `apartments.id`는 영구 불변. 재부여·재생성 금지. 병합은 `apartment_aliases(old_id, canonical_id)`로만.
 - 단지 매칭 1차 키 `apt_seq`(국토부 `aptSeq`, 예 `11680-578`), 2차 키 `(normalize_lawd(lawd_cd), dong, jibun, name)`.
 - 금액 단위 만원(정수). 면적 ㎡(실수). 평형 그룹 = `ROUND(area, 0)`(기존 api_server.py 방식 유지).
@@ -52,24 +53,24 @@
 - Modify: `requirements.txt` — `python-dotenv>=1.0`, `pytest>=8` 추가
 
 **Interfaces:**
-- Produces: `REGIONS: dict[str, str]` (79개, 코드→표시명. 기존 `collect_daily.py`의 이름을 쓰되 인천은 `"28125": "제물포구", "28155": "영종구", "28275": "서해구", "28290": "검단구"`), `SUCCEEDED_BY: dict[str, str]`, `normalize_lawd(code: str) -> str` (succeeded_by를 끝까지 따라감), `CITY_OF: dict[str, str]` (코드 앞 2자리 → `"서울" | "경기" | "인천"`), `city_of(code: str) -> str`.
+- Produces: `REGIONS: dict[str, str]` (83개, 코드→표시명. 기존 `collect_daily.py`의 이름을 쓰되 폐지 5개를 빼고 Global Constraints의 새 11개를 더한다. 새 이름: `"28125": "제물포구", "28155": "영종구", "28275": "서해구", "28290": "검단구", "41192": "부천원미", "41194": "부천소사", "41196": "부천오정", "41591": "화성만세", "41593": "화성효행", "41595": "화성병점", "41597": "화성동탄"`), `SUCCEEDED_BY: dict[str, list[str]]`(Global Constraints 값 그대로), `PREDECESSORS: dict[str, list[str]]`(SUCCEEDED_BY를 뒤집은 것, 예 `"28125": ["28110","28140"]`), `is_retired(code: str) -> bool`, `candidate_codes(code: str) -> list[str]`(`[code] + PREDECESSORS.get(code, [])`; 단지 매칭에 쓴다), `CITY_OF: dict[str, str]` (코드 앞 2자리 → `"서울" | "경기" | "인천"`), `city_of(code: str) -> str`.
 
 - [ ] **Step 1: 실패하는 테스트 작성** — `tests/test_regions.py`
 
 ```python
-from pipeline.regions import REGIONS, SUCCEEDED_BY, normalize_lawd, city_of
+from pipeline.regions import REGIONS, SUCCEEDED_BY, PREDECESSORS, is_retired, candidate_codes, city_of
 
-def test_region_count_is_79():
-    assert len(REGIONS) == 79
+def test_region_count_is_83():
+    assert len(REGIONS) == 83
 
-def test_old_incheon_codes_removed_and_new_present():
-    for old in ("28110", "28140", "28260"): assert old not in REGIONS
-    for new in ("28125", "28155", "28275", "28290"): assert new in REGIONS
+def test_retired_codes_removed_and_new_present():
+    for old in ("28110", "28140", "28260", "41190", "41590"): assert old not in REGIONS and is_retired(old)
+    for new in ("28125", "28155", "28275", "28290", "41192", "41194", "41196", "41591", "41593", "41595", "41597"): assert new in REGIONS
 
-def test_normalize_lawd_follows_succession():
-    assert normalize_lawd("28110") == "28125"
-    assert normalize_lawd("28260") == "28275"
-    assert normalize_lawd("11680") == "11680"
+def test_predecessors_and_candidates():
+    assert PREDECESSORS["28125"] == ["28110", "28140"]
+    assert candidate_codes("41595") == ["41595", "41590"]
+    assert candidate_codes("11680") == ["11680"]
 
 def test_city_of():
     assert city_of("11680") == "서울" and city_of("41135") == "경기" and city_of("28290") == "인천"
@@ -78,7 +79,7 @@ def test_city_of():
 - [ ] **Step 2: 실패 확인** — Run: `pytest tests/test_regions.py -v` → Expected: FAIL `ModuleNotFoundError: pipeline`
 - [ ] **Step 3: `pipeline/regions.py` 구현** — 위 Interfaces의 이름·값 그대로.
 - [ ] **Step 4: 통과 확인** — Run: `pytest tests/test_regions.py -v` → Expected: 4 passed
-- [ ] **Step 5: Commit** — `git add pipeline tests pytest.ini requirements.txt && git commit -m "feat(pipeline): 79개 지역 코드와 인천 개편 정규화"`
+- [ ] **Step 5: Commit** — `git add pipeline tests pytest.ini requirements.txt && git commit -m "feat(pipeline): 83개 지역 코드와 분구 승계 매핑"`
 
 ---
 
@@ -135,8 +136,8 @@ def test_fetch_raises_molit_error_after_retries(monkeypatch):
 **Interfaces:**
 - Produces:
   - `connect(path: str) -> sqlite3.Connection` (row_factory=Row, `PRAGMA journal_mode=WAL`)
-  - `migrate(conn) -> None` — 멱등. 추가: `apartments.apt_seq TEXT` + `CREATE UNIQUE INDEX IF NOT EXISTS idx_apt_seq ON apartments(apt_seq) WHERE apt_seq IS NOT NULL`; `apartments.household_count INT`; 테이블 `rents(id PK, apt_id, deposit INT, monthly_rent INT, area REAL, floor INT, deal_date TEXT, contract_type TEXT, contract_term TEXT, use_rr_right INT, pre_deposit INT, pre_monthly_rent INT, unique_hash TEXT UNIQUE, created_at)`; 테이블 `apartment_aliases(old_id INT PK, canonical_id INT)`; 테이블 `regions`가 없으면 생성하고 `succeeded_by TEXT` 컬럼 추가, `REGIONS`/`SUCCEEDED_BY`로 채움(옛 코드 3개도 행으로 남기고 succeeded_by 설정); 테이블 `changed_apartments(apt_id INT PK, changed_at TEXT)`.
-  - `upsert_apartment(conn, *, name, lawd_cd, dong, jibun, build_year, apt_seq) -> int` — ① apt_seq로 조회 ② 없으면 `(normalize_lawd(lawd_cd), dong, jibun, name)`로 조회(기존 행의 lawd_cd도 normalize해서 비교) → 찾으면 apt_seq가 비어 있을 때 채워 넣고 id 반환 ③ 없으면 INSERT(lawd_cd는 normalize된 값으로 저장).
+  - `migrate(conn) -> None` — 멱등. 추가: `apartments.apt_seq TEXT` + `CREATE UNIQUE INDEX IF NOT EXISTS idx_apt_seq ON apartments(apt_seq) WHERE apt_seq IS NOT NULL`; `apartments.household_count INT`; 테이블 `rents(id PK, apt_id, deposit INT, monthly_rent INT, area REAL, floor INT, deal_date TEXT, contract_type TEXT, contract_term TEXT, use_rr_right INT, pre_deposit INT, pre_monthly_rent INT, unique_hash TEXT UNIQUE, created_at)`; 테이블 `apartment_aliases(old_id INT PK, canonical_id INT)`; 테이블 `regions(code TEXT PK, city_name, district_name, succeeded_by TEXT)`가 없으면 생성하고 `succeeded_by` 컬럼이 없으면 추가, `REGIONS`로 83행 채움 + 폐지 코드 5개도 행으로 남기고 `succeeded_by`에 새 코드들을 쉼표로 이어 저장(예 `"41191,41194,41196"` 형식이 아니라 정확히 `",".join(SUCCEEDED_BY[old])`); 테이블 `changed_apartments(apt_id INT PK, changed_at TEXT)`.
+  - `upsert_apartment(conn, *, name, lawd_cd, dong, jibun, build_year, apt_seq) -> int` — ① apt_seq로 조회 ② 없으면 `(dong, jibun, name)`이 같고 `lawd_cd IN candidate_codes(lawd_cd)`인 행 조회 → 찾으면 apt_seq가 비어 있으면 채우고, 행의 lawd_cd가 폐지 코드이면 새 lawd_cd로 UPDATE하고 id 반환 ③ 없으면 INSERT. 수집기는 항상 새 코드로 호출하므로 `lawd_cd` 인자는 폐지 코드가 아니다.
   - `insert_trade(conn, apt_id: int, item: TradeItem) -> bool` — unique_hash = md5(`f"{apt_name}|{floor}|{area}|{deal_date}|{amount}"`)(기존 `insight_engine.generate_deal_hash`와 동일하게 유지해 과거 데이터와 중복 판정이 이어지게). 새로 INSERT되면 True. 이미 있는데 `cancel_date`가 새로 생겼으면 UPDATE하고 True. 그 외 False. True일 때 `changed_apartments`에 기록.
   - `insert_rent(conn, apt_id, item: RentItem) -> bool` — unique_hash = md5(`f"R|{apt_name}|{floor}|{area}|{deal_date}|{deposit}|{monthly_rent}"`). 동일 규칙.
   - `pop_changed(conn) -> list[int]` — changed_apartments를 읽고 비운다.
@@ -149,7 +150,7 @@ def test_migrate_is_idempotent_and_adds_columns(conn):
     migrate(conn); migrate(conn)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(apartments)")}
     assert {"apt_seq", "household_count"} <= cols
-    assert conn.execute("select succeeded_by from regions where code='28260'").fetchone()[0] == "28275"
+    assert conn.execute("select succeeded_by from regions where code='28260'").fetchone()[0] == "28275,28290"
 
 def test_upsert_matches_by_apt_seq_then_address(conn):
     a = upsert_apartment(conn, name="래미안", lawd_cd="11680", dong="역삼동", jibun="1", build_year=2000, apt_seq="11680-1")
@@ -314,7 +315,7 @@ def test_search_index_shape(conn): assert build_search_index(conn)[0] == [1, "�
 
 **Interfaces:**
 - Produces:
-  - `migrate_coords(src_db: str, dst_conn) -> int` — src의 `(normalize_lawd(lawd_cd), dong, jibun, name)` → `(latitude, longitude, geocode_quality)`를 dst의 좌표 없는 행에 복사. 복사 건수 반환.
+  - `migrate_coords(src_db: str, dst_conn) -> int` — src의 `(dong, jibun, name)`과 같고 dst 행의 `lawd_cd`가 src 행 lawd_cd의 `candidate_codes` 안에 있는(또는 그 반대) 행에 `(latitude, longitude, geocode_quality)`를 복사. dst의 좌표 없는 행만. 복사 건수 반환.
   - `geocode_address(lawd_cd, dong, jibun, *, session=None) -> tuple[float,float,str] | None` — 카카오 `v2/local/search/address.json` query=`f"{REGION_FULLNAME[lawd_cd]} {dong} {jibun}"`(`REGION_FULLNAME`은 Task 1 `REGIONS`에 시도명을 붙인 것, `regions.py`에 추가). 결과 없으면 None. 반환 quality: `"kakao_address"`.
   - `fill_missing_coords(conn, *, limit: int = 20000, delay: float = 0.05, geocode=geocode_address) -> tuple[int,int]` — (성공, 실패). 실패는 `geocode_quality="failed"`로 기록해 다음 실행에서 재시도하지 않는다(`--retry-failed`로만).
   - CLI: `python -m pipeline.migrate_coords --src real_estate_local_20260121.db --db real_estate.db`, `python -m pipeline.geocode --db real_estate.db [--retry-failed]`
