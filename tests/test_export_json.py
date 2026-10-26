@@ -12,6 +12,7 @@ from pipeline.export_json import (
     build_apt_rent, build_apt_trade, build_meta, build_region, build_search_index,
     build_stats, export, main,
 )
+from pipeline.summary import apartment_summary
 
 TODAY = date(2026, 10, 26)
 
@@ -166,3 +167,44 @@ def test_cli_changed_writes_keys_json(conn, tmp_path):
 
 def test_cli_bad_args_exit_2(tmp_path):
     assert main(["--db", "x", "--out", str(tmp_path)]) == 2
+
+
+def test_changed_export_does_not_summarize_unchanged_apartments(conn, tmp_path, monkeypatch):
+    calls: list[int] = []
+    real = export_json.apartment_summary
+    monkeypatch.setattr(export_json, "apartment_summary",
+                        lambda c, i, t: (calls.append(i), real(c, i, t))[1])
+    export(conn, str(tmp_path), apt_ids=[2], today=TODAY)  # 11440 에는 3번도 있다
+    assert calls == [2]
+    with gzip.open(tmp_path / "v1/region/11440.json.gz", "rt", encoding="utf-8") as f:
+        assert {a["id"] for a in json.load(f)["apartments"]} == {2, 3}
+
+
+def test_slim_group_by_matches_apartment_summary(conn):
+    _trade(conn, 1, 70000, 59.0, "2026-09-01")  # 최신일 동률, 다른 평형
+    _trade(conn, 2, 51000, 59.0, "2026-10-10")
+    _rent(conn, 2, 20000, 0, 59.0, "2026-10-11")
+    _rent(conn, 2, 5000, 50, 59.0, "2026-10-12")
+    conn.commit()
+    by_id = {a["id"]: a for code in ("11680", "11440")
+             for a in build_region(conn, code, TODAY)["apartments"]}
+    for i in (1, 2, 3):
+        s = apartment_summary(conn, i, TODAY)
+        for k in ("name", "dong", "build_year", "trade_count", "latest_trade_amount",
+                  "latest_trade_date", "latest_jeonse_deposit", "lat", "lng"):
+            assert by_id[i][k] == s[k], (i, k)
+
+
+def test_write_gz_is_deterministic(tmp_path):
+    export_json.write_gz(str(tmp_path / "a.json.gz"), {"k": 1})
+    export_json.write_gz(str(tmp_path / "b.json.gz"), {"k": 1})
+    assert (tmp_path / "a.json.gz").read_bytes() == (tmp_path / "b.json.gz").read_bytes()
+
+
+@pytest.mark.parametrize("content", [None, "not json", '["a"]', '{"x":1}'])
+def test_cli_bad_changed_file_exit_2(tmp_path, content, capsys):
+    f = tmp_path / "c.json"
+    if content is not None:
+        f.write_text(content)
+    assert main(["--db", str(tmp_path / "t.db"), "--out", str(tmp_path / "o"), "--changed", str(f)]) == 2
+    assert "--changed" in capsys.readouterr().err

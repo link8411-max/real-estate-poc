@@ -5,6 +5,7 @@ import gzip
 import json
 import os
 import sqlite3
+import sys
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -19,8 +20,9 @@ TOP_N = 3
 
 def write_gz(path: str, obj: Any) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with gzip.open(path, "wt", encoding="utf-8") as f:
-        f.write(json.dumps(obj, ensure_ascii=False, separators=(",", ":")))
+    data = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    with open(path, "wb") as raw, gzip.GzipFile(filename="", fileobj=raw, mode="wb", mtime=0) as f:  # 동일 내용 = 동일 바이트
+        f.write(data)
 
 
 def _region_name(conn: sqlite3.Connection, lawd_cd: str) -> str:
@@ -85,13 +87,56 @@ def _region_doc(code: str, entries: list[dict[str, Any]]) -> dict[str, Any]:
         "name": REGIONS[code],
         "city": city_of(code),
         "succeeded_by": None,
-        "apartments": sorted(entries, key=lambda e: -e["trade_count"]),
+        "apartments": sorted(entries, key=lambda e: (-e["trade_count"], e["id"])),
     }
 
 
+def _slim_all(conn: sqlite3.Connection, codes: set[str] | None = None) -> dict[str, list[dict[str, Any]]]:
+    """지역 목록용 축약 필드를 단지별 요약 없이 전체 스캔 3회로 만든다 (Task 5 의미와 동일)."""
+    apts = {
+        r["id"]: r for r in conn.execute(
+            "SELECT id, name, lawd_cd, dong, build_year, latitude, longitude FROM apartments"
+        ) if codes is None or r["lawd_cd"] in codes
+    }
+    count: dict[int, int] = {}
+    best: dict[int, tuple[str, int, int]] = {}  # apt -> (최신일, 평형, 금액)
+    seen: set[tuple[int, int]] = set()
+    for apt_id, grp, amount, deal_date in conn.execute(
+        "SELECT apt_id, CAST(ROUND(area, 0) AS INTEGER), amount, deal_date FROM transactions "
+        "WHERE cancel_date IS NULL ORDER BY deal_date DESC, id DESC"
+    ):
+        if apt_id not in apts:
+            continue
+        count[apt_id] = count.get(apt_id, 0) + 1
+        if (apt_id, grp) in seen:
+            continue  # 평형별 최신 거래만
+        seen.add((apt_id, grp))
+        cur = best.get(apt_id)
+        # summary 는 평형 오름차순 max() 라 최신일 동률이면 작은 평형이 이긴다
+        if cur is None or deal_date > cur[0] or (deal_date == cur[0] and grp < cur[1]):
+            best[apt_id] = (deal_date, grp, amount)
+    jeonse: dict[int, int] = {}
+    for apt_id, deposit in conn.execute(
+        "SELECT apt_id, deposit FROM rents WHERE monthly_rent = 0 ORDER BY deal_date DESC, id DESC"
+    ):
+        if apt_id in apts and apt_id not in jeonse:
+            jeonse[apt_id] = deposit
+    out: dict[str, list[dict[str, Any]]] = {}
+    for apt_id, a in apts.items():
+        b = best.get(apt_id)
+        out.setdefault(a["lawd_cd"], []).append({
+            "id": apt_id, "name": a["name"], "dong": a["dong"], "build_year": a["build_year"],
+            "trade_count": count.get(apt_id, 0),
+            "latest_trade_amount": b[2] if b else None,
+            "latest_trade_date": b[0] if b else None,
+            "latest_jeonse_deposit": jeonse.get(apt_id),
+            "lat": a["latitude"], "lng": a["longitude"],
+        })
+    return out
+
+
 def build_region(conn: sqlite3.Connection, lawd_cd: str, today: date) -> dict[str, Any]:
-    ids = [r[0] for r in conn.execute("SELECT id FROM apartments WHERE lawd_cd = ? ORDER BY id", (lawd_cd,))]
-    return _region_doc(lawd_cd, [_slim(apartment_summary(conn, i, today)) for i in ids])
+    return _region_doc(lawd_cd, _slim_all(conn, {lawd_cd}).get(lawd_cd, []))
 
 
 def _date_range(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -194,18 +239,11 @@ def export(
     ids = [i for i in ids if i in codes]
     affected = {codes[i] for i in ids}
 
-    slim_by_code: dict[str, list[dict[str, Any]]] = {}
-    done: set[int] = set()
-    for apt_id in ids:  # 단지당 apartment_summary 는 한 번만
+    slim_by_code = _slim_all(conn, None if apt_ids is None else affected)
+    for apt_id in ids:  # apartment_summary 는 내보내는 단지에만, 한 번씩
         s = apartment_summary(conn, apt_id, today)
         put(f"{PREFIX}/apt/{apt_id}/trade.json", build_apt_trade(conn, apt_id, today, s))
         put(f"{PREFIX}/apt/{apt_id}/rent.json", build_apt_rent(conn, apt_id, today, s))
-        slim_by_code.setdefault(s["lawd_cd"], []).append(_slim(s))
-        done.add(apt_id)
-
-    for apt_id, code in codes.items():  # 영향받은 지역의 나머지 단지
-        if code in affected and apt_id not in done:
-            slim_by_code[code].append(_slim(apartment_summary(conn, apt_id, today)))
 
     for code in REGIONS:
         if code in affected or (apt_ids is None):
@@ -240,8 +278,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     apt_ids: list[int] | None = None
     if a.changed:
-        with open(a.changed, encoding="utf-8") as f:
-            apt_ids = [int(i) for i in json.load(f)]
+        try:
+            with open(a.changed, encoding="utf-8") as f:
+                apt_ids = [int(i) for i in json.load(f)]
+        except (OSError, ValueError, TypeError) as e:  # JSONDecodeError 는 ValueError
+            print(f"--changed 파일을 읽을 수 없습니다: {e}", file=sys.stderr)
+            return 2
     conn = connect(a.db)
     try:
         keys = export(conn, a.out, apt_ids=apt_ids, today=today)
