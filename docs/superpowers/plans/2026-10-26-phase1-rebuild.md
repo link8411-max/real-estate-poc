@@ -392,7 +392,8 @@ def test_search_index_shape(conn): assert build_search_index(conn)[0] == [1, "�
 
 **Files:**
 - Create: `frontend/src/lib/data.ts`, `frontend/src/lib/types.ts`, `frontend/src/lib/search.ts`, `frontend/src/lib/format.ts`, `frontend/src/lib/__tests__/search.test.ts`, `frontend/src/lib/__tests__/format.test.ts`, `frontend/vitest.config.ts`
-- Modify: `frontend/package.json` — devDependencies `vitest`, scripts `"test": "vitest run"`
+- Create: `scripts/serve_out.py` — 로컬 개발용 정적 서버(표준 라이브러리만). `python scripts/serve_out.py --dir out --port 8787`: 요청 경로 `/v1/...json`에 대해 `out/v1/...json.gz`를 `Content-Type: application/json`, `Content-Encoding: gzip`, `Access-Control-Allow-Origin: *`, `Cache-Control: no-store`로 응답. 없으면 404. R2 공개 버킷이 준비되기 전에 프론트를 로컬 데이터로 확인하기 위한 것. 테스트는 `tests/test_serve_out.py`에 핸들러 단위 테스트 1개(헤더·본문).
+- Modify: `frontend/package.json` — devDependencies `vitest`, scripts `"test": "vitest run"`; `frontend/.env.local`에 `NEXT_PUBLIC_DATA_URL=http://localhost:8787`(R2 준비 후 교체)
 
 **Interfaces:**
 - `types.ts`: Task 6 JSON과 1:1인 `AptTrade, AptRent, RegionFile, StatsFile, SearchIndexRow = [number,string,string,string,number|null], MetaFile, AreaStat, RentAreaStat, Metrics`.

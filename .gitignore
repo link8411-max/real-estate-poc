@@ -43,3 +43,8 @@ Thumbs.db
 
 # Local worktrees
 .worktrees/
+
+# local export output
+out/
+*.db-shm
+*.db-wal
