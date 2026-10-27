@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import os
 import random
@@ -11,6 +12,8 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 TRADE_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
 RENT_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent"
@@ -63,6 +66,17 @@ class RentItem:
     pre_monthly_rent: int | None
 
 
+class ParseResult(list):
+    """파싱된 item 목록 + 형식 오류로 건너뛴 item 수(`skipped`)."""
+
+    def __init__(self, items=(), skipped: int = 0):
+        super().__init__(items)
+        self.skipped = skipped
+
+
+_ITEM_ERRORS = (ValueError, KeyError, IndexError, TypeError)
+
+
 def _text(item: ET.Element, tag: str) -> str:
     return (item.findtext(tag) or "").strip()
 
@@ -92,47 +106,53 @@ def _items(xml: str) -> list[ET.Element]:
     return ET.fromstring(xml).findall("./body/items/item")
 
 
-def parse_trade_xml(xml: str, lawd_cd: str) -> list[TradeItem]:
-    return [
-        TradeItem(
-            apt_name=_text(i, "aptNm"),
-            apt_seq=_opt_str(i, "aptSeq"),
-            lawd_cd=lawd_cd,
-            dong=_text(i, "umdNm"),
-            jibun=_text(i, "jibun"),
-            build_year=_opt_int(i, "buildYear"),
-            deal_date=_deal_date(i),
-            amount=_opt_int(i, "dealAmount") or 0,
-            area=float(_text(i, "excluUseAr")),
-            floor=_opt_int(i, "floor") or 0,
-            cancel_date=_cancel_date(i),
-        )
-        for i in _items(xml)
-    ]
+def _parse_items(xml: str, convert) -> ParseResult:
+    out = ParseResult()
+    for i in _items(xml):
+        try:
+            out.append(convert(i))
+        except _ITEM_ERRORS as e:  # 한 행이 깨져도 나머지는 살린다
+            out.skipped += 1
+            logger.warning("malformed MOLIT item skipped (%s: %s): aptNm=%s",
+                           type(e).__name__, e, _text(i, "aptNm"))
+    return out
 
 
-def parse_rent_xml(xml: str, lawd_cd: str) -> list[RentItem]:
-    return [
-        RentItem(
-            apt_name=_text(i, "aptNm"),
-            apt_seq=_opt_str(i, "aptSeq"),
-            lawd_cd=lawd_cd,
-            dong=_text(i, "umdNm"),
-            jibun=_text(i, "jibun"),
-            build_year=_opt_int(i, "buildYear"),
-            deal_date=_deal_date(i),
-            deposit=_opt_int(i, "deposit") or 0,
-            monthly_rent=_opt_int(i, "monthlyRent") or 0,
-            area=float(_text(i, "excluUseAr")),
-            floor=_opt_int(i, "floor") or 0,
-            contract_type=_opt_str(i, "contractType"),
-            contract_term=_opt_str(i, "contractTerm"),
-            use_rr_right=True if _text(i, "useRRRight") == "사용" else None,
-            pre_deposit=_opt_int(i, "preDeposit"),
-            pre_monthly_rent=_opt_int(i, "preMonthlyRent"),
-        )
-        for i in _items(xml)
-    ]
+def parse_trade_xml(xml: str, lawd_cd: str) -> ParseResult:
+    return _parse_items(xml, lambda i: TradeItem(
+        apt_name=_text(i, "aptNm"),
+        apt_seq=_opt_str(i, "aptSeq"),
+        lawd_cd=lawd_cd,
+        dong=_text(i, "umdNm"),
+        jibun=_text(i, "jibun"),
+        build_year=_opt_int(i, "buildYear"),
+        deal_date=_deal_date(i),
+        amount=_opt_int(i, "dealAmount") or 0,
+        area=float(_text(i, "excluUseAr")),
+        floor=_opt_int(i, "floor") or 0,
+        cancel_date=_cancel_date(i),
+    ))
+
+
+def parse_rent_xml(xml: str, lawd_cd: str) -> ParseResult:
+    return _parse_items(xml, lambda i: RentItem(
+        apt_name=_text(i, "aptNm"),
+        apt_seq=_opt_str(i, "aptSeq"),
+        lawd_cd=lawd_cd,
+        dong=_text(i, "umdNm"),
+        jibun=_text(i, "jibun"),
+        build_year=_opt_int(i, "buildYear"),
+        deal_date=_deal_date(i),
+        deposit=_opt_int(i, "deposit") or 0,
+        monthly_rent=_opt_int(i, "monthlyRent") or 0,
+        area=float(_text(i, "excluUseAr")),
+        floor=_opt_int(i, "floor") or 0,
+        contract_type=_opt_str(i, "contractType"),
+        contract_term=_opt_str(i, "contractTerm"),
+        use_rr_right=True if _text(i, "useRRRight") == "사용" else None,
+        pre_deposit=_opt_int(i, "preDeposit"),
+        pre_monthly_rent=_opt_int(i, "preMonthlyRent"),
+    ))
 
 
 def _backoff(attempt: int, base: int = 2, max_wait: int = 30) -> float:
@@ -184,18 +204,20 @@ def _check_envelope(xml: str, lawd_cd: str, deal_ymd: str) -> tuple[str, int]:
     return xml, total
 
 
-def _fetch_all(url: str, parse, lawd_cd: str, deal_ymd: str, session) -> list:
+def _fetch_all(url: str, parse, lawd_cd: str, deal_ymd: str, session) -> ParseResult:
     xml, total = _get_page(url, lawd_cd, deal_ymd, 1, session)
     out = parse(xml, lawd_cd)
     for page in range(2, math.ceil(total / PAGE_SIZE) + 1):
         xml, _ = _get_page(url, lawd_cd, deal_ymd, page, session)
-        out.extend(parse(xml, lawd_cd))
+        more = parse(xml, lawd_cd)
+        out.extend(more)
+        out.skipped += more.skipped
     return out
 
 
-def fetch_trades(lawd_cd: str, deal_ymd: str, *, session=None) -> list[TradeItem]:
+def fetch_trades(lawd_cd: str, deal_ymd: str, *, session=None) -> ParseResult:
     return _fetch_all(TRADE_URL, parse_trade_xml, lawd_cd, deal_ymd, session)
 
 
-def fetch_rents(lawd_cd: str, deal_ymd: str, *, session=None) -> list[RentItem]:
+def fetch_rents(lawd_cd: str, deal_ymd: str, *, session=None) -> ParseResult:
     return _fetch_all(RENT_URL, parse_rent_xml, lawd_cd, deal_ymd, session)

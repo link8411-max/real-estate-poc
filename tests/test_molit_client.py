@@ -135,3 +135,40 @@ def test_injected_session_is_used():
             return FakeResponse(200, read("trade_sample.xml"))
 
     assert len(fetch_trades("11680", "202610", session=FakeSession())) == 3
+
+
+def _with_bad_items(name: str) -> str:
+    """샘플 첫 item 을 복제해 형식이 깨진 item 3개를 덧붙인다."""
+    xml = read(name)
+    first = xml[xml.index("<item>"): xml.index("</item>") + len("</item>")]
+    bad = [
+        first.replace(first[first.index("<excluUseAr>"): first.index("</excluUseAr>")], "<excluUseAr> "),
+        first.replace(first[first.index("<dealDay>"): first.index("</dealDay>")], "<dealDay>"),
+    ]
+    if "<cdealDay>" in first:
+        bad.append(first.replace(first[first.index("<cdealDay>"): first.index("</cdealDay>")],
+                                 "<cdealDay>26/10/20"))
+    else:
+        bad.append(first.replace("<dealMonth>", "<dealMonth>x"))
+    return xml.replace("</items>", "".join(bad) + "</items>")
+
+
+def test_parse_trade_skips_malformed_items_and_counts_them():
+    items = parse_trade_xml(_with_bad_items("trade_sample.xml"), "11680")
+    assert len(items) == 3  # 원래 3건만 남는다
+    assert items.skipped == 3
+    assert parse_trade_xml(read("trade_sample.xml"), "11680").skipped == 0
+
+
+def test_parse_rent_skips_malformed_items_and_counts_them():
+    good = parse_rent_xml(read("rent_sample.xml"), "11680")
+    items = parse_rent_xml(_with_bad_items("rent_sample.xml"), "11680")
+    assert len(items) == len(good) and items.skipped == 3
+
+
+def test_fetch_all_sums_skipped_across_pages(monkeypatch):
+    page = _with_bad_items("trade_sample.xml").replace(
+        "<totalCount>3</totalCount>", "<totalCount>1500</totalCount>")
+    monkeypatch.setattr(requests, "get", lambda url, params=None, timeout=None: FakeResponse(200, page))
+    items = fetch_trades("11680", "202610")
+    assert len(items) == 6 and items.skipped == 6
