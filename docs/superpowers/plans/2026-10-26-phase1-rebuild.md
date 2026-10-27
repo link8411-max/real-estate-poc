@@ -521,6 +521,41 @@ test("formatManwon", () => { expect(formatManwon(125000)).toBe("12억 5,000"); e
 
 ---
 
+### Task 16b: SEO 보강
+
+사용자 요청(10/27): "이거 seo 도 필요하지 않을까". 실거래가 검색 유입이 주 경로이므로 단지·지역 페이지가 검색엔진에 제대로 색인되게 한다. 이미 있는 것: 제목 템플릿, `sitemap.ts`, `robots.ts`, OG 라우트.
+
+**Files:**
+- Modify: `frontend/src/app/apartment/[id]/layout.tsx`·`page.tsx`(메타데이터·ISR·JSON-LD), `frontend/src/app/sitemap.ts`, `frontend/src/app/robots.ts`, `frontend/src/app/api/og/[id]/route.tsx`, `frontend/src/app/layout.tsx`(`metadataBase`)
+- Create: `frontend/src/app/region/[code]/page.tsx`(경로형 지역 페이지), `frontend/src/lib/seo.ts`(제목·설명·JSON-LD 빌더), `frontend/src/lib/__tests__/seo.test.ts`, `frontend/public/fonts/NotoSansKR-subset.woff`(OG용 한글 서브셋, 라이선스 OFL 표기 포함)
+- Modify: `/browse`의 지역 링크를 `/region/[code]`로, `/browse?code=…`는 `/region/[code]`로 영구 리다이렉트(`next.config` redirects 또는 page에서 `permanentRedirect`)
+
+**Interfaces / 결정:**
+- `seo.ts`:
+  - `aptTitle(apt, latest?) -> string`: `"역삼래미안 실거래가 | 서울 강남구 역삼동 · 최근 35억(25.10)"`. 최근 거래가 없으면 뒷부분 생략.
+  - `aptDescription(apt, areaStats) -> string`: 평형별 최근가 2~3개를 요약, 160자 이내.
+  - `regionTitle(region)`: `"강남구 아파트 실거래가 | 서울"`.
+  - `aptJsonLd(apt, latestDeals) -> object`: `@type: "Residence"`(또는 `ApartmentComplex`)에 `name`, `address`(PostalAddress: addressRegion=시도, addressLocality=구, streetAddress=동+지번), `geo`(lat/lng 있을 때), `url`.
+  - `breadcrumbJsonLd([{name,url}])`: 홈 › 시도 › 구 › 단지.
+- `canonical`: 모든 페이지에 `alternates.canonical`. 검색어·필터 쿼리가 붙은 URL(`/search?q=`, `/map?...`)은 canonical을 쿼리 없는 경로로, `/search`는 `robots: { index: false }`.
+- `metadataBase`: 환경변수 `NEXT_PUBLIC_SITE_URL`(없으면 Vercel 도메인).
+- 단지 페이지 ISR: `export const revalidate = 3600`. 최근 거래가·평형별 시세 표가 서버 렌더 HTML 본문에 텍스트로 들어가야 한다(클라이언트 전용 단위 전환 라벨은 서버 스냅샷=평으로 렌더되므로 그대로 둔다). `generateStaticParams`는 쓰지 않는다(1.9만 페이지 빌드 방지). 첫 요청 시 생성.
+- `/region/[code]`: 서버 컴포넌트, `fetchRegion(code)`, 단지 목록(거래 많은 순), 지역 평균가·거래량 요약, 단지 링크. 없는 코드 → `notFound()`. 폐지 코드(`succeeded_by` 있음) → 첫 후속 코드로 `permanentRedirect`.
+- `sitemap.ts`: 정적 페이지 + 83개 `/region/[code]` + 단지 URL(최대 45,000). 단지 URL `lastModified`는 데이터 기준일(meta.data_updated_at).
+- OG 이미지: 한글 서브셋 폰트를 `fetch(new URL("../../../public/fonts/…", import.meta.url))`로 읽어 `ImageResponse`의 `fonts`에 전달. 서브셋은 KS X 1001 완성형 2,350자 + 숫자·기호(약 600KB 이하)로 만들고 생성 명령을 `scripts/make_og_font.sh`로 남긴다(pyftsubset).
+- `robots.ts`: `/api/`, `/compare`, `/search` disallow 유지·추가, sitemap URL은 `metadataBase` 기준.
+
+- [ ] **Step 1: `seo.test.ts`(제목·설명 길이·최근가 없는 경우, JSON-LD 필드, breadcrumb 순서) 작성 → 실패 확인 → 구현**
+- [ ] **Step 2: 단지 페이지 메타데이터·canonical·JSON-LD·ISR 적용** — 확인: `curl -s localhost:3000/apartment/764 | grep -o '<title>[^<]*'`, `application/ld+json` 블록 존재, 본문 HTML에 최근 거래가 텍스트 존재.
+- [ ] **Step 3: `/region/[code]` 생성, `/browse` 링크 교체와 리다이렉트** — 테스트: 폐지 코드 리다이렉트, 없는 코드 404.
+- [ ] **Step 4: sitemap·robots 갱신** — `curl -s localhost:3000/sitemap.xml | grep -c '<url>'` ≥ 정적+83.
+- [ ] **Step 5: OG 한글 폰트** — `curl -s -o /tmp/og.png localhost:3000/api/og/764`로 받아 한글이 네모가 아닌지 컨트롤러가 이미지로 확인.
+- [ ] **Step 6: Commit** — `git commit -m "feat(web): SEO 보강 (메타·canonical·JSON-LD·ISR·지역 경로·OG 한글)"`
+
+**사용자 할 일(배포 후, Task 17에서 안내):** 네이버 서치어드바이저·구글 서치콘솔에 사이트 등록(소유 확인 메타태그나 DNS), 사이트맵 제출. 도메인 `sudogwon.com`을 실제로 보유·연결했는지 확인(연결 전이면 Vercel 도메인으로 등록하고, 연결 후 주소 변경 신고).
+
+---
+
 ### Task 17: 배포, Render 제거, 문서
 
 **Files:**
