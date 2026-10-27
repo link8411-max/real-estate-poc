@@ -6,7 +6,7 @@ import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
 from pipeline.db import connect, insert_rent, insert_trade, migrate, pop_changed, upsert_apartment
@@ -32,6 +32,18 @@ def month_range(start: str, end: str) -> list[str]:
         out.append(f"{y:04d}{m:02d}")
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
     return out
+
+
+KST = timezone(timedelta(hours=9))
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def kst_today(now: datetime | None = None) -> date:
+    """한국 날짜. Actions 러너는 UTC 라 KST 자정~09시에는 날짜(월)가 하루 늦다."""
+    return (now or _utcnow()).astimezone(KST).date()
 
 
 def current_and_previous_month(today: date) -> list[str]:
@@ -73,13 +85,23 @@ def collect(
             for code, name in regions.items():
                 try:
                     items = fetchers[kind](code, ym)
+                    saved = _save(conn, kind, items)
+                    conn.commit()  # (지역, 월, 종류) 배치 단위 커밋
                 except MolitError as e:
                     res.failed.append((code, ym, e.reason))
                     log(f"  {name}: FAILED - {e.reason}")
                     time.sleep(delay)
                     continue
-                saved = _save(conn, kind, items)
-                conn.commit()  # (지역, 월, 종류) 배치 단위 커밋
+                except Exception as e:  # noqa: BLE001 — 한 배치의 예상 못 한 오류로 전체 수집을 멈추지 않는다
+                    conn.rollback()
+                    reason = f"unexpected: {type(e).__name__}: {e}"
+                    res.failed.append((code, ym, reason))
+                    log(f"  {name}: FAILED - {reason}")
+                    time.sleep(delay)
+                    continue
+                skipped = getattr(items, "skipped", 0)
+                if skipped:
+                    log(f"  {name}: 형식 오류 {skipped}건 건너뜀")
                 res.fetched += len(items)
                 res.saved += saved
                 if saved > 0 or not items:
@@ -126,7 +148,7 @@ def _resolve_months(p: argparse.ArgumentParser, a: argparse.Namespace) -> list[s
     if a.retry_failed:
         return sorted({ym for _, ym in a.retry["failed"]})
     if a.daily:
-        months = current_and_previous_month(date.today())
+        months = current_and_previous_month(kst_today())
     elif a.months:
         months = [m.strip() for m in a.months.split(",")]
     else:

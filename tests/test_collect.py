@@ -215,3 +215,68 @@ def test_real_regions_contain_split_codes():
     from pipeline.regions import REGIONS as real
     split = "28125 28155 28275 28290 41192 41194 41196 41591 41593 41595 41597".split()
     assert set(split) <= set(real) and len(real) == 83
+
+
+def test_collect_logs_skipped_malformed_items(conn):
+    from pipeline.molit_client import ParseResult
+
+    def fake(lawd, ym, **kw):
+        return ParseResult([trade(lawd)], skipped=2)
+
+    logs = []
+    res = collect(conn, kinds={"trade"}, months=["202610"], regions={"11680": "강남구"},
+                  fetch_trades=fake, fetch_rents=None, delay=0, log=logs.append)
+    assert res.saved == 1 and res.failed == []
+    assert "  강남구: 형식 오류 2건 건너뜀" in logs
+
+
+def test_collect_records_unexpected_exception_and_continues(conn):
+    seen = []
+
+    def flaky(lawd, ym, **kw):
+        seen.append(lawd)
+        if lawd == "11680":
+            raise ValueError("bad float")
+        return [trade(lawd)]
+
+    logs = []
+    res = collect(conn, kinds={"trade"}, months=["202610"], regions={"11680": "강남구", "11140": "중구"},
+                  fetch_trades=flaky, fetch_rents=None, delay=0, log=logs.append)
+    assert seen == ["11680", "11140"]
+    assert res.failed == [("11680", "202610", "unexpected: ValueError: bad float")]
+    assert res.saved == 1
+    assert "  강남구: FAILED - unexpected: ValueError: bad float" in logs
+
+
+def test_collect_unexpected_error_in_save_rolls_back_batch(conn, monkeypatch):
+    real_save = collect_mod._save
+
+    def boom(c, kind, items):
+        real_save(c, kind, items)  # 일부 쓰고 나서 터진다
+        raise KeyError("x")
+
+    monkeypatch.setattr(collect_mod, "_save", boom)
+    res = collect(conn, kinds={"trade"}, months=["202610"], regions={"11680": "강남구"},
+                  fetch_trades=lambda *a, **k: [trade()], fetch_rents=None, delay=0, log=lambda s: None)
+    assert res.failed == [("11680", "202610", "unexpected: KeyError: 'x'")]
+    assert conn.execute("select count(*) from transactions").fetchone()[0] == 0  # 배치 롤백
+
+
+def test_current_and_previous_month_kst_rolls_over():
+    from datetime import datetime, timezone
+    from pipeline.collect import kst_today
+    # UTC 10/31 15:30 == KST 11/01 00:30
+    assert kst_today(datetime(2026, 10, 31, 15, 30, tzinfo=timezone.utc)) == date(2026, 11, 1)
+    assert current_and_previous_month(kst_today(datetime(2026, 10, 31, 15, 30, tzinfo=timezone.utc))) \
+        == ["202610", "202611"]
+    assert kst_today(datetime(2026, 10, 31, 14, 59, tzinfo=timezone.utc)) == date(2026, 10, 31)
+
+
+def test_main_daily_uses_kst_date(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    got = _capture_collect(monkeypatch)
+    monkeypatch.setattr(collect_mod, "_utcnow",
+                        lambda: datetime(2026, 12, 31, 16, 0, tzinfo=timezone.utc))
+    monkeypatch.chdir(tmp_path)
+    assert main(["--db", str(tmp_path / "x.db"), "--daily", "--delay", "0"]) == 0
+    assert got["months"] == ["202612", "202701"]
