@@ -11,7 +11,8 @@ export function formatManwon(n: number): string {
   return n.toLocaleString("en-US");
 }
 
-export const areaToPyeong = (m2: number): number => Math.round(m2 / 3.3058);
+const M2_PER_PYEONG = 3.3058;
+export const areaToPyeong = (m2: number): number => Math.round(m2 / M2_PER_PYEONG);
 
 /** "2026-10-06" → "26.10.06" */
 export const formatDeal = (d: string): string => d.slice(2).replaceAll("-", ".");
@@ -27,7 +28,7 @@ export const formatArea = (m2: number, unit: AreaUnit = "pyeong"): string => {
 
 /** 개별 거래의 실제 면적. 80.87 → 평: "전용 24.5평", ㎡: "80.87㎡" */
 export const formatExactArea = (m2: number, unit: AreaUnit = "pyeong"): string =>
-  unit === "pyeong" ? `전용 ${(m2 / 3.3058).toFixed(1)}평` : `${+m2.toFixed(2)}㎡`;
+  unit === "pyeong" ? `전용 ${(m2 / M2_PER_PYEONG).toFixed(1)}평` : `${+m2.toFixed(2)}㎡`;
 
 /** 문장용: 245000 → "24억 5,000만원", 100000 → "10억원" */
 export const formatPrice = (n: number): string =>

@@ -15,14 +15,20 @@ const subscribe = (cb: () => void) => {
   };
 };
 
-/** 저장된 단위. 없거나 깨진 값, 저장소 접근 불가면 기본값. */
+const isUnit = (v: unknown): v is AreaUnit => v === "pyeong" || v === "m2";
+
+/** 저장소에 쓰지 못할 때(개인 모드 등)를 위한 이번 세션 값. set이 먼저 채운다. */
+let memory: AreaUnit | null = null;
+
+/** 저장된 단위. 저장값이 유효하면 그것, 아니면 메모리 값, 그것도 없으면 기본값. */
 function read(): AreaUnit {
   try {
     const v = localStorage.getItem(KEY);
-    return v === "pyeong" || v === "m2" ? v : DEFAULT_AREA_UNIT;
+    if (isUnit(v)) return v;
   } catch {
-    return DEFAULT_AREA_UNIT;
+    // 저장소 접근 불가
   }
+  return memory ?? DEFAULT_AREA_UNIT;
 }
 
 const readServer = (): AreaUnit => DEFAULT_AREA_UNIT;
@@ -33,8 +39,9 @@ export function useAreaUnit(): [AreaUnit, (u: AreaUnit) => void] {
   const set = useCallback((u: AreaUnit) => {
     try {
       localStorage.setItem(KEY, u);
+      memory = null;
     } catch {
-      // 저장 불가: 저장은 건너뛰지만 구독자에게는 알린다(읽기도 기본값이라 변화는 없다)
+      memory = u; // 저장 불가: 이번 세션에서만 메모리 값으로 반영된다
     }
     window.dispatchEvent(new Event(EVENT));
   }, []);

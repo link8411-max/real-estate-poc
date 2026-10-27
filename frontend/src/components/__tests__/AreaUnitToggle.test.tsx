@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import AreaLabel from "../AreaLabel";
 import AreaUnitToggle from "../AreaUnitToggle";
 
@@ -11,7 +11,16 @@ const ui = () => (
   </>
 );
 
+type ActGlobal = { IS_REACT_ACT_ENVIRONMENT?: boolean };
+
 describe("AreaUnitToggle", () => {
+  const prevAct = (globalThis as ActGlobal).IS_REACT_ACT_ENVIRONMENT;
+  afterEach(() => {
+    vi.restoreAllMocks();
+    (globalThis as ActGlobal).IS_REACT_ACT_ENVIRONMENT = prevAct;
+    document.body.innerHTML = "";
+  });
+
   test("평이 기본 선택된 radiogroup", () => {
     render(<AreaUnitToggle />);
     expect(screen.getByRole("radiogroup")).toBeInTheDocument();
@@ -34,7 +43,7 @@ describe("AreaUnitToggle", () => {
     const { act } = await import("react");
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const errors: unknown[] = [];
-    const spy = (await import("vitest")).vi.spyOn(console, "error").mockImplementation((...a) => void errors.push(a));
+    vi.spyOn(console, "error").mockImplementation((...a) => void errors.push(a));
     const html = renderToString(<AreaLabel m2={84.88} />); // 서버: 저장소를 모르므로 평
     expect(html).toContain("전용 25평 (84㎡)");
     localStorage.setItem("areaUnit", "m2");
@@ -46,7 +55,5 @@ describe("AreaUnitToggle", () => {
     });
     expect(el.textContent).toBe("84㎡ (전용 25평)");
     expect(errors).toEqual([]);
-    spy.mockRestore();
-    el.remove();
   });
 });
