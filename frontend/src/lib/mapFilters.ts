@@ -105,3 +105,6 @@ export function readInitialView(sp: URLSearchParams): { center: { lat: number; l
     level: level !== undefined && Number.isInteger(level) ? level : DEFAULT_LEVEL,
   };
 }
+
+/** 크기가 사실상 0인 범위(지도 컨테이너가 0px일 때 생긴다). 이런 범위로는 요청하지 않는다. */
+export const isDegenerateBounds = (b: MapBounds): boolean => b.maxLat - b.minLat < 1e-6 || b.maxLng - b.minLng < 1e-6;

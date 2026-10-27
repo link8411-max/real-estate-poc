@@ -72,6 +72,15 @@ describe("useMapData", () => {
     expect(result.current.data).toBeNull();
   });
 
+  test("크기 0인(min == max) bounds는 호출하지 않는다", () => {
+    const point = { minLat: 37.5664005, minLng: 126.9779053, maxLat: 37.5664005, maxLng: 126.9779053 };
+    const { result } = renderHook(() => useMapData(point, 8, "trade", {}));
+    expect(pending).toHaveLength(0);
+    expect(result.current).toEqual({ data: null, loading: false, error: null, tooWide: false });
+    renderHook(() => useMapData({ ...gangnam, maxLng: gangnam.minLng + 1e-7 }, 5, "trade", {}));
+    expect(pending).toHaveLength(0);
+  });
+
   test("bounds가 없으면 호출하지 않는다", () => {
     const { result } = renderHook(() => useMapData(null, 8, "trade", {}));
     expect(pending).toHaveLength(0);

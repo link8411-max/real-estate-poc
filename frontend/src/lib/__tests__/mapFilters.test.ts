@@ -6,6 +6,7 @@ import {
   builtFromYears,
   countActiveFilters,
   exceedsMapSpan,
+  isDegenerateBounds,
   formatMapLabel,
   readInitialView,
   readMapFilters,
@@ -91,5 +92,13 @@ describe("readInitialView", () => {
       center: { lat: 37.5665, lng: 126.978 },
       level: 8,
     });
+  });
+});
+
+describe("isDegenerateBounds", () => {
+  test("어느 축이든 폭이 1e-6 미만이면 true", () => {
+    expect(isDegenerateBounds({ minLat: 37.5, minLng: 127, maxLat: 37.5, maxLng: 127 })).toBe(true);
+    expect(isDegenerateBounds({ minLat: 37.5, minLng: 127, maxLat: 37.6, maxLng: 127 + 5e-7 })).toBe(true);
+    expect(isDegenerateBounds({ minLat: 37.5, minLng: 127, maxLat: 37.6, maxLng: 127.1 })).toBe(false);
   });
 });

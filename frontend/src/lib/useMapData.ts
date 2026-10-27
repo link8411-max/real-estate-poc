@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { exceedsMapSpan, type MapBounds, type MapMode } from "./mapFilters";
+import { exceedsMapSpan, isDegenerateBounds, type MapBounds, type MapMode } from "./mapFilters";
 
 export interface MapApartment {
   id: number;
@@ -53,9 +53,10 @@ export function useMapData(
   mode: MapMode,
   filters: Record<string, string>,
 ): MapDataState {
-  const tooWide = bounds !== null && exceedsMapSpan(bounds, level);
+  const usable = bounds !== null && !isDegenerateBounds(bounds);
+  const tooWide = usable && exceedsMapSpan(bounds, level);
   const key =
-    bounds && !tooWide
+    usable && !tooWide
       ? new URLSearchParams({
           minLat: String(bounds.minLat),
           minLng: String(bounds.minLng),
