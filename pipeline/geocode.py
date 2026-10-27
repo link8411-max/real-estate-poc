@@ -9,7 +9,7 @@ import requests
 from dotenv import load_dotenv
 
 from pipeline.db import connect, mark_changed, migrate
-from pipeline.regions import REGION_FULLNAME
+from pipeline.regions import query_prefix
 
 load_dotenv()
 
@@ -31,7 +31,10 @@ def geocode_address(lawd_cd, dong, jibun, *, session=None):
     if not key:
         raise GeocodeError(None, "KAKAO_REST_API_KEY not set")
     getter = session if session is not None else requests
-    params = {"query": f"{REGION_FULLNAME[lawd_cd]} {dong} {jibun}"}
+    prefix = query_prefix(lawd_cd)
+    if prefix is None:
+        raise KeyError(lawd_cd)
+    params = {"query": f"{prefix} {dong} {jibun}"}
     headers = {"Authorization": f"KakaoAK {key}"}
     for attempt in range(4):
         resp = getter.get(KAKAO_URL, params=params, headers=headers, timeout=10)
@@ -44,7 +47,10 @@ def geocode_address(lawd_cd, dong, jibun, *, session=None):
     docs = resp.json().get("documents") or []
     if not docs:
         return None
-    return float(docs[0]["y"]), float(docs[0]["x"]), "kakao_address"
+    try:
+        return float(docs[0]["y"]), float(docs[0]["x"]), "kakao_address"
+    except (KeyError, ValueError, TypeError, IndexError) as e:
+        raise ValueError(f"bad kakao document: {e!r}") from e
 
 
 def fill_missing_coords(conn, *, limit=20000, delay=0.05, geocode=geocode_address,
@@ -73,6 +79,10 @@ def fill_missing_coords(conn, *, limit=20000, delay=0.05, geocode=geocode_addres
         except requests.RequestException as e:
             log(f"geocode stopped early (network {type(e).__name__}): {e}")
             break
+        except (KeyError, ValueError, TypeError) as e:
+            # 알 수 없는 코드/응답 파싱 실패: 이 행만 실패 처리하고 계속한다.
+            log(f"geocode row {r['id']} failed ({type(e).__name__}): {e}")
+            res = None
         if res:
             conn.execute(
                 "UPDATE apartments SET latitude=?, longitude=?, geocode_quality=? WHERE id=?",

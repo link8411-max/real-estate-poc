@@ -31,3 +31,19 @@ def test_region_fullname_covers_all_regions_with_city_prefix():
         assert full.startswith(city_of(code) + " ")
     assert REGION_FULLNAME["41135"] == "경기 성남시 분당구"
     assert REGION_FULLNAME["28710"] == "인천 강화군"
+
+
+def test_suwon_palgal_yeongtong_not_swapped():
+    from pipeline.regions import REGION_FULLNAME
+    assert REGIONS["41115"] == "수원팔달"
+    assert REGIONS["41117"] == "수원영통"
+    assert REGION_FULLNAME["41115"] == "경기 수원시 팔달구"
+    assert REGION_FULLNAME["41117"] == "경기 수원시 영통구"
+
+
+def test_query_prefix_current_retired_unknown():
+    from pipeline.regions import query_prefix
+    assert query_prefix("11680") == "서울 강남구"
+    assert query_prefix("41590") == "경기 화성시"
+    assert query_prefix("28110") == "인천 중구"
+    assert query_prefix("99999") is None

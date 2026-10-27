@@ -247,3 +247,53 @@ def test_cli_exits_zero_on_transient_error(tmp_path, monkeypatch):
 
 
 _orig_fill = geo.fill_missing_coords
+
+
+def test_geocode_address_retired_code_uses_old_prefix(monkeypatch):
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "k")
+    s = _Session([_Resp(200, {"documents": [{"y": "37.1", "x": "127.1"}]})])
+    assert geo.geocode_address("41590", "봉담읍", "1", session=s) == (37.1, 127.1, "kakao_address")
+    assert s.calls[0][1]["query"] == "경기 화성시 봉담읍 1"
+
+
+def test_geocode_address_unknown_code_raises_keyerror(monkeypatch):
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "k")
+    with pytest.raises(KeyError):
+        geo.geocode_address("99999", "x", "1", session=_Session([]))
+
+
+def test_geocode_address_malformed_document_raises_valueerror(monkeypatch):
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "k")
+    for doc in ({"x": "1"}, {"y": "abc", "x": "1"}):
+        with pytest.raises(ValueError):
+            geo.geocode_address("11680", "d", "1", session=_Session([_Resp(200, {"documents": [doc]})]))
+
+
+def test_fill_missing_coords_unknown_code_marked_failed_and_continues():
+    conn = _dst()
+    _add(conn, "U", "99999", "x", "1")
+    _add(conn, "G", "11680", "y", "2")
+    from pipeline.regions import query_prefix
+
+    def g(lawd, dong, jibun):
+        if query_prefix(lawd) is None:
+            raise KeyError(lawd)
+        return 37.0, 127.0, "kakao_address"
+
+    assert geo.fill_missing_coords(conn, delay=0, geocode=g, log=lambda m: None) == (1, 1)
+    assert _row(conn, "U")[2] == "failed"
+    assert _row(conn, "G") == (37.0, 127.0, "kakao_address")
+
+
+def test_fill_missing_coords_row_parse_error_is_per_row_failure():
+    conn = _dst()
+    _add(conn, "A", "11680", "a", "1")
+    _add(conn, "B", "11680", "b", "2")
+
+    def g(lawd, dong, jibun):
+        if dong == "a":
+            raise ValueError("bad")
+        return 1.0, 2.0, "kakao_address"
+
+    assert geo.fill_missing_coords(conn, delay=0, geocode=g, log=lambda m: None) == (1, 1)
+    assert _row(conn, "A")[2] == "failed" and _row(conn, "B")[2] == "kakao_address"

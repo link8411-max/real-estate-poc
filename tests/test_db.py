@@ -200,3 +200,12 @@ def test_upsert_moving_retired_code_marks_changed(conn):
     assert pop_changed(conn) == [old]
     assert apt(conn, name="청라X", lawd_cd="28275", dong="청라동", jibun="5", apt_seq=None) == old
     assert pop_changed(conn) == []  # 이미 옮겨진 뒤에는 표시하지 않는다
+
+
+def test_migrate_corrects_existing_region_names(conn):
+    conn.execute("UPDATE regions SET district_name='수원영통' WHERE code='41115'")
+    conn.execute("UPDATE regions SET district_name='수원팔달' WHERE code='41117'")
+    conn.commit()
+    migrate(conn)
+    got = dict(conn.execute("SELECT code, district_name FROM regions WHERE code IN ('41115','41117')").fetchall())
+    assert got == {"41115": "수원팔달", "41117": "수원영통"}

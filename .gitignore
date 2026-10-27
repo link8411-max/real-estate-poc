@@ -50,3 +50,6 @@ out/
 *.db-wal
 .migration_state
 summary_*.json
+changed_apts.json
+summary.json
+*.migration_state
