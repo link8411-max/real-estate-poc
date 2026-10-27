@@ -1,4 +1,4 @@
-import { Building2, CalendarDays, MapPin, TrendingUp } from "lucide-react";
+import { Building2, CalendarDays, Map as MapIcon, MapPin, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import RecentDeals from "@/components/RecentDeals";
 import SearchBox from "@/components/SearchBox";
@@ -30,6 +30,13 @@ export default async function Home() {
           <h1 className="mb-2 text-3xl font-bold text-white">아파트 실거래가 조회</h1>
           <p className="mb-8 text-blue-100">서울·경기·인천 아파트 실거래 데이터를 검색하세요</p>
           <SearchBox />
+          <Link
+            href="/map"
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-base font-semibold text-blue-700 shadow-lg transition hover:bg-blue-50"
+          >
+            <MapIcon className="h-5 w-5" aria-hidden />
+            지도에서 찾기
+          </Link>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {KEYWORDS.map((k) => (
               <Link
