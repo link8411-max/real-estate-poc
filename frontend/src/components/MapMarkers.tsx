@@ -2,13 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { formatMapLabel, type MapMode } from "@/lib/mapFilters";
+import { cullLabels } from "@/lib/cullLabels";
+import { formatMapLabel, type MapBounds, type MapMode } from "@/lib/mapFilters";
 import type { MapApartment, MapData, MapRegion } from "@/lib/useMapData";
 
 interface Props {
   map: kakao.maps.Map;
   data: MapData | null;
   mode: MapMode;
+  /** 지도가 멈출 때마다 바뀌는 현재 범위. 바뀌면 라벨 겹침을 다시 계산한다. */
+  bounds?: MapBounds | null;
 }
 
 /** 지도 위에 올릴 오버레이 한 개의 명세. sig가 같으면 기존 오버레이를 그대로 둔다. */
@@ -27,15 +30,17 @@ function el(tag: string, className: string, text?: string): HTMLElement {
   return e;
 }
 
+const amountOf = (a: MapApartment, mode: MapMode) => (mode === "rent" ? a.latest_jeonse_deposit : a.latest_trade_amount);
+
 function apartmentSpec(a: MapApartment, mode: MapMode, go: (id: number) => void): Spec | null {
-  const amount = mode === "rent" ? a.latest_jeonse_deposit : a.latest_trade_amount;
+  const amount = amountOf(a, mode);
   if (amount === null) return null;
   const label = formatMapLabel(amount);
   return {
     key: `a:${a.id}`,
     lat: a.lat,
     lng: a.lng,
-    sig: `${label}|${a.name}`,
+    sig: `${mode}|${label}|${a.name}`,
     build: () => {
       const root = el("button", "group relative block cursor-pointer");
       root.setAttribute("type", "button");
@@ -50,8 +55,14 @@ function apartmentSpec(a: MapApartment, mode: MapMode, go: (id: number) => void)
   };
 }
 
-function regionSpec(r: MapRegion, zoom: (lat: number, lng: number) => void): Spec {
-  const avg = r.avg_amount === null ? "-" : formatMapLabel(r.avg_amount);
+/** 지역 원의 둘째 줄. avg_amount는 매매 평균이라 전세 모드에서는 단지 수를 보여준다. */
+function regionSubtitle(r: MapRegion, mode: MapMode): string {
+  if (mode === "rent") return r.apartment_count === null ? "-" : `단지 ${r.apartment_count.toLocaleString("en-US")}개`;
+  return r.avg_amount === null ? "-" : formatMapLabel(r.avg_amount);
+}
+
+function regionSpec(r: MapRegion, mode: MapMode, zoom: (lat: number, lng: number) => void): Spec {
+  const avg = regionSubtitle(r, mode);
   return {
     key: `r:${r.code}`,
     lat: r.lat,
@@ -77,21 +88,31 @@ function raiseOnHover(overlay: kakao.maps.CustomOverlay, content: HTMLElement) {
 }
 
 /** 단지 라벨/지역 원을 CustomOverlay로 그린다. 갱신 때는 key로 비교해 바뀐 것만 다시 만든다. */
-export default function MapMarkers({ map, data, mode }: Props) {
+/** 화면에서 겹치는 단지 라벨을 거래 수 우선으로 거른다. */
+function visibleApartments(map: kakao.maps.Map, items: MapApartment[], mode: MapMode): MapApartment[] {
+  const projection = map.getProjection();
+  const priced = items.filter((a) => amountOf(a, mode) !== null);
+  return cullLabels(priced, (a) => projection.containerPointFromCoords(new kakao.maps.LatLng(a.lat, a.lng)), {
+    label: (a) => formatMapLabel(amountOf(a, mode)!),
+    weight: (a) => a.trade_count ?? 0,
+  });
+}
+
+export default function MapMarkers({ map, data, mode, bounds }: Props) {
   const router = useRouter();
   const overlays = useRef(new Map<string, { overlay: kakao.maps.CustomOverlay; sig: string }>());
 
   useEffect(() => {
     const go = (id: number) => router.push(`/apartment/${id}`);
     const zoom = (lat: number, lng: number) => {
-      map.setCenter(new kakao.maps.LatLng(lat, lng));
       map.setLevel(6);
+      map.setCenter(new kakao.maps.LatLng(lat, lng));
     };
     const specs: Spec[] = !data
       ? []
       : data.type === "apartments"
-        ? data.items.flatMap((a) => apartmentSpec(a, mode, go) ?? [])
-        : data.items.map((r) => regionSpec(r, zoom));
+        ? visibleApartments(map, data.items, mode).flatMap((a) => apartmentSpec(a, mode, go) ?? [])
+        : data.items.map((r) => regionSpec(r, mode, zoom));
 
     const current = overlays.current;
     const next = new Set(specs.map((s) => s.key));
@@ -121,7 +142,7 @@ export default function MapMarkers({ map, data, mode }: Props) {
       raiseOnHover(overlay, content);
       current.set(s.key, { overlay, sig: s.sig });
     }
-  }, [map, data, mode, router]);
+  }, [map, data, mode, router, bounds]);
 
   useEffect(() => {
     const current = overlays.current;

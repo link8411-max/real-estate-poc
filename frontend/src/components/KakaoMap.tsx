@@ -27,7 +27,7 @@ export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<kakao.maps.Map | null>(null);
   const detachRef = useRef<(() => void) | null>(null);
-  const [failed, setFailed] = useState(!appKey);
+  const [failed, setFailed] = useState(false);
 
   const callbacks = useRef({ onIdle, onReady });
   useEffect(() => {
@@ -35,7 +35,10 @@ export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
   });
   const initial = useRef({ center, level });
 
-  /** idle 리스너를 붙인다. 언마운트(또는 StrictMode 재마운트) 때 떼기 위해 해제 함수를 남긴다. */
+  /**
+   * idle 리스너와 컨테이너 ResizeObserver를 붙인다. 언마운트(또는 StrictMode 재마운트) 때 떼기 위해 해제 함수를 남긴다.
+   * 컨테이너 크기가 바뀌면 relayout하지 않을 경우 새로 드러난 영역에 타일이 그려지지 않는다(회색).
+   */
   const attach = useCallback((map: kakao.maps.Map) => {
     detachRef.current?.();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -55,8 +58,29 @@ export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
     };
     kakao.maps.event.addListener(map, "idle", emit);
     emit();
+    const container = containerRef.current;
+    const observer =
+      container && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            const center = map.getCenter();
+            map.relayout();
+            map.setCenter(center);
+          })
+        : null;
+    if (container) observer?.observe(container);
+    // 오버레이 버튼이 클릭으로 포커스되면 브라우저가 overflow:hidden 컨테이너를 스크롤해 버린다.
+    // 카카오맵은 이 스크롤을 모르고 타일을 계산해 일부가 회색으로 남으므로 항상 0으로 되돌린다.
+    const unscroll = () => {
+      if (container && (container.scrollTop || container.scrollLeft)) {
+        container.scrollTop = 0;
+        container.scrollLeft = 0;
+      }
+    };
+    container?.addEventListener("scroll", unscroll);
     detachRef.current = () => {
       clearTimeout(timer);
+      observer?.disconnect();
+      container?.removeEventListener("scroll", unscroll);
       kakao.maps.event.removeListener(map, "idle", emit);
       detachRef.current = null;
     };
@@ -78,15 +102,16 @@ export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
       const { center: c, level: l } = initial.current;
       const map = new sdk.maps.Map(containerRef.current, { center: new sdk.maps.LatLng(c.lat, c.lng), level: l });
       mapRef.current = map;
+      map.relayout();
       attach(map);
       callbacks.current.onReady?.(map);
     });
   }, [attach]);
 
-  if (failed) {
+  if (!appKey || failed) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-gray-100 px-6 text-center text-sm text-gray-600">
-        지도를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+        {appKey ? "지도를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." : "지도 키가 설정되지 않았습니다."}
       </div>
     );
   }
@@ -99,7 +124,7 @@ export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
         onReady={init}
         onError={() => setFailed(true)}
       />
-      <div ref={containerRef} className="h-full w-full bg-gray-100" />
+      <div ref={containerRef} data-testid="kakao-map" className="h-full w-full bg-gray-100" />
     </>
   );
 }

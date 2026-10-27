@@ -28,7 +28,15 @@ const MODES: { mode: MapMode; label: string }[] = [
   { mode: "rent", label: "전세" },
 ];
 
-function PriceSelect({ label, value, onChange }: { label: string; value?: number; onChange: (v?: number) => void }) {
+interface PriceSelectProps {
+  label: string;
+  value?: number;
+  /** 이 값보다 낮은 선택지는 비활성화(최대 가격 쪽) */
+  floor?: number;
+  onChange: (v?: number) => void;
+}
+
+function PriceSelect({ label, value, floor, onChange }: PriceSelectProps) {
   return (
     <select
       aria-label={label}
@@ -38,7 +46,7 @@ function PriceSelect({ label, value, onChange }: { label: string; value?: number
     >
       <option value="">{label.startsWith("최소") ? "최소" : "최대"}</option>
       {PRICE_STEPS_EOK.map((e) => (
-        <option key={e} value={e * 10000}>
+        <option key={e} value={e * 10000} disabled={floor !== undefined && e * 10000 < floor}>
           {e}억
         </option>
       ))}
@@ -75,6 +83,12 @@ export default function FilterPanel() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
+  /** 최소가 현재 최대보다 크면 두 값을 바꿔 범위가 뒤집히지 않게 한다. */
+  const setMinPrice = (v?: number) =>
+    v !== undefined && f.maxPrice !== undefined && v > f.maxPrice
+      ? update({ minPrice: f.maxPrice, maxPrice: v })
+      : update({ minPrice: v });
+
   const reset = () => update(Object.fromEntries(["mode", ...FILTER_KEYS].map((k) => [k, undefined])));
 
   return (
@@ -109,11 +123,11 @@ export default function FilterPanel() {
           </div>
         </Section>
 
-        <Section title="가격대 (매매가)">
+        <Section title={f.mode === "rent" ? "보증금 (전세)" : "가격대 (매매가)"}>
           <div className="flex items-center gap-2">
-            <PriceSelect label="최소 가격" value={f.minPrice} onChange={(v) => update({ minPrice: v })} />
+            <PriceSelect label="최소 가격" value={f.minPrice} onChange={setMinPrice} />
             <span className="text-gray-400">~</span>
-            <PriceSelect label="최대 가격" value={f.maxPrice} onChange={(v) => update({ maxPrice: v })} />
+            <PriceSelect label="최대 가격" value={f.maxPrice} floor={f.minPrice} onChange={(v) => update({ maxPrice: v })} />
           </div>
         </Section>
 

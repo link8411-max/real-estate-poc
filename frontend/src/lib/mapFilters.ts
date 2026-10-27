@@ -24,11 +24,11 @@ export interface AreaPreset {
   pyeong: string;
 }
 
-/** 평형 구간. 경계는 ㎡(API 기준), 라벨은 단위별로 만든다. */
+/** 평형 구간. 경계는 ㎡ 평형 그룹(정수, API의 gte/lte 기준)이라 서로 겹치지 않는다. 라벨은 단위별로 만든다. */
 export const AREA_PRESETS: readonly AreaPreset[] = [
-  { maxArea: 66, pyeong: "~20평" },
-  { minArea: 66, maxArea: 99, pyeong: "20평대" },
-  { minArea: 99, maxArea: 132, pyeong: "30평대" },
+  { maxArea: 65, pyeong: "~20평" },
+  { minArea: 66, maxArea: 98, pyeong: "20평대" },
+  { minArea: 99, maxArea: 131, pyeong: "30평대" },
   { minArea: 132, pyeong: "40평+" },
 ];
 

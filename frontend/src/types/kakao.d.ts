@@ -6,6 +6,15 @@ declare namespace kakao.maps {
     getLng(): number;
   }
 
+  class Point {
+    x: number;
+    y: number;
+  }
+
+  interface MapProjection {
+    containerPointFromCoords(latlng: LatLng): Point;
+  }
+
   class LatLngBounds {
     getSouthWest(): LatLng;
     getNorthEast(): LatLng;
@@ -25,6 +34,7 @@ declare namespace kakao.maps {
     panTo(latlng: LatLng): void;
     setCenter(latlng: LatLng): void;
     relayout(): void;
+    getProjection(): MapProjection;
   }
 
   interface CustomOverlayOptions {

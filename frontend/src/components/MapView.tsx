@@ -52,7 +52,7 @@ export default function MapView() {
       <div className="absolute inset-x-0 top-0 bottom-11 md:bottom-0">
         <KakaoMap center={initial.center} level={initial.level} onIdle={onIdle} onReady={setMap} />
       </div>
-      {map && <MapMarkers map={map} data={data} mode={filters.mode} />}
+      {map && <MapMarkers map={map} data={data} mode={filters.mode} bounds={view?.bounds} />}
       <FilterPanel />
       {tooWide ? (
         <Toast>지도를 더 확대해 주세요</Toast>

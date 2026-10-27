@@ -25,11 +25,11 @@ describe("formatMapLabel", () => {
 });
 
 describe("AREA_PRESETS", () => {
-  test("구간은 ㎡ 경계 0–66, 66–99, 99–132, 132+", () => {
+  test("구간은 겹치지 않는 정수 ㎡: ~65, 66–98, 99–131, 132+", () => {
     expect(AREA_PRESETS.map((p) => [p.minArea, p.maxArea])).toEqual([
-      [undefined, 66],
-      [66, 99],
-      [99, 132],
+      [undefined, 65],
+      [66, 98],
+      [99, 131],
       [132, undefined],
     ]);
   });
@@ -37,15 +37,15 @@ describe("AREA_PRESETS", () => {
     expect(AREA_PRESETS.map((p) => areaPresetLabel(p, "pyeong"))).toEqual(["~20평", "20평대", "30평대", "40평+"]);
   });
   test("㎡ 단위 라벨", () => {
-    expect(AREA_PRESETS.map((p) => areaPresetLabel(p, "m2"))).toEqual(["~66㎡", "66~99㎡", "99~132㎡", "132㎡+"]);
+    expect(AREA_PRESETS.map((p) => areaPresetLabel(p, "m2"))).toEqual(["~65㎡", "66~98㎡", "99~131㎡", "132㎡+"]);
   });
 });
 
 describe("readMapFilters / toApiQuery", () => {
   test("URL 쿼리에서 지도 필터만 읽고 API 쿼리로 옮긴다", () => {
-    const f = readMapFilters(new URLSearchParams("mode=rent&minPrice=50000&maxArea=99&minArea=66&lat=37&zz=1"));
-    expect(f).toEqual({ mode: "rent", minPrice: 50000, minArea: 66, maxArea: 99 });
-    expect(toApiQuery(f)).toEqual({ minPrice: "50000", minArea: "66", maxArea: "99" });
+    const f = readMapFilters(new URLSearchParams("mode=rent&minPrice=50000&maxArea=98&minArea=66&lat=37&zz=1"));
+    expect(f).toEqual({ mode: "rent", minPrice: 50000, minArea: 66, maxArea: 98 });
+    expect(toApiQuery(f)).toEqual({ minPrice: "50000", minArea: "66", maxArea: "98" });
   });
   test("모드 기본값은 매매, 숫자가 아닌 값은 무시", () => {
     expect(readMapFilters(new URLSearchParams("mode=x&minPrice=abc"))).toEqual({ mode: "trade" });

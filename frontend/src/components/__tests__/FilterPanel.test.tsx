@@ -49,6 +49,33 @@ describe("FilterPanel", () => {
     expect(screen.getByLabelText("최대 가격")).toHaveTextContent("30억");
   });
 
+  test("섹션 제목은 매매에서 '가격대 (매매가)', 전세에서 '보증금 (전세)'", () => {
+    const { unmount } = render(<FilterPanel />);
+    expect(screen.getByText("가격대 (매매가)")).toBeInTheDocument();
+    unmount();
+    search = new URLSearchParams("mode=rent");
+    render(<FilterPanel />);
+    expect(screen.getByText("보증금 (전세)")).toBeInTheDocument();
+  });
+
+  test("최소보다 낮은 최대 가격 선택지는 비활성화", () => {
+    search = new URLSearchParams("minPrice=100000");
+    render(<FilterPanel />);
+    const max = screen.getByLabelText("최대 가격");
+    const opt = (sel: HTMLElement, label: string) =>
+      [...sel.querySelectorAll("option")].find((o) => o.textContent === label)!;
+    expect(opt(max, "7억")).toBeDisabled();
+    expect(opt(max, "10억")).not.toBeDisabled();
+    expect(opt(max, "15억")).not.toBeDisabled();
+  });
+
+  test("최소를 현재 최대보다 높게 고르면 두 값을 바꾼다", () => {
+    search = new URLSearchParams("maxPrice=50000");
+    render(<FilterPanel />);
+    fireEvent.change(screen.getByLabelText("최소 가격"), { target: { value: "100000" } });
+    expect(lastQuery()).toMatchObject({ minPrice: "50000", maxPrice: "100000" });
+  });
+
   test("가격 '전체'를 고르면 해당 파라미터를 지운다", () => {
     search = new URLSearchParams("minPrice=50000");
     render(<FilterPanel />);
@@ -57,13 +84,13 @@ describe("FilterPanel", () => {
     expect(lastQuery()).not.toHaveProperty("minPrice");
   });
 
-  test("평 단위: 30평대 → minArea=99&maxArea=132, ~20평 → maxArea=66만", async () => {
+  test("평 단위: 30평대 → minArea=99&maxArea=131, ~20평 → maxArea=65만", async () => {
     render(<FilterPanel />);
     await userEvent.click(screen.getByRole("button", { name: "30평대" }));
-    expect(lastQuery()).toMatchObject({ minArea: "99", maxArea: "132" });
+    expect(lastQuery()).toMatchObject({ minArea: "99", maxArea: "131" });
     await userEvent.click(screen.getByRole("button", { name: "~20평" }));
     const q = lastQuery();
-    expect(q.maxArea).toBe("66");
+    expect(q.maxArea).toBe("65");
     expect(q).not.toHaveProperty("minArea");
   });
 
@@ -77,7 +104,7 @@ describe("FilterPanel", () => {
   });
 
   test("선택된 평형 프리셋을 다시 누르면 해제", async () => {
-    search = new URLSearchParams("minArea=66&maxArea=99");
+    search = new URLSearchParams("minArea=66&maxArea=98");
     render(<FilterPanel />);
     const btn = screen.getByRole("button", { name: "20평대" });
     expect(btn).toHaveAttribute("aria-pressed", "true");
@@ -94,7 +121,7 @@ describe("FilterPanel", () => {
   });
 
   test("모바일 시트 바에 활성 필터 수를 보여주고 탭하면 펼친다", async () => {
-    search = new URLSearchParams("minPrice=50000&minArea=66&maxArea=99");
+    search = new URLSearchParams("minPrice=50000&minArea=66&maxArea=98");
     render(<FilterPanel />);
     const bar = screen.getByRole("button", { name: /필터 2/ });
     expect(bar).toHaveAttribute("aria-expanded", "false");
