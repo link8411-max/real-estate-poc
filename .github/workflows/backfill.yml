@@ -81,9 +81,24 @@ jobs:
 
       - name: Collect (range)
         run: |
-          args=(--kind "$KIND" --from "$FROM_YM" --to "$TO_YM" --changed-out changed_apts.json)
+          args=(--kind "$KIND" --from "$FROM_YM" --to "$TO_YM" --changed-out changed_apts.json --summary-out summary.json)
           if [ -n "$REGIONS" ]; then args+=(--regions "$REGIONS"); fi
           python -m pipeline.collect "${args[@]}"
+
+      # 실패한 (지역, 월)이 있으면 내보내기·발행·동기화·정본 업로드 전에 잡을 실패시킨다.
+      # 재시도: 로그의 실패 쌍으로 --regions/--from/--to 를 좁혀 다시 실행한다.
+      - name: Fail on failed (region, month) pairs
+        run: |
+          python - <<'PY'
+          import json
+          s = json.load(open("summary.json", encoding="utf-8"))
+          if s["failed_count"] > 0:
+              print(f"ERROR: {s['failed_count']} failed (lawd_cd, deal_ymd, reason) pairs:")
+              for code, ym, reason in s["failed"]:
+                  print(f"  {code} {ym} {reason}")
+              raise SystemExit(1)
+          print(f"collect ok: saved={s['saved']}, failed=0")
+          PY
 
       - name: Export changed apartments
         run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out
