@@ -55,6 +55,13 @@ def build_apt_trade(
     }
 
 
+def _rent_row(r: sqlite3.Row) -> dict[str, Any]:
+    d = dict(r)
+    if d["use_rr_right"] is not None:
+        d["use_rr_right"] = bool(d["use_rr_right"])  # SQLite 정수 -> JSON boolean
+    return d
+
+
 def build_apt_rent(
     conn: sqlite3.Connection, apt_id: int, today: date, summary: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -67,7 +74,7 @@ def build_apt_rent(
     return {
         "apartment": _apartment_block(conn, s),
         "rent_area_stats": s["rent_area_stats"],
-        "rents": [dict(r) for r in rows],
+        "rents": [_rent_row(r) for r in rows],
     }
 
 

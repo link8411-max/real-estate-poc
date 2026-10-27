@@ -76,7 +76,7 @@ def test_build_apt_rent_fields(conn):
     d = build_apt_rent(conn, 1, TODAY)
     assert d["rents"] == [{
         "id": 1, "deposit": 60000, "monthly_rent": 0, "area": 84.0, "floor": 5,
-        "deal_date": "2026-10-02", "contract_type": "신규", "use_rr_right": 0,
+        "deal_date": "2026-10-02", "contract_type": "신규", "use_rr_right": False,
         "pre_deposit": None, "pre_monthly_rent": None,
     }]
     assert d["apartment"]["id"] == 1 and d["rent_area_stats"][0]["jeonse_count"] == 1
@@ -218,3 +218,13 @@ def test_cli_bad_changed_file_exit_2(tmp_path, content, capsys):
         f.write_text(content)
     assert main(["--db", str(tmp_path / "t.db"), "--out", str(tmp_path / "o"), "--changed", str(f)]) == 2
     assert "--changed" in capsys.readouterr().err
+
+
+def test_build_apt_rent_use_rr_right_is_boolean_or_null(conn):
+    conn.execute("UPDATE rents SET use_rr_right = 1 WHERE apt_id = 1")
+    conn.execute(
+        "INSERT INTO rents(apt_id, deposit, monthly_rent, area, floor, deal_date, contract_type, "
+        "use_rr_right, unique_hash) VALUES (1, 1, 0, 84.0, 5, '2026-10-03', '갱신', NULL, 'rx')"
+    )
+    vals = {r["deal_date"]: r["use_rr_right"] for r in build_apt_rent(conn, 1, TODAY)["rents"]}
+    assert vals["2026-10-02"] is True and vals["2026-10-03"] is None

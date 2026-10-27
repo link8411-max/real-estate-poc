@@ -101,7 +101,9 @@ def _build_parser() -> argparse.ArgumentParser:
     g.add_argument("--from", dest="from_", metavar="YYYYMM")
     g.add_argument("--daily", action="store_true", help="이번 달 + 지난 달")
     p.add_argument("--to", metavar="YYYYMM")
+    p.add_argument("--regions", help="쉼표 구분 시군구 코드 (REGIONS 부분집합만 수집)")
     p.add_argument("--changed-out", default="changed_apts.json")
+    p.add_argument("--summary-out", metavar="FILE", help="{saved, failed} 요약 JSON 을 쓸 파일")
     p.add_argument("--delay", type=float, default=0.5)
     return p
 
@@ -128,11 +130,22 @@ def _resolve_months(p: argparse.ArgumentParser, a: argparse.Namespace) -> list[s
     return months
 
 
+def _resolve_regions(p: argparse.ArgumentParser, a: argparse.Namespace) -> dict[str, str]:
+    if not a.regions:
+        return REGIONS
+    codes = [c.strip() for c in a.regions.split(",") if c.strip()]
+    unknown = [c for c in codes if c not in REGIONS]
+    if not codes or unknown:
+        p.error(f"알 수 없는 지역 코드: {','.join(unknown) or a.regions}")
+    return {c: REGIONS[c] for c in codes}
+
+
 def main(argv: list[str] | None = None) -> int:
     p = _build_parser()
     try:
         a = p.parse_args(argv)
         months = _resolve_months(p, a)
+        regions = _resolve_regions(p, a)
     except SystemExit as e:
         return int(e.code or 0)
     kinds = {"trade", "rent"} if a.kind == "both" else {a.kind}
@@ -143,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     conn = connect(a.db)
     try:
         res = collect(
-            conn, kinds=kinds, months=months, regions=REGIONS,
+            conn, kinds=kinds, months=months, regions=regions,
             fetch_trades=fetch_trades, fetch_rents=fetch_rents, delay=a.delay, log=stamped,
         )
         changed = pop_changed(conn)
@@ -151,6 +164,9 @@ def main(argv: list[str] | None = None) -> int:
         conn.close()
     with open(a.changed_out, "w", encoding="utf-8") as f:
         json.dump(changed, f)
+    if a.summary_out:
+        with open(a.summary_out, "w", encoding="utf-8") as f:
+            json.dump({"saved": res.saved, "failed": len(res.failed)}, f)
     print(f"변경 단지 {len(changed)}개 -> {a.changed_out}")
     if res.failed:
         print(f"실패 {len(res.failed)}건 (lawd_cd, deal_ymd, reason):")

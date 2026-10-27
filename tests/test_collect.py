@@ -144,3 +144,45 @@ def test_main_exit_zero_with_failures_and_prints_them(tmp_path, monkeypatch, cap
 ])
 def test_main_bad_args_exit_2(argv):
     assert main(argv) == 2
+
+
+def _capture_collect(monkeypatch):
+    seen = {}
+
+    def fake_collect(conn, **kw):
+        migrate(conn)
+        seen.update(kw)
+        return collect_mod.CollectResult(fetched=3, saved=2, failed=[("11680", "202610", "429")])
+
+    monkeypatch.setattr(collect_mod, "collect", fake_collect)
+    return seen
+
+
+def test_main_regions_restricts_to_subset(tmp_path, monkeypatch):
+    seen = _capture_collect(monkeypatch)
+    monkeypatch.setattr(collect_mod, "REGIONS", {"11680": "강남구", "11140": "중구", "41192": "부천"})
+    code = main(["--db", str(tmp_path / "d.db"), "--months", "202610",
+                 "--regions", "41192, 11680", "--changed-out", str(tmp_path / "c.json")])
+    assert code == 0
+    assert seen["regions"] == {"41192": "부천", "11680": "강남구"}
+
+
+def test_main_without_regions_uses_all(tmp_path, monkeypatch):
+    seen = _capture_collect(monkeypatch)
+    monkeypatch.setattr(collect_mod, "REGIONS", {"11680": "강남구", "11140": "중구"})
+    main(["--db", str(tmp_path / "d.db"), "--months", "202610",
+          "--changed-out", str(tmp_path / "c.json")])
+    assert set(seen["regions"]) == {"11680", "11140"}
+
+
+def test_main_unknown_region_exit_2(tmp_path, monkeypatch):
+    monkeypatch.setattr(collect_mod, "REGIONS", {"11680": "강남구"})
+    assert main(["--db", str(tmp_path / "d.db"), "--months", "202610", "--regions", "99999"]) == 2
+
+
+def test_main_summary_out(tmp_path, monkeypatch):
+    _capture_collect(monkeypatch)
+    out = tmp_path / "s.json"
+    assert main(["--db", str(tmp_path / "d.db"), "--months", "202610",
+                 "--changed-out", str(tmp_path / "c.json"), "--summary-out", str(out)]) == 0
+    assert json.loads(out.read_text()) == {"saved": 2, "failed": 1}
