@@ -23,7 +23,7 @@ pipeline/            Python 파이프라인 (아래 CLI 표)
   molit_client.py    MOLIT API 클라이언트
   regions.py         수집 대상 시군구(REGIONS)
   db.py              스키마·멱등 마이그레이션 (connect, migrate)
-  summary.py         단지 요약 지표 계산
+  summary.py         단지 요약 지표 계산 (시간 창 지표는 프론트 lib/metrics.ts 가 오늘 기준으로 다시 계산)
   export_json.py     단지/지역/통계/검색 인덱스 JSON 내보내기
   r2_publish.py      out/ → R2 public 버킷 업로드(변경분만)
   geocode.py         카카오 지오코딩으로 빈 좌표 채우기
@@ -32,7 +32,7 @@ pipeline/            Python 파이프라인 (아래 CLI 표)
 r2_utils.py          정본 DB R2 download / upload / info
 scripts/             initial_migration.sh, sync_github_secrets.sh, serve_out.py, make_og_font.sh
 supabase/migrations/ 0001_init.sql
-.github/workflows/   collect-daily.yml, backfill.yml
+.github/workflows/   collect-daily.yml, backfill.yml, ci.yml(push·PR: pytest, vitest, tsc)
 frontend/            Next.js 16 앱 (src/app, src/components, src/lib)
 tests/               pytest
 docs/                api/openapi.yaml, superpowers/specs·plans (설계·계획)
