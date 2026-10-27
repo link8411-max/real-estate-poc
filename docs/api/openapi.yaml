@@ -1,0 +1,142 @@
+openapi: 3.0.3
+info:
+  title: Real-estate API v1
+  version: 1.0.0
+  description: Public read-only endpoints backed by Supabase. Responses carry `Cache-Control: public, s-maxage=300`.
+paths:
+  /api/v1/map:
+    get:
+      summary: Markers inside a map bounding box
+      description: level <= 7 returns apartments (max 500, by trade_count desc); level > 7 returns active regions. At level <= 7 the bbox may not exceed 1.5 degrees per axis. Apartment filters (see /apartments) are accepted except sort and page.
+      parameters:
+        - { name: minLat, in: query, required: true, schema: { type: number } }
+        - { name: minLng, in: query, required: true, schema: { type: number } }
+        - { name: maxLat, in: query, required: true, schema: { type: number } }
+        - { name: maxLng, in: query, required: true, schema: { type: number } }
+        - { name: level, in: query, schema: { type: integer, minimum: 1, maximum: 14, default: 5 }, description: Kakao map level (1 = closest) }
+        - { name: mode, in: query, schema: { type: string, enum: [trade, rent], default: trade } }
+      responses:
+        "200":
+          description: Markers
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [type, items]
+                    properties:
+                      type: { type: string, enum: [apartments] }
+                      items: { type: array, items: { $ref: "#/components/schemas/MapApartment" } }
+                  - type: object
+                    required: [type, items]
+                    properties:
+                      type: { type: string, enum: [regions] }
+                      items: { type: array, items: { $ref: "#/components/schemas/MapRegion" } }
+        "400": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+  /api/v1/apartments:
+    get:
+      summary: Filtered, paged apartment list (50 per page)
+      parameters:
+        - { name: lawd, in: query, schema: { type: string }, description: Comma-separated 5-digit LAWD codes }
+        - { name: city, in: query, schema: { type: string } }
+        - { name: minPrice, in: query, schema: { type: number }, description: 만원, latest trade amount }
+        - { name: maxPrice, in: query, schema: { type: number } }
+        - { name: minArea, in: query, schema: { type: number }, description: "㎡ (latest trade area group)" }
+        - { name: maxArea, in: query, schema: { type: number } }
+        - { name: builtFrom, in: query, schema: { type: integer } }
+        - { name: builtTo, in: query, schema: { type: integer } }
+        - { name: activeMonths, in: query, schema: { type: integer, minimum: 1 }, description: Only apartments traded within the last N months }
+        - { name: sort, in: query, schema: { type: string, enum: [latest, price_desc, price_asc, count_desc, yoy_desc], default: latest }, description: yoy_desc currently behaves as latest }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+      responses:
+        "200":
+          description: Page of apartments
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, total]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/ApartmentSummary" } }
+                  page: { type: integer }
+                  total: { type: integer }
+        "500": { $ref: "#/components/responses/Error" }
+  /api/v1/search:
+    get:
+      summary: Apartment name search (ILIKE, 20 results)
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Matches; empty q returns an empty list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/SearchHit" } }
+        "500": { $ref: "#/components/responses/Error" }
+components:
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, enum: [bad_request, upstream] }
+            message: { type: string }
+    MapApartment:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        latest_trade_amount: { type: integer, nullable: true }
+        latest_jeonse_deposit: { type: integer, nullable: true }
+        trade_count: { type: integer, nullable: true }
+        build_year: { type: integer, nullable: true }
+        latest_trade_area: { type: integer, nullable: true }
+    MapRegion:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string }
+        city: { type: string, nullable: true }
+        lat: { type: number }
+        lng: { type: number }
+        apartment_count: { type: integer, nullable: true }
+        avg_amount: { type: integer, nullable: true }
+    ApartmentSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        dong: { type: string, nullable: true }
+        lawd_cd: { type: string }
+        build_year: { type: integer, nullable: true }
+        latest_trade_amount: { type: integer, nullable: true }
+        latest_trade_date: { type: string, format: date, nullable: true }
+        trade_count: { type: integer, nullable: true }
+        jeonse_ratio: { type: number, nullable: true }
+        lat: { type: number, nullable: true }
+        lng: { type: number, nullable: true }
+    SearchHit:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        dong: { type: string, nullable: true }
+        lawd_cd: { type: string }
+        build_year: { type: integer, nullable: true }
