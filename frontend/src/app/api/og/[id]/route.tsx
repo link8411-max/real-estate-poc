@@ -1,18 +1,18 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { ImageResponse } from "@vercel/og";
 import { fetchAptTrade } from "@/lib/data";
 import { areaGroup, formatPrice } from "@/lib/format";
 
-export const runtime = "edge";
-
-/** 한글 서브셋(KS X 1001 2,350자 + ASCII, scripts/make_og_font.sh로 생성, OFL). 기본 폰트에는 한글이 없다. */
-const FONT_URL = new URL("../../../../../public/fonts/NotoSansKR-Bold-subset.woff", import.meta.url);
-let fontData: Promise<ArrayBuffer> | null = null;
+/**
+ * Node 런타임(엣지 함수 크기 제한을 피함). 폰트는 파일에서 읽는다 — next.config 의 outputFileTracingIncludes 로 번들에 포함.
+ * 한글 서브셋(KS X 1001 2,350자 + ASCII, scripts/make_og_font.sh로 생성, OFL). 기본 폰트에는 한글이 없다.
+ */
+const FONT_PATH = path.join(process.cwd(), "public/fonts/NotoSansKR-Bold-subset.woff");
+let fontData: Promise<Buffer> | null = null;
 const loadFont = () => {
-  fontData ??= fetch(FONT_URL).then((r) => {
-    if (!r.ok) throw new Error(`OG font ${r.status}`);
-    return r.arrayBuffer();
-  });
-  fontData.catch(() => (fontData = null));
+  fontData ??= readFile(FONT_PATH);
+  fontData.catch(() => (fontData = null)); // 실패하면 다음 요청에서 다시 시도
   return fontData;
 };
 
