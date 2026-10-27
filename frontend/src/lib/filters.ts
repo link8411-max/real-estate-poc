@@ -26,6 +26,10 @@ export interface FilterableQuery {
   order(column: string, opts?: { ascending?: boolean; nullsFirst?: boolean }): FilterableQuery;
 }
 
+export function parseNumber(sp: URLSearchParams, key: string): number | undefined {
+  return num(sp, key);
+}
+
 function num(sp: URLSearchParams, key: string): number | undefined {
   const raw = sp.get(key);
   if (raw === null || raw.trim() === "") return undefined;
@@ -41,24 +45,34 @@ export function parseApartmentFilters(sp: URLSearchParams): ApartmentFilters {
   const city = sp.get("city")?.trim();
   if (city) f.city = city;
 
-  for (const k of ["minPrice", "maxPrice", "minArea", "maxArea", "builtFrom", "builtTo"] as const) {
+  // Out-of-range / non-integer values are ignored so Postgres never sees them.
+  const bounded = {
+    minPrice: [0, 10_000_000], maxPrice: [0, 10_000_000],
+    minArea: [0, 1000], maxArea: [0, 1000],
+    builtFrom: [1900, 2100], builtTo: [1900, 2100],
+    activeMonths: [1, 240],
+  } as const;
+  for (const k of Object.keys(bounded) as (keyof typeof bounded)[]) {
     const n = num(sp, k);
-    if (n !== undefined) f[k] = n;
+    const [lo, hi] = bounded[k];
+    if (n !== undefined && Number.isInteger(n) && n >= lo && n <= hi) f[k] = n;
   }
-  const months = num(sp, "activeMonths");
-  if (months !== undefined && Number.isInteger(months) && months > 0) f.activeMonths = months;
 
   const sort = sp.get("sort");
   if (sort && (SORTS as readonly string[]).includes(sort)) f.sort = sort as ApartmentSort;
 
   const page = num(sp, "page");
-  if (page !== undefined && Number.isInteger(page) && page >= 1) f.page = page;
+  if (page !== undefined && Number.isSafeInteger(page) && page >= 1 && page <= 10000) f.page = page;
   return f;
 }
 
-/** YYYY-MM-DD of `months` months before `now` (UTC). */
+/** YYYY-MM-DD (KST, UTC+9) of `months` months before `now`; day clamped to the target month's last day. */
 export function monthsAgoISO(months: number, now: Date = new Date()): string {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, now.getUTCDate()));
+  const kst = new Date(now.getTime() + 9 * 3600_000);
+  const y = kst.getUTCFullYear();
+  const m = kst.getUTCMonth() - months;
+  const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const d = new Date(Date.UTC(y, m, Math.min(kst.getUTCDate(), lastDay)));
   return d.toISOString().slice(0, 10);
 }
 
@@ -88,12 +102,16 @@ export function applyFilters<Q extends FilterableQuery>(query: Q, f: ApartmentFi
     default:
       q = q.order("latest_trade_date", { ascending: false, nullsFirst: false });
   }
+  // Unique tiebreaker so range() paging is stable.
+  q = q.order("id", { ascending: true });
   return q as Q;
 }
 
 /** Escape LIKE/ILIKE wildcards so user input matches literally. */
+export const MAX_QUERY_LENGTH = 100;
+
 export function escapeLike(s: string): string {
-  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
+  return s.replace(/\*/g, "").replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 export interface Bbox { minLat: number; minLng: number; maxLat: number; maxLng: number }

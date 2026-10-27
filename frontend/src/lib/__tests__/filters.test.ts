@@ -49,11 +49,28 @@ describe("parseApartmentFilters", () => {
   });
 });
 
+describe("parseApartmentFilters bounds", () => {
+  it.each([
+    ["page=1e21"], ["page=10001"], ["page=1.5"],
+    ["builtFrom=2000.5"], ["builtFrom=1899"], ["builtTo=2101"],
+    ["minPrice=1e30"], ["maxPrice=-1"], ["minPrice=10000001"],
+    ["minArea=1001"], ["maxArea=5.5"],
+    ["activeMonths=241"], ["activeMonths=0"], ["activeMonths=1.5"],
+  ])("ignores %s", (q) => {
+    expect(parseApartmentFilters(sp(q))).toEqual({ sort: "latest", page: 1 });
+  });
+  it("accepts boundaries", () => {
+    const f = parseApartmentFilters(sp("page=10000&minPrice=0&maxPrice=10000000&maxArea=1000&builtFrom=1900&builtTo=2100&activeMonths=240"));
+    expect(f).toMatchObject({ page: 10000, minPrice: 0, maxPrice: 10000000, maxArea: 1000, builtFrom: 1900, builtTo: 2100, activeMonths: 240 });
+  });
+});
+
 describe("applyFilters", () => {
   it("applies nothing for defaults except sort", () => {
     const { q, calls } = recorder();
     applyFilters(q, { sort: "latest", page: 1 }, new Date("2026-10-27"));
-    expect(calls).toEqual([["order", "latest_trade_date", { ascending: false, nullsFirst: false }]]);
+    expect(calls).toEqual([["order", "latest_trade_date", { ascending: false, nullsFirst: false }],
+    ["order", "id", { ascending: true }]]);
   });
   it("applies all filters", () => {
     const { q, calls } = recorder();
@@ -73,12 +90,14 @@ describe("applyFilters", () => {
       ["lte", "build_year", 6],
       ["gte", "latest_trade_date", "2026-07-27"],
       ["order", "trade_count", { ascending: false, nullsFirst: false }],
+      ["order", "id", { ascending: true }],
     ]);
   });
   it("sort variants", () => {
     const run = (sort: "price_desc" | "price_asc" | "yoy_desc") => {
       const { q, calls } = recorder();
       applyFilters(q, { sort, page: 1 });
+      expect(calls[calls.length - 1]).toEqual(["order", "id", { ascending: true }]);
       return calls[0];
     };
     expect(run("price_desc")).toEqual(["order", "latest_trade_amount", { ascending: false, nullsFirst: false }]);
@@ -88,6 +107,14 @@ describe("applyFilters", () => {
 });
 
 describe("helpers", () => {
+  it("monthsAgoISO end-of-month clamp", () => {
+    expect(monthsAgoISO(1, new Date("2026-10-31T00:00:00Z"))).toBe("2026-09-30");
+    expect(monthsAgoISO(1, new Date("2026-03-31T00:00:00Z"))).toBe("2026-02-28");
+  });
+  it("monthsAgoISO uses KST date", () => {
+    expect(monthsAgoISO(1, new Date("2026-10-30T16:00:00Z"))).toBe("2026-09-30");
+  });
+  it("escapeLike strips *", () => expect(escapeLike("a*b")).toBe("ab"));
   it("monthsAgoISO", () => {
     expect(monthsAgoISO(12, new Date("2026-10-27T00:00:00Z"))).toBe("2025-10-27");
   });

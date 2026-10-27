@@ -1,6 +1,6 @@
-import { applyFilters, parseApartmentFilters, parseBbox, type FilterableQuery } from "@/lib/filters";
+import { applyFilters, parseApartmentFilters, parseBbox, parseNumber, type FilterableQuery } from "@/lib/filters";
 import { supabaseServer } from "@/lib/supabase/server";
-import { fail, ok } from "@/lib/apiResponse";
+import { fail, guard, ok } from "@/lib/apiResponse";
 
 const MAP_COLUMNS = "id,name,lat,lng,latest_trade_amount,latest_jeonse_deposit,trade_count,build_year,latest_trade_area";
 const MAX_SPAN_DEG = 1.5;
@@ -11,14 +11,17 @@ interface ModeQuery {
   limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
 }
 
-export async function GET(req: Request) {
+export function GET(req: Request) {
+  return guard(() => handle(req));
+}
+
+async function handle(req: Request) {
   const sp = new URL(req.url).searchParams;
   const parsed = parseBbox(sp);
   if (!parsed.ok) return fail(400, "bad_request", parsed.message);
   const { minLat, minLng, maxLat, maxLng } = parsed.bbox;
 
-  const levelRaw = Number(sp.get("level") ?? "5");
-  const level = Number.isFinite(levelRaw) ? levelRaw : 5;
+  const level = parseNumber(sp, "level") ?? 5;
   const mode = sp.get("mode") === "rent" ? "rent" : "trade";
   const db = supabaseServer();
 
@@ -29,7 +32,8 @@ export async function GET(req: Request) {
       .not("lat", "is", null)
       .is("succeeded_by", null)
       .gte("lat", minLat).lte("lat", maxLat)
-      .gte("lng", minLng).lte("lng", maxLng);
+      .gte("lng", minLng).lte("lng", maxLng)
+      .limit(200);
     if (error) return fail(500, "upstream", "failed to load regions");
     return ok({ type: "regions", items: data ?? [] });
   }
@@ -43,7 +47,9 @@ export async function GET(req: Request) {
     .select(MAP_COLUMNS)
     .gte("lat", minLat).lte("lat", maxLat)
     .gte("lng", minLng).lte("lng", maxLng);
+  // Cast: the generated builder type is too deep for generic chaining (TS2589).
   const filtered = applyFilters(base as unknown as FilterableQuery, { ...parseApartmentFilters(sp), sort: "count_desc" });
+  // Cast: same TS2589 workaround, narrowing to the two methods used here.
   const withMode = filtered as unknown as ModeQuery;
   const modeQ = mode === "rent" ? withMode.not("latest_jeonse_deposit", "is", null) : withMode.not("latest_trade_amount", "is", null);
   // Map markers are always prioritised by trade_count (sort forced above).
