@@ -170,3 +170,33 @@ def test_migrate_legacy_then_coord_steps_work(tmp_path, apt_ddl):
     ok, failed = fill_missing_coords(c, delay=0, geocode=lambda *a: (37.1, 127.1, "fake"), log=lambda *_: None)
     assert (ok, failed) == (1, 0)
     assert c.execute("select count(*) from apartments where latitude is null").fetchone()[0] == 0
+
+
+def test_insert_rent_same_name_in_different_districts_do_not_collide(conn):
+    gangnam = apt(conn, name="현대", lawd_cd="11680", dong="압구정동", jibun="1", apt_seq=None)
+    songpa = apt(conn, name="현대", lawd_cd="11710", dong="잠실동", jibun="1", apt_seq=None)
+    assert gangnam != songpa
+    assert insert_rent(conn, gangnam, rent(apt_name="현대", lawd_cd="11680")) is True
+    assert insert_rent(conn, songpa, rent(apt_name="현대", lawd_cd="11710")) is True
+    assert conn.execute("select count(*) from rents").fetchone()[0] == 2
+
+
+def test_insert_rent_hash_uses_apartments_current_lawd_cd(conn):
+    import hashlib
+    a = apt(conn, name="청라X", lawd_cd="28275", dong="청라동", jibun="5", apt_seq=None)
+    r = rent(apt_name="청라X", lawd_cd="28260")  # 옛 코드로 들어와도 단지의 현재 코드로 해시
+    insert_rent(conn, a, r)
+    h = conn.execute("select unique_hash from rents").fetchone()[0]
+    want = hashlib.md5(
+        f"R|28275|청라X|{r.floor}|{r.area}|{r.deal_date}|{r.deposit}|{r.monthly_rent}".encode()
+    ).hexdigest()
+    assert h == want
+
+
+def test_upsert_moving_retired_code_marks_changed(conn):
+    old = apt(conn, name="청라X", lawd_cd="28260", dong="청라동", jibun="5", apt_seq=None)
+    pop_changed(conn)
+    assert apt(conn, name="청라X", lawd_cd="28275", dong="청라동", jibun="5", apt_seq=None) == old
+    assert pop_changed(conn) == [old]
+    assert apt(conn, name="청라X", lawd_cd="28275", dong="청라동", jibun="5", apt_seq=None) == old
+    assert pop_changed(conn) == []  # 이미 옮겨진 뒤에는 표시하지 않는다

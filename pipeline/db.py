@@ -160,6 +160,7 @@ def upsert_apartment(
             conn.execute("UPDATE apartments SET apt_seq=? WHERE id=?", (apt_seq, apt_id))
         if is_retired(cur_cd) and cur_cd != lawd_cd:
             conn.execute("UPDATE apartments SET lawd_cd=? WHERE id=?", (lawd_cd, apt_id))
+            mark_changed(conn, [apt_id])  # 지역 경로·요약이 새 코드로 다시 나가도록
         return apt_id
     cur = conn.execute(
         "INSERT INTO apartments(name, lawd_cd, dong, jibun, build_year, apt_seq) VALUES (?,?,?,?,?,?)",
@@ -210,8 +211,13 @@ def insert_trade(conn: sqlite3.Connection, apt_id: int, item: TradeItem) -> bool
 
 
 def insert_rent(conn: sqlite3.Connection, apt_id: int, item: RentItem) -> bool:
+    # 전월세는 정본이 새로 시작하므로 지역 코드를 해시에 넣는다 (다른 구의 동명 단지 충돌 방지).
+    # 코드는 단지의 현재(정규화된) lawd_cd 를 쓴다 — 폐지 코드로 들어온 행도 같은 해시가 된다.
+    row = conn.execute("SELECT lawd_cd FROM apartments WHERE id=?", (apt_id,)).fetchone()
+    lawd_cd = row[0] if row else item.lawd_cd
     h = _md5(
-        f"R|{item.apt_name}|{item.floor}|{item.area}|{item.deal_date}|{item.deposit}|{item.monthly_rent}"
+        f"R|{lawd_cd}|{item.apt_name}|{item.floor}|{item.area}|{item.deal_date}"
+        f"|{item.deposit}|{item.monthly_rent}"
     )
     cur = conn.execute(
         "INSERT OR IGNORE INTO rents(apt_id, deposit, monthly_rent, area, floor, deal_date, "
