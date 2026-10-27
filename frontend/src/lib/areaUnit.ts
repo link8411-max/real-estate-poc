@@ -20,15 +20,16 @@ const isUnit = (v: unknown): v is AreaUnit => v === "pyeong" || v === "m2";
 /** 저장소에 쓰지 못할 때(개인 모드 등)를 위한 이번 세션 값. set이 먼저 채운다. */
 let memory: AreaUnit | null = null;
 
-/** 저장된 단위. 저장값이 유효하면 그것, 아니면 메모리 값, 그것도 없으면 기본값. */
+/** 현재 단위. 저장 실패로 남은 메모리 값이 있으면 그것(가장 최근 선택), 아니면 저장값, 아니면 기본값. */
 function read(): AreaUnit {
+  if (memory) return memory;
   try {
     const v = localStorage.getItem(KEY);
     if (isUnit(v)) return v;
   } catch {
     // 저장소 접근 불가
   }
-  return memory ?? DEFAULT_AREA_UNIT;
+  return DEFAULT_AREA_UNIT;
 }
 
 const readServer = (): AreaUnit => DEFAULT_AREA_UNIT;
