@@ -5,7 +5,7 @@ import sqlite3
 import sys
 from collections import defaultdict
 
-from pipeline.db import connect, migrate
+from pipeline.db import connect, mark_changed, migrate
 from pipeline.regions import candidate_codes
 
 
@@ -34,6 +34,7 @@ def migrate_coords(src_db: str, dst_conn) -> int:
                     "UPDATE apartments SET latitude=?, longitude=?, geocode_quality=? WHERE id=?",
                     (lat, lng, q or "legacy", r["id"]),
                 )
+                mark_changed(dst_conn, [r["id"]])
                 copied += 1
                 break
     dst_conn.commit()

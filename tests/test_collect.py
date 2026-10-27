@@ -185,4 +185,33 @@ def test_main_summary_out(tmp_path, monkeypatch):
     out = tmp_path / "s.json"
     assert main(["--db", str(tmp_path / "d.db"), "--months", "202610",
                  "--changed-out", str(tmp_path / "c.json"), "--summary-out", str(out)]) == 0
-    assert json.loads(out.read_text()) == {"saved": 2, "failed": 1}
+    assert json.loads(out.read_text()) == {
+        "kind": "both", "saved": 2, "failed_count": 1, "failed": [["11680", "202610", "429"]]}
+
+
+def test_main_retry_failed_collects_only_failed_pairs_grouped_by_month(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_collect(conn, **kw):
+        migrate(conn)
+        calls.append((kw["months"], sorted(kw["regions"]), kw["kinds"]))
+        return collect_mod.CollectResult()
+
+    monkeypatch.setattr(collect_mod, "collect", fake_collect)
+    monkeypatch.setattr(collect_mod, "REGIONS", {"11680": "a", "11140": "b", "41192": "c"})
+    summ = tmp_path / "s.json"
+    summ.write_text(json.dumps({"kind": "rent", "saved": 0, "failed_count": 3, "failed": [
+        ["11680", "202601", "429"], ["41192", "202601", "x"], ["11140", "202602", "y"]]}))
+    assert main(["--db", str(tmp_path / "d.db"), "--retry-failed", str(summ),
+                 "--changed-out", str(tmp_path / "c.json")]) == 0
+    assert calls == [(["202601"], ["11680", "41192"], {"rent"}), (["202602"], ["11140"], {"rent"})]
+
+
+def test_main_retry_failed_bad_file_exit_2(tmp_path):
+    assert main(["--db", str(tmp_path / "d.db"), "--retry-failed", str(tmp_path / "nope.json")]) == 2
+
+
+def test_real_regions_contain_split_codes():
+    from pipeline.regions import REGIONS as real
+    split = "28125 28155 28275 28290 41192 41194 41196 41591 41593 41595 41597".split()
+    assert set(split) <= set(real) and len(real) == 83

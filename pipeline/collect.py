@@ -95,20 +95,36 @@ def collect(
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m pipeline.collect")
     p.add_argument("--db", default="real_estate.db")
-    p.add_argument("--kind", choices=["trade", "rent", "both"], default="both")
+    p.add_argument("--kind", choices=["trade", "rent", "both"],
+                   help="기본 both (--retry-failed 는 요약 파일의 kind)")
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--months", help="쉼표 구분 YYYYMM 목록")
     g.add_argument("--from", dest="from_", metavar="YYYYMM")
     g.add_argument("--daily", action="store_true", help="이번 달 + 지난 달")
+    g.add_argument("--retry-failed", metavar="SUMMARY",
+                   help="이전 --summary-out JSON 의 실패 (지역, 월) 쌍만 다시 수집")
     p.add_argument("--to", metavar="YYYYMM")
     p.add_argument("--regions", help="쉼표 구분 시군구 코드 (REGIONS 부분집합만 수집)")
     p.add_argument("--changed-out", default="changed_apts.json")
-    p.add_argument("--summary-out", metavar="FILE", help="{saved, failed} 요약 JSON 을 쓸 파일")
+    p.add_argument("--summary-out", metavar="FILE",
+                   help="{kind, saved, failed_count, failed:[[code, ym, reason]]} 요약 JSON 을 쓸 파일")
     p.add_argument("--delay", type=float, default=0.5)
     return p
 
 
+def _load_retry(p: argparse.ArgumentParser, path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        data["failed"] = [(str(c), str(ym)) for c, ym, *_ in data["failed"]]
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        p.error(f"--retry-failed 요약 파일을 읽을 수 없습니다: {path} ({e})")
+    return data
+
+
 def _resolve_months(p: argparse.ArgumentParser, a: argparse.Namespace) -> list[str]:
+    if a.retry_failed:
+        return sorted({ym for _, ym in a.retry["failed"]})
     if a.daily:
         months = current_and_previous_month(date.today())
     elif a.months:
@@ -131,6 +147,12 @@ def _resolve_months(p: argparse.ArgumentParser, a: argparse.Namespace) -> list[s
 
 
 def _resolve_regions(p: argparse.ArgumentParser, a: argparse.Namespace) -> dict[str, str]:
+    if a.retry_failed:
+        codes = sorted({c for c, _ in a.retry["failed"]})
+        unknown = [c for c in codes if c not in REGIONS]
+        if unknown:
+            p.error(f"알 수 없는 지역 코드: {','.join(unknown)}")
+        return {c: REGIONS[c] for c in codes}
     if not a.regions:
         return REGIONS
     codes = [c.strip() for c in a.regions.split(",") if c.strip()]
@@ -144,6 +166,10 @@ def main(argv: list[str] | None = None) -> int:
     p = _build_parser()
     try:
         a = p.parse_args(argv)
+        if a.retry_failed:
+            a.retry = _load_retry(p, a.retry_failed)
+            a.kind = a.kind or a.retry.get("kind") or "both"
+        a.kind = a.kind or "both"
         months = _resolve_months(p, a)
         regions = _resolve_regions(p, a)
     except SystemExit as e:
@@ -155,10 +181,18 @@ def main(argv: list[str] | None = None) -> int:
 
     conn = connect(a.db)
     try:
-        res = collect(
-            conn, kinds=kinds, months=months, regions=regions,
-            fetch_trades=fetch_trades, fetch_rents=fetch_rents, delay=a.delay, log=stamped,
-        )
+        common = dict(kinds=kinds, fetch_trades=fetch_trades, fetch_rents=fetch_rents,
+                      delay=a.delay, log=stamped)
+        if a.retry_failed:  # 월별로 묶어 정확히 실패한 (지역, 월)만 재수집
+            res = CollectResult()
+            for ym in months:
+                subset = {c: regions[c] for c, m in a.retry["failed"] if m == ym}
+                r = collect(conn, months=[ym], regions=subset, **common)
+                res.fetched += r.fetched
+                res.saved += r.saved
+                res.failed += r.failed
+        else:
+            res = collect(conn, months=months, regions=regions, **common)
         changed = pop_changed(conn)
     finally:
         conn.close()
@@ -166,7 +200,8 @@ def main(argv: list[str] | None = None) -> int:
         json.dump(changed, f)
     if a.summary_out:
         with open(a.summary_out, "w", encoding="utf-8") as f:
-            json.dump({"saved": res.saved, "failed": len(res.failed)}, f)
+            json.dump({"kind": a.kind, "saved": res.saved, "failed_count": len(res.failed),
+                       "failed": [list(x) for x in res.failed]}, f, ensure_ascii=False)
     print(f"변경 단지 {len(changed)}개 -> {a.changed_out}")
     if res.failed:
         print(f"실패 {len(res.failed)}건 (lawd_cd, deal_ymd, reason):")

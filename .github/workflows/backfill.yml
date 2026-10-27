@@ -4,18 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       kind:
-        description: 'trade | rent | both'
+        description: 'trade | rent | both (both doubles the calls; max 8000 calls/run)'
         type: choice
         options: [trade, rent, both]
         default: trade
       from:
-        description: 'YYYYMM (start)'
+        description: 'YYYYMM (start). Total calls = regions x months x kinds must be <= 8000/day'
         required: true
       to:
-        description: 'YYYYMM (end)'
+        description: 'YYYYMM (end). Fails fast if estimate > 8000 calls'
         required: true
       regions:
-        description: 'Comma-separated lawd codes (optional, default all)'
+        description: 'Comma-separated lawd codes (optional, default all 83 regions)'
         required: false
         default: ''
 
@@ -56,17 +56,34 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - name: Check MOLIT call budget
+        run: |
+          python - <<'PY'
+          import os
+          from pipeline.collect import month_range
+          from pipeline.regions import REGIONS
+          kinds = 2 if os.environ["KIND"] == "both" else 1
+          regions = [c for c in os.environ["REGIONS"].split(",") if c.strip()] or list(REGIONS)
+          months = len(month_range(os.environ["FROM_YM"], os.environ["TO_YM"]))
+          calls = len(regions) * months * kinds
+          print(f"estimated MOLIT calls: {len(regions)} regions x {months} months x {kinds} kinds = {calls}")
+          if calls > 8000:
+              raise SystemExit(
+                  f"ERROR: {calls} calls > 8000. The MOLIT key is shared (10,000/day, daily CI uses ~1,000). "
+                  "Split the range or narrow regions/kind and run one chunk per day.")
+          PY
+
       - name: Download database from R2
         run: python r2_utils.py download
+
+      - name: Geocode new apartments
+        run: python -m pipeline.geocode --db real_estate.db --limit 500
 
       - name: Collect (range)
         run: |
           args=(--kind "$KIND" --from "$FROM_YM" --to "$TO_YM" --changed-out changed_apts.json)
           if [ -n "$REGIONS" ]; then args+=(--regions "$REGIONS"); fi
           python -m pipeline.collect "${args[@]}"
-
-      - name: Geocode new apartments
-        run: python -m pipeline.geocode --db real_estate.db --limit 500
 
       - name: Export changed apartments
         run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out

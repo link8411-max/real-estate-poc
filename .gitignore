@@ -48,3 +48,5 @@ Thumbs.db
 out/
 *.db-shm
 *.db-wal
+.migration_state
+summary_*.json

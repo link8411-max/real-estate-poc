@@ -8,7 +8,7 @@ import time
 import requests
 from dotenv import load_dotenv
 
-from pipeline.db import connect, migrate
+from pipeline.db import connect, mark_changed, migrate
 from pipeline.regions import REGION_FULLNAME
 
 load_dotenv()
@@ -71,6 +71,7 @@ def fill_missing_coords(conn, *, limit=20000, delay=0.05, geocode=geocode_addres
                 "UPDATE apartments SET latitude=?, longitude=?, geocode_quality=? WHERE id=?",
                 (res[0], res[1], res[2], r["id"]),
             )
+            mark_changed(conn, [r["id"]])  # export --changed 가 좌표 추가분도 재발행하도록
             ok += 1
         else:
             conn.execute("UPDATE apartments SET geocode_quality='failed' WHERE id=?", (r["id"],))

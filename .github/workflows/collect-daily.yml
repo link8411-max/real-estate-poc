@@ -46,11 +46,12 @@ jobs:
       - name: Download database from R2
         run: python r2_utils.py download
 
-      - name: Collect (this + previous month)
-        run: python -m pipeline.collect --kind both --daily --changed-out changed_apts.json --summary-out summary.json
-
+      # geocode 가 먼저: 좌표가 새로 붙은 단지도 changed 에 올라 collect 가 함께 내보낸다.
       - name: Geocode new apartments
         run: python -m pipeline.geocode --db real_estate.db --limit 500
+
+      - name: Collect (this + previous month)
+        run: python -m pipeline.collect --kind both --daily --changed-out changed_apts.json --summary-out summary.json
 
       - name: Export changed apartments
         run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out
@@ -71,12 +72,16 @@ jobs:
           from datetime import datetime, timezone
           s = json.load(open("summary.json"))
           s["ran_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-          json.dump({"ran_at": s["ran_at"], "saved": s["saved"], "failed": s["failed"]},
+          json.dump({"ran_at": s["ran_at"], "saved": s["saved"], "failed": s["failed_count"]},
                     open("data/last_run.json", "w"))
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/last_run.json
           git diff --cached --quiet || git commit -m "chore: daily run"
-          git pull --rebase
-          git push
+          for attempt in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            echo "push attempt $attempt failed, retrying"
+            sleep $((attempt * 5))
+          done
+          exit 1

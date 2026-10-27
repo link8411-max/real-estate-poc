@@ -168,3 +168,32 @@ def test_cli_bad_args_exit_2():
     with pytest.raises(SystemExit) as e:
         geo.main(["--limit", "x", "--db", "d"])
     assert e.value.code == 2
+
+
+def test_geocoded_apartments_are_marked_changed():
+    from pipeline.db import pop_changed
+    conn = _fill_setup()
+    fake = lambda lawd, dong, jibun: (37.0, 127.0, "kakao_address") if dong == "a" else None
+    geo.fill_missing_coords(conn, delay=0, geocode=fake, log=lambda m: None)
+    ok_id = conn.execute("SELECT id FROM apartments WHERE name='ok'").fetchone()[0]
+    assert pop_changed(conn) == [ok_id]  # 실패 건은 변경 목록에 없다
+
+
+def test_migrate_coords_marks_changed(tmp_path):
+    from pipeline.db import pop_changed
+    src = tmp_path / "src.db"
+    s = _make_src_db_for_marks(src)
+    dst = _dst()
+    _add(dst, "n", "11680", "a", "1")
+    assert migrate_coords(str(src), dst) == 1
+    assert len(pop_changed(dst)) == 1
+
+
+def _make_src_db_for_marks(path):
+    s = sqlite3.connect(path)
+    s.execute("CREATE TABLE apartments(id INTEGER PRIMARY KEY, name TEXT, lawd_cd TEXT, dong TEXT,"
+              " jibun TEXT, latitude REAL, longitude REAL, geocode_quality TEXT)")
+    s.execute("INSERT INTO apartments(name,lawd_cd,dong,jibun,latitude,longitude,geocode_quality)"
+              " VALUES ('n','11680','a','1',1.0,2.0,'kakao')")
+    s.commit()
+    s.close()
