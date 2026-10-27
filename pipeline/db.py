@@ -103,7 +103,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column: str, decl: str) ->
 def migrate(conn: sqlite3.Connection) -> None:
     """멱등 마이그레이션: 신규 DB는 전부 만들고, 운영 DB 모양에는 빠진 것만 추가한다."""
     conn.executescript(_BASE_SCHEMA)
-    # 레거시(startup.sh/Actions) 스키마 보강: 이후 코드가 읽고 쓰는 컬럼을 보장한다.
+    # 레거시(구 서버 시작 스크립트/Actions) 스키마 보강: 이후 코드가 읽고 쓰는 컬럼을 보장한다.
     _add_column(conn, "apartments", "latitude", "REAL")
     _add_column(conn, "apartments", "longitude", "REAL")
     _add_column(conn, "apartments", "geocode_quality", "TEXT")
