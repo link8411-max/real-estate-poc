@@ -48,9 +48,9 @@ describe("sitemap", () => {
 });
 
 describe("robots", () => {
-  test("API·비교·검색 차단, OG 이미지는 허용, 사이트맵은 SITE_URL 기준", () => {
+  test("API만 차단(검색·비교는 noindex 메타로), OG 이미지는 허용, 사이트맵은 SITE_URL 기준", () => {
     const r = robots();
-    expect(r.rules).toEqual({ userAgent: "*", allow: ["/", "/api/og/"], disallow: ["/api/", "/compare", "/search"] });
+    expect(r.rules).toEqual({ userAgent: "*", allow: ["/", "/api/og/"], disallow: ["/api/"] });
     expect(r.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
   });
 });

@@ -18,12 +18,15 @@ const loadFont = () => {
 
 const FONT_FAMILY = "NotoSansKR";
 
+/** 폰트를 못 받으면 500 대신 기본 폰트로 그린다(한글은 깨지지만 이미지는 나간다). */
 async function options() {
-  return {
-    width: 1200,
-    height: 630,
-    fonts: [{ name: FONT_FAMILY, data: await loadFont(), weight: 700 as const, style: "normal" as const }],
-  };
+  const size = { width: 1200, height: 630 };
+  try {
+    return { ...size, fonts: [{ name: FONT_FAMILY, data: await loadFont(), weight: 700 as const, style: "normal" as const }] };
+  } catch (e) {
+    console.error("OG font load failed", e);
+    return size;
+  }
 }
 
 async function message(text: string) {
