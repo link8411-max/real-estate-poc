@@ -79,6 +79,38 @@ describe("applyFilters", () => {
       ["lte", "latest_jeonse_deposit", 2],
     ]);
   });
+  it("rent mode area bounds keep rows without a trade area (rent-only complexes)", () => {
+    const both = recorder();
+    applyFilters(both.q, { mode: "rent", minArea: 59, maxArea: 85, sort: "latest", page: 1 });
+    expect(both.calls.slice(0, 1)).toEqual([
+      ["or", "latest_trade_area.is.null,and(latest_trade_area.gte.59,latest_trade_area.lte.85)"],
+    ]);
+    expect(both.calls.some(([n, c]) => (n === "gte" || n === "lte") && c === "latest_trade_area")).toBe(false);
+
+    const minOnly = recorder();
+    applyFilters(minOnly.q, { mode: "rent", minArea: 59, sort: "latest", page: 1 });
+    expect(minOnly.calls[0]).toEqual(["or", "latest_trade_area.is.null,latest_trade_area.gte.59"]);
+
+    const maxOnly = recorder();
+    applyFilters(maxOnly.q, { mode: "rent", maxArea: 85, sort: "latest", page: 1 });
+    expect(maxOnly.calls[0]).toEqual(["or", "latest_trade_area.is.null,latest_trade_area.lte.85"]);
+  });
+  it("rent mode or() filter is built only from validated integers", () => {
+    const f = parseApartmentFilters(sp("mode=rent&minArea=59),id.gt.0&maxArea=85.5"));
+    expect(f.minArea).toBeUndefined();
+    expect(f.maxArea).toBeUndefined();
+    const { q, calls } = recorder();
+    applyFilters(q, f);
+    expect(calls.some(([n]) => n === "or")).toBe(false);
+  });
+  it("trade mode area bounds stay plain gte/lte", () => {
+    const { q, calls } = recorder();
+    applyFilters(q, { minArea: 59, maxArea: 85, sort: "latest", page: 1 });
+    expect(calls.slice(0, 2)).toEqual([
+      ["gte", "latest_trade_area", 59],
+      ["lte", "latest_trade_area", 85],
+    ]);
+  });
   it("applies nothing for defaults except sort", () => {
     const { q, calls } = recorder();
     applyFilters(q, { sort: "latest", page: 1 }, new Date("2026-10-27"));

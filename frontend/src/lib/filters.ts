@@ -25,6 +25,7 @@ export interface FilterableQuery {
   in(column: string, values: unknown[]): FilterableQuery;
   gte(column: string, value: unknown): FilterableQuery;
   lte(column: string, value: unknown): FilterableQuery;
+  or(filters: string): FilterableQuery;
   order(column: string, opts?: { ascending?: boolean; nullsFirst?: boolean }): FilterableQuery;
 }
 
@@ -79,6 +80,12 @@ export function monthsAgoISO(months: number, now: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** PostgREST 필터 문자열에 넣기 전 마지막 방어: 정수가 아니면 던진다. */
+function intOnly(n: number): string {
+  if (!Number.isSafeInteger(n)) throw new Error(`non-integer filter value: ${n}`);
+  return String(n);
+}
+
 export function applyFilters<Q extends FilterableQuery>(query: Q, f: ApartmentFilters, now: Date = new Date()): Q {
   let q: FilterableQuery = query;
   if (f.lawd?.length) q = q.in("lawd_cd", f.lawd);
@@ -86,8 +93,19 @@ export function applyFilters<Q extends FilterableQuery>(query: Q, f: ApartmentFi
   const priceColumn = f.mode === "rent" ? "latest_jeonse_deposit" : "latest_trade_amount";
   if (f.minPrice !== undefined) q = q.gte(priceColumn, f.minPrice);
   if (f.maxPrice !== undefined) q = q.lte(priceColumn, f.maxPrice);
-  if (f.minArea !== undefined) q = q.gte("latest_trade_area", f.minArea);
-  if (f.maxArea !== undefined) q = q.lte("latest_trade_area", f.maxArea);
+  if (f.mode === "rent") {
+    // 전월세만 있는 단지는 latest_trade_area 가 null — 면적 조건으로 빠지지 않게 null 도 남긴다.
+    // or() 문자열은 parseApartmentFilters 가 검증한 정수로만 만든다(사용자 문자열은 절대 넣지 않는다).
+    const bounds = [
+      f.minArea !== undefined ? `latest_trade_area.gte.${intOnly(f.minArea)}` : null,
+      f.maxArea !== undefined ? `latest_trade_area.lte.${intOnly(f.maxArea)}` : null,
+    ].filter((b): b is string => b != null);
+    if (bounds.length === 1) q = q.or(`latest_trade_area.is.null,${bounds[0]}`);
+    if (bounds.length === 2) q = q.or(`latest_trade_area.is.null,and(${bounds.join(",")})`);
+  } else {
+    if (f.minArea !== undefined) q = q.gte("latest_trade_area", f.minArea);
+    if (f.maxArea !== undefined) q = q.lte("latest_trade_area", f.maxArea);
+  }
   if (f.builtFrom !== undefined) q = q.gte("build_year", f.builtFrom);
   if (f.builtTo !== undefined) q = q.lte("build_year", f.builtTo);
   if (f.activeMonths !== undefined) q = q.gte("latest_trade_date", monthsAgoISO(f.activeMonths, now));
