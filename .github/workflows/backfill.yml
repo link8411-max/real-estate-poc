@@ -1,0 +1,81 @@
+name: Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: 'trade | rent | both'
+        type: choice
+        options: [trade, rent, both]
+        default: trade
+      from:
+        description: 'YYYYMM (start)'
+        required: true
+      to:
+        description: 'YYYYMM (end)'
+        required: true
+      regions:
+        description: 'Comma-separated lawd codes (optional, default all)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      PYTHON_VERSION: "3.11"
+      PYTHONUNBUFFERED: "1"
+      MOLIT_API_KEY: ${{ secrets.MOLIT_API_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+      KIND: ${{ inputs.kind }}
+      FROM_YM: ${{ inputs.from }}
+      TO_YM: ${{ inputs.to }}
+      REGIONS: ${{ inputs.regions }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Download database from R2
+        run: python r2_utils.py download
+
+      - name: Collect (range)
+        run: |
+          args=(--kind "$KIND" --from "$FROM_YM" --to "$TO_YM" --changed-out changed_apts.json)
+          if [ -n "$REGIONS" ]; then args+=(--regions "$REGIONS"); fi
+          python -m pipeline.collect "${args[@]}"
+
+      - name: Geocode new apartments
+        run: python -m pipeline.geocode --db real_estate.db --limit 500
+
+      - name: Export changed apartments
+        run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out
+
+      - name: Publish to R2
+        run: python -m pipeline.r2_publish --out out --keys out/keys.json
+
+      - name: Sync to Supabase
+        run: python -m pipeline.supabase_sync --db real_estate.db --changed changed_apts.json
+
+      - name: Upload database to R2
+        run: python r2_utils.py upload

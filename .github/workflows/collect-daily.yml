@@ -6,130 +6,77 @@ on:
     - cron: '0 22 * * *'   # KST 07:00 (UTC 22:00 전날)
     - cron: '0 4 * * *'    # KST 13:00
     - cron: '0 10 * * *'   # KST 19:00
-  workflow_dispatch:  # 수동 실행 가능
+  workflow_dispatch:
 
-env:
-  PYTHON_VERSION: '3.11'
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
 
 jobs:
   collect:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
+    env:
+      PYTHON_VERSION: "3.11"
+      PYTHONUNBUFFERED: "1"
+      MOLIT_API_KEY: ${{ secrets.MOLIT_API_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+          cache: pip
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Debug - Check secrets availability
-        run: |
-          echo "=== Checking Secrets Configuration ==="
-          if [ -z "${{ secrets.R2_ENDPOINT }}" ]; then
-            echo "❌ R2_ENDPOINT is NOT set"
-          else
-            echo "✅ R2_ENDPOINT is set"
-          fi
-          if [ -z "${{ secrets.R2_ACCESS_KEY_ID }}" ]; then
-            echo "❌ R2_ACCESS_KEY_ID is NOT set"
-          else
-            echo "✅ R2_ACCESS_KEY_ID is set"
-          fi
-          if [ -z "${{ secrets.R2_SECRET_ACCESS_KEY }}" ]; then
-            echo "❌ R2_SECRET_ACCESS_KEY is NOT set"
-          else
-            echo "✅ R2_SECRET_ACCESS_KEY is set"
-          fi
-          if [ -z "${{ secrets.R2_BUCKET_NAME }}" ]; then
-            echo "❌ R2_BUCKET_NAME is NOT set"
-          else
-            echo "✅ R2_BUCKET_NAME is set"
-          fi
-          if [ -z "${{ secrets.MOLIT_API_KEY }}" ]; then
-            echo "❌ MOLIT_API_KEY is NOT set"
-          else
-            echo "✅ MOLIT_API_KEY is set"
-          fi
-          echo "==================================="
+      - run: pip install -r requirements.txt
 
       - name: Download database from R2
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-        run: |
-          echo "Attempting to download DB from R2..."
-          python r2_utils.py download || echo "⚠️ No existing DB found, starting fresh"
+        run: python r2_utils.py download
 
-      - name: Show DB info before collection
-        run: |
-          echo "=== DB Status Before Collection ==="
-          if [ -f real_estate.db ]; then
-            echo "✅ DB exists: $(du -h real_estate.db)"
-            echo "Tables:"
-            sqlite3 real_estate.db ".tables" 2>/dev/null || echo "sqlite3 not available"
-          else
-            echo "⚠️ No DB file found - will create new"
-          fi
-          echo "==================================="
+      - name: Collect (this + previous month)
+        run: python -m pipeline.collect --kind both --daily --changed-out changed_apts.json --summary-out summary.json
 
-      - name: Run daily collection
-        env:
-          MOLIT_API_KEY: ${{ secrets.MOLIT_API_KEY }}
-          DB_PATH: real_estate.db
-          API_URL: ${{ secrets.API_URL }}
-          PYTHONUNBUFFERED: "1"
-        run: |
-          echo "Starting daily collection..."
-          python -u collect_daily.py
-          echo "Collection completed with exit code: $?"
+      - name: Geocode new apartments
+        run: python -m pipeline.geocode --db real_estate.db --limit 500
 
-      - name: Show DB info after collection
-        run: |
-          echo "=== DB Status After Collection ==="
-          if [ -f real_estate.db ]; then
-            echo "✅ DB size: $(du -h real_estate.db)"
-          else
-            echo "❌ DB file not found after collection"
-          fi
-          echo "==================================="
+      - name: Export changed apartments
+        run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out
+
+      - name: Publish to R2
+        run: python -m pipeline.r2_publish --out out --keys out/keys.json
+
+      - name: Sync to Supabase
+        run: python -m pipeline.supabase_sync --db real_estate.db --changed changed_apts.json
 
       - name: Upload database to R2
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-        run: |
-          echo "Uploading DB to R2..."
-          python r2_utils.py upload
-          echo "Upload completed with exit code: $?"
+        run: python r2_utils.py upload
 
-      - name: Notify server to reload DB
+      - name: Record run and push
         run: |
-          echo "Notifying server to reload database..."
-          curl -s -X POST "https://real-estate-poc-jcez.onrender.com/api/db/reload?secret=수집완료" \
-            --max-time 120 \
-            -H "Content-Type: application/json" || echo "⚠️ Server reload notification failed (server might be sleeping)"
-
-      - name: Summary
-        if: always()
-        run: |
-          echo "### Daily Collection Complete! :rocket:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Time**: $(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Months collected**: Current + Previous" >> $GITHUB_STEP_SUMMARY
-          if [ -f real_estate.db ]; then
-            echo "- **DB Size**: $(du -h real_estate.db | cut -f1)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- **DB**: Not created (check logs)" >> $GITHUB_STEP_SUMMARY
-          fi
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          s = json.load(open("summary.json"))
+          s["ran_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+          json.dump({"ran_at": s["ran_at"], "saved": s["saved"], "failed": s["failed"]},
+                    open("data/last_run.json", "w"))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/last_run.json
+          git diff --cached --quiet || git commit -m "chore: daily run"
+          git pull --rebase
+          git push
