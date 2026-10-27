@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import SiteHeader from "@/components/SiteHeader";
+import { GA_ID, gaInitScript } from "@/lib/analytics";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
@@ -19,6 +21,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-screen bg-gray-50">
         <SiteHeader />
         {children}
+        {GA_ID && (
+          <Script id="ga4-init" strategy="afterInteractive">
+            {gaInitScript(GA_ID)}
+          </Script>
+        )}
       </body>
     </html>
   );

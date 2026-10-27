@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import SearchBox from "@/components/SearchBox";
+import { track } from "@/lib/analytics";
 import { fetchSearchIndex } from "@/lib/data";
 import { districtLabel } from "@/lib/regions";
 import { searchIndex } from "@/lib/search";
@@ -53,6 +54,7 @@ export default function SearchPanel() {
               <li key={id}>
                 <Link
                   href={`/apartment/${id}`}
+                  onClick={() => track("search_select", { apt_id: String(id) })}
                   className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-4 transition hover:border-blue-200 hover:shadow-md"
                 >
                   <div className="flex min-w-0 items-center gap-3">

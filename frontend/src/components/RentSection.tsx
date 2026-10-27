@@ -104,7 +104,18 @@ function RentList({ rows, resetKey }: { rows: Rent[]; resetKey: string }) {
 
 /** 단지 상세의 전세·월세 탭 본문: 평형표 → 보증금 추이 → 거래 목록 */
 /** today: 서버에서 계산한 KST 날짜 "YYYY-MM-DD" (3개월 평균의 기준일) */
-export default function RentSection({ rent, tab, today }: { rent: AptRent; tab: Tab; today: string }) {
+export default function RentSection({
+  rent,
+  tab,
+  today,
+  beforeList,
+}: {
+  rent: AptRent;
+  tab: Tab;
+  today: string;
+  /** 차트와 거래 목록 사이에 넣을 것(연결 카드) */
+  beforeList?: React.ReactNode;
+}) {
   const [unit] = useAreaUnit();
   const [sel, setSel] = useState<{ tab: Tab; area: number | null }>({ tab, area: null });
   const area = sel.tab === tab ? sel.area : null; // 탭이 바뀌면 선택 해제
@@ -136,6 +147,7 @@ export default function RentSection({ rent, tab, today }: { rent: AptRent; tab: 
         </h2>
         <PriceChart data={history} valueLabel="평균 보증금" />
       </section>
+      {beforeList}
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-3 font-bold text-gray-900">
           {label} 거래 내역 <span className="text-sm font-normal text-gray-500">{scope}</span>

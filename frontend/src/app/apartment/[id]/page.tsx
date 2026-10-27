@@ -1,15 +1,18 @@
 import { notFound } from "next/navigation";
 import ApartmentHeader from "@/components/ApartmentHeader";
 import ApartmentTrades from "@/components/ApartmentTrades";
+import AptViewTracker from "@/components/AptViewTracker";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import DealTabs from "@/components/DealTabs";
 import InsightBadges from "@/components/InsightBadges";
 import JsonLd from "@/components/JsonLd";
+import PartnerCards from "@/components/PartnerCards";
 import RentSection from "@/components/RentSection";
+import ShareButton from "@/components/ShareButton";
 import { fetchAptRent, fetchAptTrade } from "@/lib/data";
 import { areaGroup, areaToPyeong, formatPrice } from "@/lib/format";
 import { kstToday, liveMetrics } from "@/lib/metrics";
-import { aptCrumbs, aptJsonLd, breadcrumbJsonLd } from "@/lib/seo";
+import { aptCrumbs, aptJsonLd, breadcrumbJsonLd, SITE_URL } from "@/lib/seo";
 
 /** ISR: 첫 요청 때 생성, 한 시간마다 갱신. 최근가·평형별 시세는 서버 HTML에 텍스트로 들어간다. */
 export const revalidate = 3600;
@@ -35,14 +38,23 @@ export default async function ApartmentPage({ params }: Props) {
   // 시간 창 지표는 오늘(KST) 기준. 서버에서 한 번 계산해 내려준다 — ISR 이 한 시간마다 갱신.
   const today = kstToday();
   const metrics = liveMetrics(data, rentData, today);
+  const share = {
+    title: `${apt.name} 실거래가`,
+    description: latest
+      ? `최근 매매 ${formatPrice(latest.amount)} (${latest.deal_date}) · ${apt.region_name} ${apt.dong}`
+      : `${apt.region_name} ${apt.dong} 아파트 실거래가·전월세`,
+    url: `${SITE_URL}/apartment/${apt.id}`,
+    imageUrl: `${SITE_URL}/api/og/${apt.id}`,
+  };
 
   return (
     <main className="mx-auto max-w-5xl space-y-4 px-4 py-8">
+      <AptViewTracker aptId={apt.id} lawdCd={apt.lawd_cd} />
       <JsonLd data={aptJsonLd(apt)} />
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
       <Breadcrumbs items={crumbs} />
       <section className="space-y-3 rounded-2xl border border-gray-100 bg-white p-5">
-        <ApartmentHeader apartment={apt} />
+        <ApartmentHeader apartment={apt} actions={<ShareButton aptId={apt.id} meta={share} />} />
         {latest && (
           <p className="text-sm text-gray-700">
             최근 매매 <strong className="text-gray-900">{formatPrice(latest.amount)}</strong>{" "}
@@ -57,12 +69,18 @@ export default async function ApartmentPage({ params }: Props) {
         empty={{ jeonse: !rent.rents.some((r) => r.monthly_rent === 0), wolse: !rent.rents.some((r) => r.monthly_rent > 0) }}
         panels={{
           trade: latest ? (
-            <ApartmentTrades stats={data.area_stats} transactions={data.transactions} />
+            <ApartmentTrades
+              stats={data.area_stats}
+              transactions={data.transactions}
+              beforeList={<PartnerCards slot="apt-trade" />}
+            />
           ) : (
             <p className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-sm text-gray-500">매매 거래가 없습니다</p>
           ),
-          jeonse: <RentSection rent={rent} tab="jeonse" today={today} />,
-          wolse: <RentSection rent={rent} tab="wolse" today={today} />,
+          jeonse: (
+            <RentSection rent={rent} tab="jeonse" today={today} beforeList={<PartnerCards slot="apt-jeonse" />} />
+          ),
+          wolse: <RentSection rent={rent} tab="wolse" today={today} beforeList={<PartnerCards slot="apt-wolse" />} />,
         }}
       />
     </main>

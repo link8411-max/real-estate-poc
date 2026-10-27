@@ -15,7 +15,13 @@ const subscribe = (cb: () => void) => {
   };
 };
 
-export default function ApartmentHeader({ apartment }: { apartment: Apartment }) {
+export default function ApartmentHeader({
+  apartment,
+  actions,
+}: {
+  apartment: Apartment;
+  actions?: React.ReactNode;
+}) {
   const inCompare = useSyncExternalStore(
     subscribe,
     () => getCompareIds().includes(apartment.id),
@@ -40,20 +46,29 @@ export default function ApartmentHeader({ apartment }: { apartment: Apartment })
           )}
         </div>
       </div>
-      <button
-        type="button"
-        aria-pressed={inCompare}
-        onClick={() => {
-          toggleCompare(apartment.id);
-          window.dispatchEvent(new Event(EVENT));
-        }}
-        className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
-          inCompare ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-        }`}
-      >
-        {inCompare ? <Check className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}
-        {inCompare ? "비교 담김" : "비교 담기"}
-      </button>
+      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        {actions}
+        <button
+          type="button"
+          aria-pressed={inCompare}
+          onClick={() => {
+            toggleCompare(apartment.id);
+            window.dispatchEvent(new Event(EVENT));
+          }}
+          className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
+            inCompare
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          {inCompare ? (
+            <Check className="h-4 w-4" aria-hidden />
+          ) : (
+            <Plus className="h-4 w-4" aria-hidden />
+          )}
+          {inCompare ? "비교 담김" : "비교 담기"}
+        </button>
+      </div>
     </div>
   );
 }
