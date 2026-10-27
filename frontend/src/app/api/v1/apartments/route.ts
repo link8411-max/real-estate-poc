@@ -1,6 +1,6 @@
 import { applyFilters, PAGE_SIZE, parseApartmentFilters, type FilterableQuery } from "@/lib/filters";
 import { supabaseServer } from "@/lib/supabase/server";
-import { fail, guard, ok } from "@/lib/apiResponse";
+import { guard, ok, upstreamError } from "@/lib/apiResponse";
 
 const COLUMNS =
   "id,name,dong,lawd_cd,build_year,latest_trade_amount,latest_trade_date,trade_count,jeonse_ratio,lat,lng";
@@ -16,6 +16,6 @@ async function handle(req: Request) {
   // Cast: the generated builder type is too deep for generic chaining (TS2589).
   q = applyFilters(q as unknown as FilterableQuery, f) as unknown as typeof q;
   const { data, error, count } = await q.range(from, from + PAGE_SIZE - 1);
-  if (error) return fail(500, "upstream", "failed to load apartments");
+  if (error) return upstreamError("failed to load apartments", error);
   return ok({ items: data ?? [], page: f.page, total: count ?? 0 });
 }

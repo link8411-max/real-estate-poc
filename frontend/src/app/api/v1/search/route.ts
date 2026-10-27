@@ -1,6 +1,6 @@
 import { escapeLike, MAX_QUERY_LENGTH } from "@/lib/filters";
 import { supabaseServer } from "@/lib/supabase/server";
-import { fail, guard, ok } from "@/lib/apiResponse";
+import { guard, ok, upstreamError } from "@/lib/apiResponse";
 
 export function GET(req: Request) {
   return guard(() => handle(req));
@@ -15,6 +15,6 @@ async function handle(req: Request) {
     .select("id,name,dong,lawd_cd,build_year")
     .ilike("name", `%${pattern}%`)
     .limit(20);
-  if (error) return fail(500, "upstream", "search failed");
+  if (error) return upstreamError("search failed", error);
   return ok({ items: data ?? [] });
 }

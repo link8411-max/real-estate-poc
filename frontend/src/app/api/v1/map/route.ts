@@ -1,6 +1,6 @@
 import { applyFilters, parseApartmentFilters, parseBbox, parseNumber, type FilterableQuery } from "@/lib/filters";
 import { supabaseServer } from "@/lib/supabase/server";
-import { fail, guard, ok } from "@/lib/apiResponse";
+import { fail, guard, ok, upstreamError } from "@/lib/apiResponse";
 
 const MAP_COLUMNS = "id,name,lat,lng,latest_trade_amount,latest_jeonse_deposit,trade_count,build_year,latest_trade_area";
 const MAX_SPAN_DEG = 1.5;
@@ -34,7 +34,7 @@ async function handle(req: Request) {
       .gte("lat", minLat).lte("lat", maxLat)
       .gte("lng", minLng).lte("lng", maxLng)
       .limit(200);
-    if (error) return fail(500, "upstream", "failed to load regions");
+    if (error) return upstreamError("failed to load regions", error);
     return ok({ type: "regions", items: data ?? [] });
   }
 
@@ -54,6 +54,6 @@ async function handle(req: Request) {
   const modeQ = mode === "rent" ? withMode.not("latest_jeonse_deposit", "is", null) : withMode.not("latest_trade_amount", "is", null);
   // Map markers are always prioritised by trade_count (sort forced above).
   const { data, error } = await modeQ.limit(MAX_ROWS);
-  if (error) return fail(500, "upstream", "failed to load apartments");
+  if (error) return upstreamError("failed to load apartments", error);
   return ok({ type: "apartments", items: data ?? [] });
 }
