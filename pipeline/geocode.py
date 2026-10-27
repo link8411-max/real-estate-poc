@@ -49,7 +49,10 @@ def geocode_address(lawd_cd, dong, jibun, *, session=None):
 
 def fill_missing_coords(conn, *, limit=20000, delay=0.05, geocode=geocode_address,
                         retry_failed=False, log=print):
-    """좌표 없는 단지를 지오코딩한다. (성공, 실패) 반환. 쿼터/인증 오류는 조기 종료."""
+    """좌표 없는 단지를 지오코딩한다. (성공, 실패) 반환.
+
+    카카오 오류(인증/쿼터/5xx)나 네트워크 오류는 예외로 올리지 않고 조기 종료한다.
+    """
     cond = "latitude IS NULL"
     if not retry_failed:
         cond += " AND (geocode_quality IS NULL OR geocode_quality != 'failed')"
@@ -62,10 +65,14 @@ def fill_missing_coords(conn, *, limit=20000, delay=0.05, geocode=geocode_addres
         try:
             res = geocode(r["lawd_cd"], r["dong"], r["jibun"])
         except GeocodeError as e:
-            if e.status in _FATAL_STATUSES or e.status is None:
-                log(f"geocode stopped early ({e.status}): {e.text}")
-                break
-            raise
+            # 인증/쿼터(치명) 든 5xx 등 일시 오류든 여기서 멈추고 한 것만 커밋한다.
+            # 다음 실행이 이어서 처리하므로 수집 워크플로는 계속돼야 한다.
+            kind = "fatal" if e.status in _FATAL_STATUSES or e.status is None else "transient"
+            log(f"geocode stopped early ({kind} {e.status}): {e.text}")
+            break
+        except requests.RequestException as e:
+            log(f"geocode stopped early (network {type(e).__name__}): {e}")
+            break
         if res:
             conn.execute(
                 "UPDATE apartments SET latitude=?, longitude=?, geocode_quality=? WHERE id=?",

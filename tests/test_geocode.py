@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+import requests
 
 from pipeline import geocode as geo
 from pipeline.db import connect, migrate
@@ -197,3 +198,52 @@ def _make_src_db_for_marks(path):
               " VALUES ('n','11680','a','1',1.0,2.0,'kakao')")
     s.commit()
     s.close()
+
+
+def _transient_setup():
+    conn = _dst()
+    for n, d in (("one", "a"), ("two", "b"), ("three", "c")):
+        _add(conn, n, "11680", d, "1")
+    return conn
+
+
+@pytest.mark.parametrize("exc", [
+    requests.exceptions.Timeout("read timed out"),
+    requests.exceptions.ConnectionError("reset"),
+    geo.GeocodeError(500, "internal"),
+])
+def test_fill_missing_coords_transient_error_stops_early_and_keeps_done(exc):
+    conn = _transient_setup()
+    calls = []
+
+    def fake(lawd, dong, jibun):
+        calls.append(dong)
+        if dong == "b":
+            raise exc
+        return (1.0, 2.0, "kakao_address")
+
+    logs = []
+    assert geo.fill_missing_coords(conn, delay=0, geocode=fake, log=logs.append) == (1, 0)
+    assert calls == ["a", "b"]
+    conn.rollback()  # 커밋된 것만 남는지 확인
+    assert _row(conn, "one") == (1.0, 2.0, "kakao_address")
+    assert _row(conn, "two") == (None, None, None)
+    assert any("stopped early" in m for m in logs)
+
+
+def test_cli_exits_zero_on_transient_error(tmp_path, monkeypatch):
+    db = str(tmp_path / "g.db")
+    conn = connect(db)
+    migrate(conn)
+    _add(conn, "one", "11680", "a", "1")
+    conn.close()
+
+    def boom(lawd, dong, jibun):
+        raise requests.exceptions.Timeout("slow")
+
+    monkeypatch.setattr(geo, "fill_missing_coords",
+                        lambda c, **kw: _orig_fill(c, geocode=boom, **kw))
+    assert geo.main(["--db", db, "--delay", "0"]) == 0
+
+
+_orig_fill = geo.fill_missing_coords
