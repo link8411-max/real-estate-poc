@@ -5,7 +5,7 @@ import RegionStatsTable, { isRegionSort, REGION_SORTS, type RegionSort } from "@
 import { fetchStats } from "@/lib/data";
 import type { RegionStat } from "@/lib/types";
 
-export const metadata: Metadata = { title: "지역 통계" };
+export const metadata: Metadata = { title: "지역 통계", alternates: { canonical: "/stats" } };
 
 type Props = { searchParams: Promise<{ sort?: string }> };
 

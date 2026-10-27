@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatManwon } from "@/lib/format";
-import { browseHref } from "@/lib/regions";
+import { regionHref } from "@/lib/regions";
 import type { RegionStat } from "@/lib/types";
 
 export const REGION_SORTS = {
@@ -63,7 +63,7 @@ export default function RegionStatsTable({ regions, sort }: { regions: RegionSta
           {sortRegions(regions, sort).map((r) => (
             <tr key={r.code} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50">
               <th scope="row" className="py-3 pr-3 text-left font-semibold text-gray-900">
-                <Link href={browseHref(r.city, r.code)} className="hover:text-blue-600">
+                <Link href={regionHref(r.code)} className="hover:text-blue-600">
                   {r.name}
                 </Link>
               </th>

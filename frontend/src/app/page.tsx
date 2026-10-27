@@ -1,9 +1,12 @@
 import { Building2, CalendarDays, Map as MapIcon, MapPin, TrendingUp } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import RecentDeals from "@/components/RecentDeals";
 import SearchBox from "@/components/SearchBox";
 import { fetchStats } from "@/lib/data";
 import { browseHref, CITIES } from "@/lib/regions";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 const KEYWORDS = ["잠실", "반포", "래미안", "판교", "ㄹㅁㅇ"];
 

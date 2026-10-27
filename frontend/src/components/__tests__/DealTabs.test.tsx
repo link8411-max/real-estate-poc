@@ -1,18 +1,19 @@
 import { render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import DealTabs from "../DealTabs";
 
 const replace = vi.fn();
-let search = "";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
-  useSearchParams: () => new URLSearchParams(search),
 }));
+
+const setSearch = (q: string) => window.history.replaceState(null, "", q ? `/?${q}` : "/");
 
 beforeEach(() => {
   replace.mockReset();
-  search = "";
+  setSearch("");
 });
 
 const panels = { trade: <p>매매 내용</p>, jeonse: <p>전세 내용</p>, wolse: <p>월세 내용</p> };
@@ -26,21 +27,29 @@ describe("DealTabs", () => {
     expect(screen.queryByText("전세 내용")).not.toBeInTheDocument();
   });
 
-  test("전세 클릭 시 ?tab=jeonse로 replace(스크롤 유지)", async () => {
+  test("전세 클릭 시 ?tab=jeonse로 replace(스크롤 유지)하고 전세를 보여준다", async () => {
     render(<DealTabs panels={panels} empty={empty} />);
     await userEvent.click(screen.getByRole("tab", { name: "전세" }));
     expect(replace).toHaveBeenCalledWith("?tab=jeonse", { scroll: false });
+    expect(screen.getByText("전세 내용")).toBeInTheDocument();
+  });
+
+  test("서버 렌더는 URL과 관계없이 매매 패널을 HTML에 담는다(ISR)", () => {
+    setSearch("tab=wolse");
+    const html = renderToString(<DealTabs panels={panels} empty={empty} />);
+    expect(html).toContain("매매 내용");
+    expect(html).not.toContain("월세 내용");
   });
 
   test("URL의 tab 값을 따른다", () => {
-    search = "tab=wolse";
+    setSearch("tab=wolse");
     render(<DealTabs panels={panels} empty={empty} />);
     expect(screen.getByText("월세 내용")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "월세" })).toHaveAttribute("aria-selected", "true");
   });
 
   test("알 수 없는 tab 값은 매매", () => {
-    search = "tab=bogus";
+    setSearch("tab=bogus");
     render(<DealTabs panels={panels} empty={empty} />);
     expect(screen.getByText("매매 내용")).toBeInTheDocument();
   });
@@ -55,7 +64,7 @@ describe("DealTabs", () => {
   });
 
   test("비어 있는 탭을 URL로 직접 열면 매매로 되돌린다", () => {
-    search = "tab=jeonse";
+    setSearch("tab=jeonse");
     render(<DealTabs panels={panels} empty={{ ...empty, jeonse: true }} />);
     expect(screen.getByText("매매 내용")).toBeInTheDocument();
   });

@@ -52,11 +52,8 @@ describe("RegionStatsTable", () => {
     expect(container.querySelectorAll("table > tr")).toHaveLength(0);
   });
 
-  test("지역 이름은 탐색 페이지로 연결", () => {
+  test("지역 이름은 지역 페이지로 연결", () => {
     render(<RegionStatsTable regions={regions} sort="name" />);
-    expect(screen.getByRole("link", { name: "강남구" })).toHaveAttribute(
-      "href",
-      `/browse?city=${encodeURIComponent("서울")}&region=11680`,
-    );
+    expect(screen.getByRole("link", { name: "강남구" })).toHaveAttribute("href", "/region/11680");
   });
 });

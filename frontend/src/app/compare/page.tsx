@@ -5,7 +5,11 @@ import { MAX_COMPARE } from "@/lib/compare";
 import { fetchAptTrade } from "@/lib/data";
 import type { AptTrade } from "@/lib/types";
 
-export const metadata: Metadata = { title: "단지 비교" };
+export const metadata: Metadata = {
+  title: "단지 비교",
+  alternates: { canonical: "/compare" },
+  robots: { index: false, follow: true },
+};
 
 type Props = { searchParams: Promise<{ ids?: string }> };
 
