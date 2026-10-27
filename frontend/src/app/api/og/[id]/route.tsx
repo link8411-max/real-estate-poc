@@ -4,9 +4,29 @@ import { areaGroup, formatPrice } from "@/lib/format";
 
 export const runtime = "edge";
 
-const SIZE = { width: 1200, height: 630 };
+/** 한글 서브셋(KS X 1001 2,350자 + ASCII, scripts/make_og_font.sh로 생성, OFL). 기본 폰트에는 한글이 없다. */
+const FONT_URL = new URL("../../../../../public/fonts/NotoSansKR-Bold-subset.woff", import.meta.url);
+let fontData: Promise<ArrayBuffer> | null = null;
+const loadFont = () => {
+  fontData ??= fetch(FONT_URL).then((r) => {
+    if (!r.ok) throw new Error(`OG font ${r.status}`);
+    return r.arrayBuffer();
+  });
+  fontData.catch(() => (fontData = null));
+  return fontData;
+};
 
-function message(text: string) {
+const FONT_FAMILY = "NotoSansKR";
+
+async function options() {
+  return {
+    width: 1200,
+    height: 630,
+    fonts: [{ name: FONT_FAMILY, data: await loadFont(), weight: 700 as const, style: "normal" as const }],
+  };
+}
+
+async function message(text: string) {
   return new ImageResponse(
     (
       <div
@@ -19,12 +39,13 @@ function message(text: string) {
           backgroundColor: "#F8FAFC",
           fontSize: 36,
           color: "#64748B",
+          fontFamily: FONT_FAMILY,
         }}
       >
         {text}
       </div>
     ),
-    SIZE,
+    await options(),
   );
 }
 
@@ -39,7 +60,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", backgroundColor: "#FFFFFF", padding: 60 }}>
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          backgroundColor: "#FFFFFF",
+          padding: 60,
+          fontFamily: FONT_FAMILY,
+        }}
+      >
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 28, color: "#64748B" }}>
           <span>{apt.region_name}</span>
           <span>수도권 아파트 실거래가</span>
@@ -67,6 +98,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         </div>
       </div>
     ),
-    SIZE,
+    await options(),
   );
 }
