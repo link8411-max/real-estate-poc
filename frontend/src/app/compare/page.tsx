@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import CompareFromStorage from "@/components/CompareFromStorage";
 import CompareTable from "@/components/CompareTable";
 import { MAX_COMPARE } from "@/lib/compare";
-import { fetchAptTrade } from "@/lib/data";
-import type { AptTrade } from "@/lib/types";
+import { fetchAptRent, fetchAptTrade } from "@/lib/data";
+import { kstToday } from "@/lib/metrics";
+import type { AptRent, AptTrade } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "단지 비교",
@@ -18,7 +19,11 @@ const parseIds = (raw: string | undefined): number[] =>
 
 export default async function ComparePage({ searchParams }: Props) {
   const ids = parseIds((await searchParams).ids);
-  const items = (await Promise.all(ids.map((id) => fetchAptTrade(id)))).filter((d): d is AptTrade => d != null);
+  const loaded = await Promise.all(ids.map((id) => Promise.all([fetchAptTrade(id), fetchAptRent(id)])));
+  const found = loaded.filter((p): p is [AptTrade, AptRent | null] => p[0] != null);
+  const items = found.map(([t]) => t);
+  const rents = found.map(([, r]) => r);
+  const today = kstToday(); // 요청마다 서버에서(이 페이지는 동적) — 클라이언트 렌더에서 new Date() 를 부르지 않는다
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
@@ -29,7 +34,7 @@ export default async function ComparePage({ searchParams }: Props) {
         ) : items.length === 0 ? (
           <p className="py-16 text-center text-sm text-gray-500">비교할 단지를 찾을 수 없습니다</p>
         ) : (
-          <CompareTable items={items} />
+          <CompareTable items={items} rents={rents} today={today} />
         )}
       </section>
     </main>

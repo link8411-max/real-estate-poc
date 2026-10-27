@@ -10,6 +10,11 @@ import { breadcrumbJsonLd, type Crumb, regionDescription, regionTitle, shortPric
 /** 지역 파일은 하루 한 번 바뀐다. 첫 요청 때 만들고 한 시간마다 갱신. */
 export const revalidate = 3600;
 
+/** 빌드 때는 아무것도 만들지 않고, 첫 요청 때 만들어 캐시한다(dynamicParams 기본 true). 이게 있어야 ISR(●)이 된다. */
+export function generateStaticParams() {
+  return [];
+}
+
 type Props = { params: Promise<{ code: string }> };
 
 const init = { next: { revalidate } } as RequestInit;

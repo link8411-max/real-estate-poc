@@ -25,7 +25,7 @@ const rent = (id: number, o: Partial<Rent> = {}): Rent => ({
 const data = (rents: Rent[]): AptRent => ({
   apartment,
   rent_area_stats: [
-    { area: 84, jeonse_count: 2, wolse_count: 1, latest_deposit: 50000, latest_monthly_rent: 0, latest_date: "2026-10-06", recent_jeonse_avg: 52000 },
+    { area: 84, jeonse_count: 2, wolse_count: 1, latest_deposit: 50000, latest_monthly_rent: 0, latest_date: "2026-10-06", recent_jeonse_avg: 11111 },
     { area: 59, jeonse_count: 0, wolse_count: 1, latest_deposit: 10000, latest_monthly_rent: 150, latest_date: "2026-10-03", recent_jeonse_avg: null },
   ],
   rents,
@@ -38,11 +38,13 @@ const mixed = data([
   rent(4, { deposit: 10000, monthly_rent: 150, area: 59.5, deal_date: "2026-10-03" }),
 ]);
 
+const TODAY = "2026-10-27";
+
 const items = () => screen.getAllByRole("listitem");
 
 describe("RentSection", () => {
   test("전세 탭은 월세 거래를 빼고 전세만 보여준다", () => {
-    render(<RentSection rent={mixed} tab="jeonse" />);
+    render(<RentSection rent={mixed} tab="jeonse" today={TODAY} />);
     expect(items()).toHaveLength(2);
     expect(within(items()[0]).getByText("5억 4,000")).toBeInTheDocument();
     expect(screen.queryByText(/100$/)).not.toBeInTheDocument();
@@ -50,7 +52,7 @@ describe("RentSection", () => {
   });
 
   test("전세 평형표: 전세 거래가 있는 평형만, 3개월 평균 포함", () => {
-    render(<RentSection rent={mixed} tab="jeonse" />);
+    render(<RentSection rent={mixed} tab="jeonse" today={TODAY} />);
     const table = screen.getByRole("table");
     expect(within(table).getByText("전용 25평 (84㎡)")).toBeInTheDocument();
     expect(within(table).queryByText(/^59㎡/)).not.toBeInTheDocument();
@@ -59,19 +61,19 @@ describe("RentSection", () => {
   });
 
   test("기본(평): 거래 목록은 실제 면적을 평으로", () => {
-    render(<RentSection rent={mixed} tab="jeonse" />);
+    render(<RentSection rent={mixed} tab="jeonse" today={TODAY} />);
     expect(items()[0]).toHaveTextContent("전용 25.5평");
   });
 
   test("㎡ 모드: 평형표와 거래 목록이 ㎡", () => {
     localStorage.setItem("areaUnit", "m2");
-    render(<RentSection rent={mixed} tab="jeonse" />);
+    render(<RentSection rent={mixed} tab="jeonse" today={TODAY} />);
     expect(within(screen.getByRole("table")).getByText("84㎡ (전용 25평)")).toBeInTheDocument();
     expect(items()[0]).toHaveTextContent("84.2㎡");
   });
 
   test("월세 탭은 보증금 / 월세 형식", () => {
-    render(<RentSection rent={mixed} tab="wolse" />);
+    render(<RentSection rent={mixed} tab="wolse" today={TODAY} />);
     expect(items()).toHaveLength(2);
     expect(within(items()[0]).getByText("2억 / 100")).toBeInTheDocument();
     const table = screen.getByRole("table");
@@ -84,7 +86,7 @@ describe("RentSection", () => {
       rent(1, { contract_type: "갱신", use_rr_right: true, pre_deposit: 42000 }),
       rent(2, { contract_type: "신규", use_rr_right: false }),
     ]);
-    render(<RentSection rent={d} tab="jeonse" />);
+    render(<RentSection rent={d} tab="jeonse" today={TODAY} />);
     const [first, second] = items();
     expect(within(first).getByText("갱신")).toBeInTheDocument();
     expect(within(first).getByText("갱신요구권")).toBeInTheDocument();
@@ -96,14 +98,14 @@ describe("RentSection", () => {
 
   test("월세 이전 보증금은 '이전 1억 / 90'", () => {
     const d = data([rent(1, { monthly_rent: 100, pre_deposit: 10000, pre_monthly_rent: 90 })]);
-    render(<RentSection rent={d} tab="wolse" />);
+    render(<RentSection rent={d} tab="wolse" today={TODAY} />);
     expect(screen.getByText("이전 1억 / 90")).toBeInTheDocument();
   });
 
   test("평형 행을 누르면 그 평형 목록만, 다시 누르면 해제", async () => {
     const d = data([rent(1, { area: 84.2 }), rent(2, { area: 84.9 }), rent(3, { area: 59.5 })]);
     d.rent_area_stats[1] = { ...d.rent_area_stats[1], jeonse_count: 1 };
-    render(<RentSection rent={d} tab="jeonse" />);
+    render(<RentSection rent={d} tab="jeonse" today={TODAY} />);
     expect(items()).toHaveLength(3);
     await userEvent.click(screen.getByRole("row", { name: /59㎡/ }));
     expect(items()).toHaveLength(1);
@@ -112,29 +114,30 @@ describe("RentSection", () => {
   });
 
   test("탭이 바뀌면 선택 평형이 해제되어 전체 목록이 나온다", async () => {
-    const { rerender } = render(<RentSection rent={mixed} tab="jeonse" />);
+    const { rerender } = render(<RentSection rent={mixed} tab="jeonse" today={TODAY} />);
     await userEvent.click(screen.getByRole("row", { name: /84㎡/ }));
     expect(screen.getByRole("row", { name: /84㎡/ })).toHaveAttribute("aria-selected", "true");
-    rerender(<RentSection rent={mixed} tab="wolse" />);
+    rerender(<RentSection rent={mixed} tab="wolse" today={TODAY} />);
     expect(items()).toHaveLength(2);
     screen.getAllByRole("row").slice(1).forEach((r) => expect(r).toHaveAttribute("aria-selected", "false"));
   });
 
   test("use_rr_right가 1(숫자)이어도 갱신요구권 표시", () => {
-    render(<RentSection rent={data([rent(1, { use_rr_right: 1 as unknown as boolean })])} tab="jeonse" />);
+    render(<RentSection rent={data([rent(1, { use_rr_right: 1 as unknown as boolean })])} tab="jeonse" today={TODAY} />);
     expect(screen.getByText("갱신요구권")).toBeInTheDocument();
   });
 
-  test("3개월 평균이 null이면 '-'", () => {
-    const d = data([rent(1, { area: 59.5 })]);
-    d.rent_area_stats[1] = { ...d.rent_area_stats[1], jeonse_count: 1, recent_jeonse_avg: null };
-    render(<RentSection rent={d} tab="jeonse" />);
+  test("3개월 안에 전세가 없으면 '-' (오늘 기준, 정확히 90일 전은 포함)", () => {
+    const d = data([rent(1, { area: 59.5, deal_date: "2026-07-28" }), rent(2, { deposit: 40000, deal_date: "2026-07-29" })]);
+    render(<RentSection rent={d} tab="jeonse" today={TODAY} />);
     expect(within(screen.getByRole("row", { name: /59㎡/ })).getByText("-")).toBeInTheDocument();
+    const row84 = within(screen.getByRole("row", { name: /84㎡/ })).getAllByRole("cell");
+    expect(row84[2]).toHaveTextContent("4억"); // 3개월 평균 칸
   });
 
   test("50건씩 더 보기", async () => {
     const d = data(Array.from({ length: 120 }, (_, i) => rent(i + 1)));
-    render(<RentSection rent={d} tab="jeonse" />);
+    render(<RentSection rent={d} tab="jeonse" today={TODAY} />);
     expect(items()).toHaveLength(50);
     await userEvent.click(screen.getByRole("button", { name: /더 보기/ }));
     expect(items()).toHaveLength(100);

@@ -7,6 +7,7 @@ import SelectableRow from "@/components/SelectableRow";
 import { useAreaUnit } from "@/lib/areaUnit";
 import { areaGroup, formatArea, formatDeal, formatExactArea, formatManwon } from "@/lib/format";
 import { monthlyHistory } from "@/lib/history";
+import { recentWindow } from "@/lib/metrics";
 import type { AptRent, Rent } from "@/lib/types";
 
 type Tab = "jeonse" | "wolse";
@@ -102,7 +103,8 @@ function RentList({ rows, resetKey }: { rows: Rent[]; resetKey: string }) {
 }
 
 /** 단지 상세의 전세·월세 탭 본문: 평형표 → 보증금 추이 → 거래 목록 */
-export default function RentSection({ rent, tab }: { rent: AptRent; tab: Tab }) {
+/** today: 서버에서 계산한 KST 날짜 "YYYY-MM-DD" (3개월 평균의 기준일) */
+export default function RentSection({ rent, tab, today }: { rent: AptRent; tab: Tab; today: string }) {
   const [unit] = useAreaUnit();
   const [sel, setSel] = useState<{ tab: Tab; area: number | null }>({ tab, area: null });
   const area = sel.tab === tab ? sel.area : null; // 탭이 바뀌면 선택 해제
@@ -111,7 +113,11 @@ export default function RentSection({ rent, tab }: { rent: AptRent; tab: Tab }) 
     () => rent.rents.filter((r) => (tab === "jeonse" ? r.monthly_rent === 0 : r.monthly_rent > 0)),
     [rent.rents, tab],
   );
-  const avg = useMemo(() => new Map(rent.rent_area_stats.map((s) => [s.area, s.recent_jeonse_avg])), [rent.rent_area_stats]);
+  // 3개월 평균은 내보낸 날이 아니라 오늘 기준으로 계산한다 (조용한 단지의 rent.json 은 다시 안 나간다)
+  const avg = useMemo(() => {
+    const groups = new Set(rows.map((r) => areaGroup(r.area)));
+    return new Map([...groups].map((g) => [g, recentWindow(rows, { area: g, valueKey: "deposit", today }).avg]));
+  }, [rows, today]);
   const history = useMemo(() => monthlyHistory(rows, { area, valueKey: "deposit" }), [rows, area]);
   const shown = useMemo(() => (area == null ? rows : rows.filter((r) => areaGroup(r.area) === area)), [rows, area]);
   const scope = area == null ? "전체 평형" : formatArea(area, unit);
