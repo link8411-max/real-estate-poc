@@ -120,3 +120,53 @@ def test_connect_uses_row_factory(tmp_path):
     c = connect(str(tmp_path / "x.db"))
     assert c.execute("pragma journal_mode").fetchone()[0] == "wal"
     assert c.execute("select 1 as a").fetchone()["a"] == 1
+
+
+_LEGACY_TX = """
+    CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, apt_id INT, amount BIGINT NOT NULL,
+        area DECIMAL(10,4) NOT NULL, floor INT, deal_date DATE NOT NULL,
+        unique_hash VARCHAR(64) UNIQUE, cancel_date DATE);
+"""
+_LEGACY_APT_COORDS = """
+    CREATE TABLE apartments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+        lawd_cd TEXT NOT NULL, dong TEXT, jibun TEXT, build_year INT,
+        latitude DECIMAL(10,8), longitude DECIMAL(11,8), UNIQUE(name, lawd_cd, dong, jibun));
+"""
+_LEGACY_APT_NOCOORDS = """
+    CREATE TABLE apartments (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+        lawd_cd TEXT NOT NULL, dong TEXT, jibun TEXT, build_year INT,
+        UNIQUE(name, lawd_cd, dong, jibun));
+"""
+
+
+@pytest.mark.parametrize("apt_ddl", [_LEGACY_APT_COORDS, _LEGACY_APT_NOCOORDS])
+def test_migrate_legacy_then_coord_steps_work(tmp_path, apt_ddl):
+    from pipeline.geocode import fill_missing_coords
+    from pipeline.migrate_coords import migrate_coords
+
+    src_path = tmp_path / "src.db"
+    s = sqlite3.connect(src_path)
+    s.executescript(_LEGACY_APT_COORDS.replace("TEXT NOT NULL,\n        lawd_cd", "TEXT NOT NULL,\n        lawd_cd")
+                    + "ALTER TABLE apartments ADD COLUMN geocode_quality TEXT;"
+                    "INSERT INTO apartments(name, lawd_cd, dong, jibun, latitude, longitude, geocode_quality)"
+                    " VALUES ('a','11680','d','1',37.5,127.0,'kakao_address');")
+    s.commit()
+    s.close()
+
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.executescript(apt_ddl + _LEGACY_TX + """
+        INSERT INTO apartments(name, lawd_cd, dong, jibun) VALUES ('a','11680','d','1');
+        INSERT INTO apartments(name, lawd_cd, dong, jibun) VALUES ('b','11680','d','2');
+    """)
+    migrate(c)
+    migrate(c)
+    apt_cols = {r[1] for r in c.execute("PRAGMA table_info(apartments)")}
+    assert {"latitude", "longitude", "geocode_quality", "apt_seq", "household_count"} <= apt_cols
+    tx_cols = {r[1] for r in c.execute("PRAGMA table_info(transactions)")}
+    assert {"is_canceled", "cancel_date", "unique_hash", "created_at"} <= tx_cols
+
+    assert migrate_coords(str(src_path), c) == 1
+    ok, failed = fill_missing_coords(c, delay=0, geocode=lambda *a: (37.1, 127.1, "fake"), log=lambda *_: None)
+    assert (ok, failed) == (1, 0)
+    assert c.execute("select count(*) from apartments where latitude is null").fetchone()[0] == 0

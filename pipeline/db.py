@@ -103,6 +103,14 @@ def _add_column(conn: sqlite3.Connection, table: str, column: str, decl: str) ->
 def migrate(conn: sqlite3.Connection) -> None:
     """멱등 마이그레이션: 신규 DB는 전부 만들고, 운영 DB 모양에는 빠진 것만 추가한다."""
     conn.executescript(_BASE_SCHEMA)
+    # 레거시(startup.sh/Actions) 스키마 보강: 이후 코드가 읽고 쓰는 컬럼을 보장한다.
+    _add_column(conn, "apartments", "latitude", "REAL")
+    _add_column(conn, "apartments", "longitude", "REAL")
+    _add_column(conn, "apartments", "geocode_quality", "TEXT")
+    _add_column(conn, "transactions", "is_canceled", "BOOLEAN DEFAULT FALSE")
+    _add_column(conn, "transactions", "cancel_date", "DATE")
+    _add_column(conn, "transactions", "unique_hash", "VARCHAR(64)")
+    _add_column(conn, "transactions", "created_at", "TIMESTAMP")  # ALTER 는 CURRENT_TIMESTAMP 기본값 불가
     _add_column(conn, "apartments", "apt_seq", "TEXT")
     _add_column(conn, "apartments", "household_count", "INT")
     _add_column(conn, "regions", "succeeded_by", "TEXT")
