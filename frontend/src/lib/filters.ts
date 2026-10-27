@@ -4,6 +4,8 @@ export const SORTS = ["latest", "price_desc", "price_asc", "count_desc", "yoy_de
 export type ApartmentSort = (typeof SORTS)[number];
 
 export interface ApartmentFilters {
+  /** "rent"이면 가격 범위를 전세 보증금(latest_jeonse_deposit)에 적용한다. 생략 = 매매. */
+  mode?: "rent";
   lawd?: string[];
   city?: string;
   minPrice?: number;
@@ -39,6 +41,7 @@ function num(sp: URLSearchParams, key: string): number | undefined {
 
 export function parseApartmentFilters(sp: URLSearchParams): ApartmentFilters {
   const f: ApartmentFilters = { sort: "latest", page: 1 };
+  if (sp.get("mode") === "rent") f.mode = "rent";
 
   const lawd = (sp.get("lawd") ?? "").split(",").filter((c) => /^\d{5}$/.test(c));
   if (lawd.length) f.lawd = lawd;
@@ -80,8 +83,9 @@ export function applyFilters<Q extends FilterableQuery>(query: Q, f: ApartmentFi
   let q: FilterableQuery = query;
   if (f.lawd?.length) q = q.in("lawd_cd", f.lawd);
   if (f.city) q = q.eq("city", f.city);
-  if (f.minPrice !== undefined) q = q.gte("latest_trade_amount", f.minPrice);
-  if (f.maxPrice !== undefined) q = q.lte("latest_trade_amount", f.maxPrice);
+  const priceColumn = f.mode === "rent" ? "latest_jeonse_deposit" : "latest_trade_amount";
+  if (f.minPrice !== undefined) q = q.gte(priceColumn, f.minPrice);
+  if (f.maxPrice !== undefined) q = q.lte(priceColumn, f.maxPrice);
   if (f.minArea !== undefined) q = q.gte("latest_trade_area", f.minArea);
   if (f.maxArea !== undefined) q = q.lte("latest_trade_area", f.maxArea);
   if (f.builtFrom !== undefined) q = q.gte("build_year", f.builtFrom);

@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Real-estate API v1
   version: 1.0.0
-  description: Public read-only endpoints backed by Supabase. Responses carry `Cache-Control: public, s-maxage=300`.
+  description: "Public read-only endpoints backed by Supabase. Responses carry `Cache-Control: public, s-maxage=300`."
 paths:
   /api/v1/map:
     get:
@@ -14,7 +14,7 @@ paths:
         - { name: maxLat, in: query, required: true, schema: { type: number } }
         - { name: maxLng, in: query, required: true, schema: { type: number } }
         - { name: level, in: query, schema: { type: integer, minimum: 1, maximum: 14, default: 5 }, description: Kakao map level (1 = closest) }
-        - { name: mode, in: query, schema: { type: string, enum: [trade, rent], default: trade } }
+        - { name: mode, in: query, schema: { type: string, enum: [trade, rent], default: trade }, description: "rent: only apartments with a jeonse deposit, and minPrice/maxPrice apply to latest_jeonse_deposit" }
       responses:
         "200":
           description: Markers
@@ -40,7 +40,8 @@ paths:
       parameters:
         - { name: lawd, in: query, schema: { type: string }, description: Comma-separated 5-digit LAWD codes }
         - { name: city, in: query, schema: { type: string } }
-        - { name: minPrice, in: query, schema: { type: number }, description: 만원, latest trade amount }
+        - { name: mode, in: query, schema: { type: string, enum: [trade, rent], default: trade }, description: "Which price minPrice/maxPrice filter: trade = latest_trade_amount, rent = latest_jeonse_deposit" }
+        - { name: minPrice, in: query, schema: { type: number }, description: "만원; latest trade amount, or latest jeonse deposit when mode=rent" }
         - { name: maxPrice, in: query, schema: { type: number } }
         - { name: minArea, in: query, schema: { type: number }, description: "㎡ (latest trade area group)" }
         - { name: maxArea, in: query, schema: { type: number } }

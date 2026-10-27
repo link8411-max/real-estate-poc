@@ -44,6 +44,11 @@ describe("parseApartmentFilters", () => {
     expect(parseApartmentFilters(sp("sort=drop")).sort).toBe("latest");
     expect(parseApartmentFilters(sp("sort=yoy_desc")).sort).toBe("yoy_desc");
   });
+  it("mode=rent is kept; anything else is trade (omitted)", () => {
+    expect(parseApartmentFilters(sp("mode=rent")).mode).toBe("rent");
+    expect(parseApartmentFilters(sp("mode=trade"))).toEqual({ sort: "latest", page: 1 });
+    expect(parseApartmentFilters(sp("mode=x"))).toEqual({ sort: "latest", page: 1 });
+  });
   it("drops non-digit lawd codes", () => {
     expect(parseApartmentFilters(sp("lawd=11680,x),1")).lawd).toEqual(["11680"]);
   });
@@ -66,6 +71,14 @@ describe("parseApartmentFilters bounds", () => {
 });
 
 describe("applyFilters", () => {
+  it("rent mode applies price bounds to the jeonse deposit", () => {
+    const { q, calls } = recorder();
+    applyFilters(q, { mode: "rent", minPrice: 1, maxPrice: 2, sort: "latest", page: 1 });
+    expect(calls.slice(0, 2)).toEqual([
+      ["gte", "latest_jeonse_deposit", 1],
+      ["lte", "latest_jeonse_deposit", 2],
+    ]);
+  });
   it("applies nothing for defaults except sort", () => {
     const { q, calls } = recorder();
     applyFilters(q, { sort: "latest", page: 1 }, new Date("2026-10-27"));
