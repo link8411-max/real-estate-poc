@@ -108,13 +108,10 @@ export default function RentSection({
   rent,
   tab,
   today,
-  beforeList,
 }: {
   rent: AptRent;
   tab: Tab;
   today: string;
-  /** 차트와 거래 목록 사이에 넣을 것(연결 카드) */
-  beforeList?: React.ReactNode;
 }) {
   const [unit] = useAreaUnit();
   const [sel, setSel] = useState<{ tab: Tab; area: number | null }>({ tab, area: null });
@@ -147,7 +144,6 @@ export default function RentSection({
         </h2>
         <PriceChart data={history} valueLabel="평균 보증금" />
       </section>
-      {beforeList}
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-3 font-bold text-gray-900">
           {label} 거래 내역 <span className="text-sm font-normal text-gray-500">{scope}</span>

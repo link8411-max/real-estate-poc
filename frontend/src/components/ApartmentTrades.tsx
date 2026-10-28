@@ -13,12 +13,9 @@ import type { AreaStat, Transaction } from "@/lib/types";
 export default function ApartmentTrades({
   stats,
   transactions,
-  beforeList,
 }: {
   stats: AreaStat[];
   transactions: Transaction[];
-  /** 차트와 거래 목록 사이에 넣을 것(연결 카드). 목록이 길어 맨 아래는 거의 안 보인다. */
-  beforeList?: React.ReactNode;
 }) {
   const [unit] = useAreaUnit();
   const [area, setArea] = useState<number | null>(null);
@@ -38,7 +35,6 @@ export default function ApartmentTrades({
         </h2>
         <PriceChart data={history} />
       </section>
-      {beforeList}
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-3 font-bold text-gray-900">
           실거래 내역 <span className="text-sm font-normal text-gray-500">{scope}</span>

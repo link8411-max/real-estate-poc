@@ -6,26 +6,20 @@ import { SITE_URL } from "@/lib/seo";
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "";
 
 export type ShareMethod = "kakao" | "share" | "link";
-export type Partner = "unse" | "coupang";
 
 type Events = {
   apt_view: { apt_id: string; region: string };
   search_select: { apt_id: string };
   share_click: { method: ShareMethod; apt_id: string };
-  partner_click: { partner: Partner; slot: string };
-  coupang_banner_view: { slot: string };
 };
 
-const ALLOWED_KEYS = new Set(["apt_id", "region", "method", "partner", "slot"]);
+const ALLOWED_KEYS = new Set(["apt_id", "region", "method"]);
 const SAFE_VALUE = /^[A-Za-z0-9_가-힣]{1,32}$/;
 export const isSafeValue = (v: unknown) => typeof v === "string" && SAFE_VALUE.test(v);
 
 /** 운영 호스트(www 포함) 판정 식. layout 의 GA 초기화 스크립트도 이 식을 쓴다. */
 export const PROD_HOST_SOURCE = `^(www\\.)?${new URL(SITE_URL).hostname.replace(/\./g, "\\.")}$`;
 export const isProdHost = (host: string) => new RegExp(PROD_HOST_SOURCE).test(host);
-
-/** GA 위치 값은 영문·숫자·밑줄만: apt-detail → apt_detail */
-export const gaSlot = (s: string) => s.replace(/[^A-Za-z0-9_]/g, "_");
 
 type Gtag = (...a: unknown[]) => void;
 const getGtag = () => (globalThis as { window?: { gtag?: Gtag } }).window?.gtag;

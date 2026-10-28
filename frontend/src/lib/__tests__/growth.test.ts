@@ -1,29 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { kakaoFeed, isKakaoInApp } from "../kakao";
-import { COUPANG_DISCLOSURE, coupangBannerSrc, unseLink } from "../partners";
-
-describe("partners", () => {
-  test("운세 링크에 utm 세 개가 붙고 경로가 유지된다", () => {
-    const u = new URL(unseLink("/fortune", "apt-detail"));
-    expect(u.origin + u.pathname).toBe("https://unse-ai.com/fortune");
-    expect(u.searchParams.get("utm_source")).toBe("real_estate");
-    expect(u.searchParams.get("utm_medium")).toBe("referral");
-    expect(u.searchParams.get("utm_campaign")).toBe("apt-detail");
-  });
-
-  test("쿠팡 배너 주소는 위젯 id·trackingCode·subId·크기를 담는다", () => {
-    const u = new URL(coupangBannerSrc("apt-detail", 400, 140));
-    expect(u.host).toBe("ads-partners.coupang.com");
-    expect(u.searchParams.get("id")).toBe("1043563");
-    expect(u.searchParams.get("trackingCode")).toBe("AF6497036");
-    expect(u.searchParams.get("subId")).toBe("apt-detail");
-    expect(u.searchParams.get("width")).toBe("400");
-  });
-
-  test("대가성 문구는 쿠팡 규정 문장 그대로", () => {
-    expect(COUPANG_DISCLOSURE).toBe("이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.");
-  });
-});
 
 describe("kakao", () => {
   test("카톡 인앱 판별", () => {
@@ -61,8 +37,8 @@ describe("analytics", () => {
     const { track } = await import("../analytics");
     track("apt_view", { apt_id: "1554", region: "11710", q: "잠실 엘스 101동" } as never);
     expect(gtag).toHaveBeenCalledWith("event", "apt_view", { apt_id: "1554", region: "11710" });
-    track("partner_click", { partner: "unse", slot: "apt detail!" });
-    expect(gtag).toHaveBeenLastCalledWith("event", "partner_click", { partner: "unse" });
+    track("share_click", { method: "link", apt_id: "15 54!" } as never);
+    expect(gtag).toHaveBeenLastCalledWith("event", "share_click", { method: "link" });
   });
 
   test("GA_ID 가 없으면 아무것도 보내지 않는다", async () => {

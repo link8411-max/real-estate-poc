@@ -6,7 +6,6 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import DealTabs from "@/components/DealTabs";
 import InsightBadges from "@/components/InsightBadges";
 import JsonLd from "@/components/JsonLd";
-import PartnerCards from "@/components/PartnerCards";
 import RentSection from "@/components/RentSection";
 import ShareButton from "@/components/ShareButton";
 import { fetchAptRent, fetchAptTrade } from "@/lib/data";
@@ -69,18 +68,12 @@ export default async function ApartmentPage({ params }: Props) {
         empty={{ jeonse: !rent.rents.some((r) => r.monthly_rent === 0), wolse: !rent.rents.some((r) => r.monthly_rent > 0) }}
         panels={{
           trade: latest ? (
-            <ApartmentTrades
-              stats={data.area_stats}
-              transactions={data.transactions}
-              beforeList={<PartnerCards slot="apt-trade" />}
-            />
+            <ApartmentTrades stats={data.area_stats} transactions={data.transactions} />
           ) : (
             <p className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-sm text-gray-500">매매 거래가 없습니다</p>
           ),
-          jeonse: (
-            <RentSection rent={rent} tab="jeonse" today={today} beforeList={<PartnerCards slot="apt-jeonse" />} />
-          ),
-          wolse: <RentSection rent={rent} tab="wolse" today={today} beforeList={<PartnerCards slot="apt-wolse" />} />,
+          jeonse: <RentSection rent={rent} tab="jeonse" today={today} />,
+          wolse: <RentSection rent={rent} tab="wolse" today={today} />,
         }}
       />
     </main>
