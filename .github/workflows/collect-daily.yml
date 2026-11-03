@@ -18,7 +18,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60  # 며칠 밀린 뒤 첫 실행은 바뀐 단지가 1만 개를 넘는다
     env:
       PYTHON_VERSION: "3.11"
       PYTHONUNBUFFERED: "1"

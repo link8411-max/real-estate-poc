@@ -37,7 +37,8 @@ def get_r2_client():
         aws_secret_access_key=R2_SECRET_ACCESS_KEY,
         config=Config(
             signature_version="s3v4",
-            retries={"max_attempts": 3, "mode": "standard"}
+            retries={"max_attempts": 3, "mode": "standard"},
+            max_pool_connections=32,  # r2_publish 동시 업로드 수와 맞춘다
         )
     )
 

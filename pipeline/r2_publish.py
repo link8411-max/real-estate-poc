@@ -18,7 +18,7 @@ class PublishError(Exception):
 
 
 def publish(out_dir: str, keys: list[str], *, bucket: str | None = None,
-            client=None, max_workers: int = 8) -> int:
+            client=None, max_workers: int = 32) -> int:
     bucket = bucket or os.environ.get("R2_PUBLIC_BUCKET")
     if not bucket:
         raise ValueError("R2_PUBLIC_BUCKET 환경변수 또는 bucket 인자가 필요합니다")
@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", required=True)
     p.add_argument("--keys", required=True)
     p.add_argument("--bucket")
-    p.add_argument("--workers", type=int, default=8)
+    p.add_argument("--workers", type=int, default=32)
     try:
         a = p.parse_args(argv)
     except SystemExit as e:
