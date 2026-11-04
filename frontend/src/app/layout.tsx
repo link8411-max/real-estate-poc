@@ -26,6 +26,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             {gaInitScript(GA_ID)}
           </Script>
         )}
+        {/* Vercel Web Analytics — @vercel/analytics 패키지는 vitest 쪽 peer 충돌로 설치가 막혀 공식 스크립트 방식으로 붙인다. */}
+        <Script id="vercel-analytics-queue" strategy="afterInteractive">
+          {"window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };"}
+        </Script>
+        <Script src="/_vercel/insights/script.js" strategy="afterInteractive" />
       </body>
     </html>
   );
