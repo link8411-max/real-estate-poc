@@ -29,10 +29,11 @@ export default function ApartmentHeader({
   );
 
   return (
-    <div className="flex items-start justify-between gap-4">
+    // 모바일은 제목 아래 줄에 버튼을 따로 두어 제목이 좁아지지 않게 한다
+    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-bold text-gray-900">{apartment.name}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+        <h1 className="break-keep text-2xl font-bold text-gray-900">{apartment.name}</h1>
+        <div className="mt-2 flex flex-wrap items-center break-keep gap-x-4 gap-y-1 text-sm text-gray-500">
           <span className="inline-flex items-center gap-1">
             <MapPin className="h-4 w-4" aria-hidden />
             {apartment.region_name} {apartment.dong}
@@ -46,7 +47,7 @@ export default function ApartmentHeader({
           )}
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+      <div data-testid="apartment-actions" className="flex flex-wrap gap-2 md:shrink-0 md:justify-end">
         {actions}
         <button
           type="button"

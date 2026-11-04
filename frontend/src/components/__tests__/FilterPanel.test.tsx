@@ -135,4 +135,14 @@ describe("FilterPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "초기화" }));
     expect(lastQuery()).toEqual({ lat: "37.5" });
   });
+
+  test("시트를 열 때만 onOpen을 부른다(닫을 때는 부르지 않는다)", async () => {
+    const onOpen = vi.fn();
+    render(<FilterPanel onOpen={onOpen} />);
+    const toggle = screen.getByRole("button", { name: /필터/ });
+    await userEvent.click(toggle);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    await userEvent.click(toggle);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
 });

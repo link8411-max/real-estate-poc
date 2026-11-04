@@ -64,7 +64,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** 지도 필터. 상태는 URL 쿼리에 있다. 데스크톱(md+) 좌측 패널, 모바일은 하단 시트. */
-export default function FilterPanel() {
+export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -96,7 +96,11 @@ export default function FilterPanel() {
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          // 시트를 여는 순간 지도 위에 떠 있던 미리보기 카드를 닫는다(겹쳐 쌓이지 않게)
+          if (!open) onOpen?.();
+          setOpen((o) => !o);
+        }}
         className="flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-gray-900 md:hidden"
       >
         <SlidersHorizontal className="h-4 w-4" aria-hidden />

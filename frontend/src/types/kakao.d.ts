@@ -35,6 +35,7 @@ declare namespace kakao.maps {
     getCenter(): LatLng;
     setLevel(level: number, options?: { anchor?: LatLng; animate?: boolean | { duration: number } }): void;
     panTo(latlng: LatLng): void;
+    panBy(dx: number, dy: number): void;
     setCenter(latlng: LatLng): void;
     relayout(): void;
     getProjection(): MapProjection;

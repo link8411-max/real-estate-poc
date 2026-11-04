@@ -8,7 +8,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock("../FilterPanel", () => ({ default: () => null }));
+vi.mock("../FilterPanel", () => ({
+  default: ({ onOpen }: { onOpen?: () => void }) => <button data-testid="filter" onClick={onOpen} />,
+}));
 vi.mock("../MyLocationButton", () => ({
   default: ({ liftPx }: { liftPx?: number }) => <button data-testid="loc" data-lift={String(liftPx)} />,
 }));
@@ -35,6 +37,7 @@ const clickHandlers = new Set<() => void>();
 const fakeMap = {
   setLevel: vi.fn(),
   setCenter: vi.fn(),
+  panBy: vi.fn(),
   getProjection: () => ({ containerPointFromCoords: (p: FakeLatLng) => ({ x: (p.lng - 127) * 1e5, y: (37.5 - p.lat) * 1e5 }) }),
 };
 vi.mock("@/components/KakaoMap", () => ({
@@ -52,7 +55,11 @@ const setData = (...items: MapApartment[]) => { mapData = { type: "apartments", 
 const clickMarker = (i = 0) => act(() => { [...FakeOverlay.live][i].content.click(); });
 
 beforeEach(() => {
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 240 } as DOMRect);
+  // 카드(section)는 240px, 지도 영역(div)은 375×586(667-81)이라고 가정
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    return (this.tagName === "SECTION" ? { width: 351, height: 240 } : { width: 375, height: 586 }) as DOMRect;
+  });
+  fakeMap.panBy.mockReset();
   FakeOverlay.live.clear();
   clickHandlers.clear();
   push.mockReset();
@@ -83,10 +90,10 @@ describe("MapView 미리보기 카드", () => {
     expect(screen.getByRole("heading", { name: "래미안" })).toBeTruthy();
     expect(screen.getByText("2015년 · 거래 12건")).toBeTruthy();
     expect(screen.getByText("최근 매매 (25평)")).toBeTruthy();
-    expect(screen.getByText("10억원")).toBeTruthy();
+    expect(screen.getByText("10억")).toBeTruthy();
     expect(screen.getByText("26.10.06")).toBeTruthy();
     expect(screen.getByText("최근 전세")).toBeTruthy();
-    expect(screen.getByText("6억원")).toBeTruthy();
+    expect(screen.getByText("6억")).toBeTruthy();
     expect(screen.getByText("전세가율")).toBeTruthy();
     expect(screen.getByText("60%")).toBeTruthy();
     expect(screen.getByRole("link", { name: "상세 보기 ›" }).getAttribute("href")).toBe("/apartment/1");
@@ -138,5 +145,72 @@ describe("MapView 미리보기 카드", () => {
     rerender(<MapView />);
     expect(screen.queryByRole("heading", { name: name! })).toBeNull();
     expect(screen.queryByRole("link", { name: "상세 보기 ›" })).toBeNull();
+  });
+});
+
+describe("MapView 모바일 보정", () => {
+  const setWidth = (w: number) => Object.defineProperty(window, "innerWidth", { value: w, configurable: true });
+  afterEach(() => setWidth(1024));
+
+  test("모바일: 카드에 가려질 마커를 선택하면 위로 panBy, 카드 위에 있으면 움직이지 않는다", () => {
+    setWidth(375);
+    // 카드 윗선 = 586-56-240 = 290. 마커 y = (37.5-lat)*1e5
+    setData(apt({ lat: 37.496 })); // y=400: 카드 아래
+    render(<MapView />);
+    clickMarker();
+    expect(fakeMap.panBy).toHaveBeenCalledTimes(1);
+    const [dx, dy] = fakeMap.panBy.mock.calls[0];
+    expect(dx).toBe(0);
+    expect(dy).toBeCloseTo(400 - 145); // 카드 위 남은 공간(290)의 가운데로
+    cleanup();
+
+    fakeMap.panBy.mockReset();
+    setData(apt({ lat: 37.4985 })); // y=150: 290-60=230보다 위 → 그대로
+    render(<MapView />);
+    clickMarker();
+    expect(fakeMap.panBy).not.toHaveBeenCalled();
+  });
+
+  test("데스크톱: 카드 사각형 아래에 있을 때만 왼쪽으로 옮긴다", () => {
+    setWidth(1280);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return (this.tagName === "SECTION" ? { width: 360, height: 240 } : { width: 1280, height: 586 }) as DOMRect;
+    });
+    // 카드: x 904~1264, y 314~554. 마커 x=(lng-127)*1e5
+    setData(apt({ lat: 37.496, lng: 127.01 })); // (1000,400) 카드 안
+    render(<MapView />);
+    clickMarker();
+    expect(fakeMap.panBy).toHaveBeenCalledTimes(1);
+    const [dx, dy] = fakeMap.panBy.mock.calls[0];
+    expect(dx).toBeCloseTo(1000 - (904 - 80));
+    expect(dy).toBe(0);
+    cleanup();
+
+    fakeMap.panBy.mockReset();
+    setData(apt({ lat: 37.496, lng: 127.005 })); // (500,400) 카드 밖
+    render(<MapView />);
+    clickMarker();
+    expect(fakeMap.panBy).not.toHaveBeenCalled();
+  });
+
+  test("필터 시트를 열면 미리보기 카드가 닫힌다", () => {
+    setData(apt());
+    render(<MapView />);
+    clickMarker();
+    expect(screen.getByRole("heading", { name: "래미안" })).toBeTruthy();
+    fireEvent.click(screen.getByTestId("filter"));
+    expect(screen.queryByRole("heading", { name: "래미안" })).toBeNull();
+    expect(screen.getByTestId("loc").getAttribute("data-lift")).toBe("undefined");
+  });
+
+  test("카드 값은 만원 없이 한 줄(nowrap)로, 전체 금액은 title에 둔다", () => {
+    setData(apt({ latest_trade_amount: 115000, latest_jeonse_deposit: 60000 }));
+    render(<MapView />);
+    clickMarker();
+    const trade = screen.getByText("11억 5,000");
+    expect(trade.textContent).not.toContain("만원");
+    expect(trade.getAttribute("title")).toBe("11억 5,000만원");
+    expect(trade.className).toContain("whitespace-nowrap");
+    expect(screen.getByText("6억").getAttribute("title")).toBe("6억원");
   });
 });

@@ -8,6 +8,7 @@ import KakaoMap, { type LatLngLiteral } from "@/components/KakaoMap";
 import MapMarkers from "@/components/MapMarkers";
 import MapPreviewCard from "@/components/MapPreviewCard";
 import MyLocationButton from "@/components/MyLocationButton";
+import { panForCard } from "@/lib/cardPan";
 import { type MapBounds, readInitialView, readMapFilters, toApiQuery } from "@/lib/mapFilters";
 import { useMapData, type MapApartment } from "@/lib/useMapData";
 
@@ -58,6 +59,23 @@ export default function MapView() {
   const selected = data?.type === "apartments" ? (data.items.find((a) => a.id === selectedId) ?? null) : null;
   // 선택한 단지가 불러온 데이터에서 빠지면(이동·필터·확대) 선택을 푼다
   if (selectedId !== null && data && !selected) setSelectedId(null);
+  // 선택한 마커가 카드에 가리면 보이는 영역으로 지도를 부드럽게 옮긴다
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const selLat = selected?.lat;
+  const selLng = selected?.lng;
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!map || !wrap || selLat === undefined || selLng === undefined || cardHeight <= 0) return;
+    const rect = wrap.getBoundingClientRect();
+    const marker = map.getProjection().containerPointFromCoords(new kakao.maps.LatLng(selLat, selLng));
+    const pan = panForCard({
+      marker,
+      container: { width: rect.width, height: rect.height },
+      cardHeight,
+      desktop: window.innerWidth >= 768,
+    });
+    if (pan) map.panBy(pan.dx, pan.dy);
+  }, [map, selected?.id, selLat, selLng, cardHeight]);
   useEffect(() => {
     if (!map) return;
     kakao.maps.event.addListener(map, "click", closeCard);
@@ -74,7 +92,7 @@ export default function MapView() {
   }, []);
 
   return (
-    <div className="relative h-[calc(100dvh-81px)] w-full overflow-hidden md:h-[calc(100dvh-53px)]">
+    <div ref={wrapRef} className="relative h-[calc(100dvh-81px)] w-full overflow-hidden md:h-[calc(100dvh-53px)]">
       {/* 모바일은 하단 시트 바(44px) 위에서 지도가 끝나 카카오 로고가 가리지 않는다 */}
       <div className="absolute inset-x-0 top-0 bottom-11 md:bottom-0">
         <KakaoMap center={initial.center} level={initial.level} onIdle={onIdle} onReady={setMap} />
@@ -82,7 +100,7 @@ export default function MapView() {
       {map && <MapMarkers map={map} data={data} mode={filters.mode} bounds={view?.bounds} selectedId={selected?.id ?? null} onSelect={selectApartment} />}
       {map && <MyLocationButton map={map} onNotice={showNotice} liftPx={selected && cardHeight > 0 ? cardHeight : undefined} />}
       {selected && <MapPreviewCard apartment={selected} onClose={closeCard} onHeight={setCardHeight} />}
-      <FilterPanel />
+      <FilterPanel onOpen={closeCard} />
       {notice ? (
         <Toast tone={notice.tone}>{notice.text}</Toast>
       ) : tooWide ? (

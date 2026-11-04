@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { areaGroup, areaToPyeong, formatDeal, formatPrice } from "@/lib/format";
+import { areaGroup, areaToPyeong, formatDeal, formatManwon, formatPrice } from "@/lib/format";
 import type { MapApartment } from "@/lib/useMapData";
 
 interface Props {
@@ -13,11 +13,14 @@ interface Props {
   onHeight?: (height: number) => void;
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+/** value는 한 줄에 들어가게 짧게(만원 생략), title에는 전체 금액을 둔다 */
+function Stat({ label, value, sub, title }: { label: string; value: string; sub?: string; title?: string }) {
   return (
     <div className="min-w-0 flex-1 rounded-lg bg-gray-50 px-2 py-2">
       <p className="truncate text-[11px] text-gray-500">{label}</p>
-      <p className="mt-0.5 text-sm font-bold text-gray-900">{value}</p>
+      <p title={title} className="mt-0.5 whitespace-nowrap text-[13px] font-bold text-gray-900 min-[400px]:text-sm">
+        {value}
+      </p>
       {sub && <p className="text-[11px] text-gray-400">{sub}</p>}
     </div>
   );
@@ -68,10 +71,15 @@ export default function MapPreviewCard({ apartment: a, onClose, onHeight }: Prop
       <div className="mt-3 flex gap-2">
         <Stat
           label={tradeLabel}
-          value={a.latest_trade_amount === null ? "-" : formatPrice(a.latest_trade_amount)}
+          value={a.latest_trade_amount === null ? "-" : formatManwon(a.latest_trade_amount)}
+          title={a.latest_trade_amount === null ? undefined : formatPrice(a.latest_trade_amount)}
           sub={a.latest_trade_date ? formatDeal(a.latest_trade_date) : undefined}
         />
-        <Stat label="최근 전세" value={a.latest_jeonse_deposit === null ? "-" : formatPrice(a.latest_jeonse_deposit)} />
+        <Stat
+          label="최근 전세"
+          value={a.latest_jeonse_deposit === null ? "-" : formatManwon(a.latest_jeonse_deposit)}
+          title={a.latest_jeonse_deposit === null ? undefined : formatPrice(a.latest_jeonse_deposit)}
+        />
         <Stat label="전세가율" value={ratio} />
       </div>
       <Link
