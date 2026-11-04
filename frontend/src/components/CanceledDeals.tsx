@@ -2,7 +2,7 @@
 
 import { useAreaUnit } from "@/lib/areaUnit";
 import type { CanceledTx } from "@/lib/canceled";
-import { formatArea, formatPrice } from "@/lib/format";
+import { formatArea, formatDeal, formatPrice } from "@/lib/format";
 
 export default function CanceledDeals({ items }: { items: CanceledTx[] }) {
   const [unit] = useAreaUnit();
@@ -13,11 +13,11 @@ export default function CanceledDeals({ items }: { items: CanceledTx[] }) {
       <ul className="divide-y divide-gray-100 text-sm">
         {items.map((t) => (
           <li key={t.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-gray-700">
-            <span className="text-gray-500">{t.deal_date}</span>
+            <span className="text-gray-500">{formatDeal(t.deal_date)}</span>
             <span>{formatArea(t.area, unit)}</span>
             {t.floor != null && <span>{t.floor}층</span>}
             <span className="font-semibold text-gray-900">{formatPrice(t.amount)}</span>
-            <span className="text-gray-500">{t.cancel_date} 취소</span>
+            <span className="text-gray-500">{formatDeal(t.cancel_iso)} 취소</span>
             {t.is_high && <span className="rounded bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700">당시 신고가</span>}
           </li>
         ))}
