@@ -245,6 +245,8 @@ def export(
     else:
         ids = sorted(set(apt_ids))
     codes = {r[0]: r[1] for r in conn.execute("SELECT id, lawd_cd FROM apartments")}
+    aliases = {r[0]: r[1] for r in conn.execute("SELECT old_id, canonical_id FROM apartment_aliases")}
+    moved = [i for i in (sorted(aliases) if apt_ids is None else ids) if i not in codes and i in aliases]
     ids = [i for i in ids if i in codes]
     affected = {codes[i] for i in ids}
 
@@ -253,6 +255,11 @@ def export(
         s = apartment_summary(conn, apt_id, today)
         put(f"{PREFIX}/apt/{apt_id}/trade.json", build_apt_trade(conn, apt_id, today, s))
         put(f"{PREFIX}/apt/{apt_id}/rent.json", build_apt_rent(conn, apt_id, today, s))
+
+    for apt_id in moved:  # 합쳐져 사라진 단지: 프론트가 남은 단지로 영구 이동
+        stub = {"moved_to": aliases[apt_id]}
+        put(f"{PREFIX}/apt/{apt_id}/trade.json", stub)
+        put(f"{PREFIX}/apt/{apt_id}/rent.json", stub)
 
     for code in REGIONS:
         if code in affected or (apt_ids is None):

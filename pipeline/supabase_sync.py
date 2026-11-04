@@ -60,6 +60,25 @@ def upsert_apartments(
     return _upsert("apartments", "id", rows, url, key, session, batch)
 
 
+def delete_apartments(
+    ids: list[int], *, url: str | None = None, key: str | None = None, session: Any = None,
+    batch: int = 200,
+) -> int:
+    """합쳐져 사라진 단지 행을 지운다 (없는 id 는 무시된다)."""
+    ids = sorted(set(ids))
+    if not ids:
+        return 0
+    url, key = _credentials(url, key)
+    session = session if session is not None else requests
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Prefer": "return=minimal"}
+    for i in range(0, len(ids), batch):
+        part = ",".join(str(x) for x in ids[i:i + batch])
+        resp = session.delete(f"{url}/rest/v1/apartments?id=in.({part})", headers=headers)
+        if not 200 <= resp.status_code < 300:
+            raise SupabaseError(resp.status_code, resp.text[:300])
+    return len(ids)
+
+
 def upsert_regions(
     rows: list[dict[str, Any]], *, url: str | None = None, key: str | None = None,
     session: Any = None, batch: int = 500,
@@ -99,12 +118,16 @@ def sync(
     conn: sqlite3.Connection, apt_ids: list[int] | None, today: date, *,
     upsert_apts: Callable[[list[dict[str, Any]]], int] = upsert_apartments,
     upsert_regs: Callable[[list[dict[str, Any]]], int] = upsert_regions,
+    delete_apts: Callable[[list[int]], int] = delete_apartments,
 ) -> tuple[int, int]:
+    existing = {r[0] for r in conn.execute("SELECT id FROM apartments")}
     if apt_ids is None:
-        ids = [r[0] for r in conn.execute("SELECT id FROM apartments ORDER BY id")]
+        ids = sorted(existing)
+        gone = sorted(r[0] for r in conn.execute("SELECT old_id FROM apartment_aliases"))
         affected: set[str] | None = None
     else:
-        ids = sorted(set(apt_ids))
+        gone = sorted(set(apt_ids) - existing)  # 합쳐져 사라진 단지
+        ids = sorted(set(apt_ids) & existing)
         marks = ",".join("?" * len(ids))
         affected = {
             r[0] for r in conn.execute(f"SELECT DISTINCT lawd_cd FROM apartments WHERE id IN ({marks})", ids)
@@ -112,6 +135,8 @@ def sync(
     sent = 0
     for i in range(0, len(ids), 500):
         sent += upsert_apts([apartment_summary(conn, a, today) for a in ids[i:i + 500]])
+    if gone:
+        delete_apts(gone)
     regs = [r for r in region_rows(conn, today) if affected is None or r["code"] in affected]
     return sent, upsert_regs(regs) if regs else 0
 

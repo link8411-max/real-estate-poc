@@ -139,6 +139,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     from pipeline.canceled import normalize_cancel_dates  # 순환 import 회피
 
     normalize_cancel_dates(conn)
+    from pipeline.merge_apartments import merge_renamed  # 순환 import 회피
+
+    merge_renamed(conn)  # 이름이 바뀌어 쪼개진 단지 1:1 쌍만 합친다 (없으면 아무것도 안 함)
 
 
 def upsert_apartment(
@@ -165,6 +168,22 @@ def upsert_apartment(
             conn.execute("UPDATE apartments SET lawd_cd=? WHERE id=?", (lawd_cd, apt_id))
             mark_changed(conn, [apt_id])  # 지역 경로·요약이 새 코드로 다시 나가도록
         return apt_id
+    if apt_seq and jibun and build_year is not None:
+        # 국토부 단지명 변경: 같은 주소·준공연도에 apt_seq 없는 옛 단지가 정확히 1개이고
+        # apt_seq 가 있는 다른 단지가 없을 때만 그 단지에 붙인다 (merge_apartments 의 1:1 규칙과 같다).
+        rows = conn.execute(
+            f"SELECT id, apt_seq, lawd_cd FROM apartments "
+            f"WHERE dong=? AND jibun=? AND build_year=? AND lawd_cd IN ({marks})",
+            (dong, jibun, build_year, *codes),
+        ).fetchall()
+        legacy = [r for r in rows if r[1] is None]
+        if len(legacy) == 1 and len(rows) == 1:
+            apt_id, cur_cd = legacy[0][0], legacy[0][2]
+            conn.execute("UPDATE apartments SET apt_seq=?, name=? WHERE id=?", (apt_seq, name, apt_id))
+            if is_retired(cur_cd) and cur_cd != lawd_cd:
+                conn.execute("UPDATE apartments SET lawd_cd=? WHERE id=?", (lawd_cd, apt_id))
+            mark_changed(conn, [apt_id])
+            return apt_id
     cur = conn.execute(
         "INSERT INTO apartments(name, lawd_cd, dong, jibun, build_year, apt_seq) VALUES (?,?,?,?,?,?)",
         (name, lawd_cd, dong, jibun, build_year, apt_seq),
@@ -196,6 +215,13 @@ def insert_trade(conn: sqlite3.Connection, apt_id: int, item: TradeItem) -> bool
     # 기존 insight_engine.generate_deal_hash 와 동일한 규칙 (과거 행과 중복 판정 유지)
     h = _md5(f"{item.apt_name}|{item.floor}|{item.area}|{item.deal_date}|{item.amount}")
     row = conn.execute("SELECT id, cancel_date FROM transactions WHERE unique_hash=?", (h,)).fetchone()
+    if row is None:
+        # 해시는 단지명을 포함한다. 이름이 바뀐 뒤 같은 거래가 다시 오면 자연키로 찾는다.
+        row = conn.execute(
+            "SELECT id, cancel_date FROM transactions WHERE apt_id=? AND deal_date=? AND floor IS ? "
+            "AND round(area, 2)=round(?, 2) AND amount=? ORDER BY id LIMIT 1",
+            (apt_id, item.deal_date, item.floor, item.area, item.amount),
+        ).fetchone()
     if row is None:
         conn.execute(
             "INSERT INTO transactions(apt_id, amount, area, floor, deal_date, unique_hash, "

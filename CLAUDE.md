@@ -29,6 +29,7 @@ pipeline/            Python 파이프라인 (아래 CLI 표)
   geocode.py         카카오 지오코딩으로 빈 좌표 채우기
   migrate_coords.py  옛 로컬 DB 에서 좌표 이식 (1회성)
   supabase_sync.py   apartment_summary 동기화
+  merge_apartments.py 이름이 바뀌어 쪼개진 단지(apt_seq 없는 옛 단지↔새 단지) 1:1 쌍만 합침 (migrate 끝에서 자동, CLI 는 --report·--dry-run 보고서)
 r2_utils.py          정본 DB R2 download / upload / info
 scripts/             initial_migration.sh, sync_github_secrets.sh, serve_out.py, make_og_font.sh
 supabase/migrations/ 0001_init.sql
@@ -67,6 +68,7 @@ cp frontend/.env.example frontend/.env.local
 | `r2_publish` | `--out`(필수) `--keys`(필수, out/keys.json) `--bucket` `--workers`(기본 8) |
 | `supabase_sync` | `--db`(필수) ; 택1: `--changed FILE` / `--all` ; `--today YYYY-MM-DD` |
 | `geocode` | `--db`(필수) `--retry-failed` `--limit`(기본 20000) `--delay`(기본 0.05) |
+| `merge_apartments` | `--db`(필수) `--report FILE`(필수, 쌍·애매 목록 JSON) `--dry-run`(DB 안 바꿈) |
 | `migrate_coords` | `--src`(옛 DB, 필수) `--db`(필수) |
 | `python r2_utils.py` | `download` / `upload` / `info` (정본 DB, R2_BUCKET_NAME) |
 | `python scripts/serve_out.py` | `--dir`(기본 out) `--port`(기본 8787) |
