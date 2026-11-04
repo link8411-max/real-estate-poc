@@ -314,3 +314,48 @@ def test_dong_approx_fallback_and_never_overrides_precise(tmp_path):
     z = _one(tmp_path / "c", row.format(n="신흥1"),
              {("keyword", "서울 마포구 신흥1"): _doc("서울 마포구 신흥동", "37.9", "127.9", name="신흥1구역")}, setup=setup)
     assert z["geo"] == "kakao_name" and z["lat"] == 37.9
+
+
+def test_paren_district_or_generic_token_does_not_authorize_place(tmp_path):
+    row = '서울특별시,마포구,"신촌지역(마포)1-3지구",2)정비구역지정,1)재개발(주택정비),1)조합,10'
+    z = _one(tmp_path / "a", row, {
+        ("keyword", "서울 마포구 신촌지역(마포)1-3지구"): _doc("서울 마포구 성산동", name="마포구청"),
+        ("keyword", "서울 마포구 마포"): _doc("서울 마포구 성산동", name="마포구청"),
+    })
+    assert z["lat"] is None
+    row = "서울특별시,서대문구,홍제3(도시환경),2)정비구역지정,1)재개발(주택정비),1)조합,10"
+    z = _one(tmp_path / "b", row, {
+        ("keyword", "서울 서대문구 홍제3(도시환경)"): _doc("서울 서대문구 홍제동", name="홍제도시환경정비사업소"),
+        ("keyword", "서울 서대문구 도시환경"): _doc("서울 서대문구 홍제동", name="홍제도시환경정비사업소"),
+    })
+    assert z["lat"] is None  # 동 근사 기반 단지도 없으므로 위치 없음
+
+
+def test_paren_complex_name_still_authorizes(tmp_path):
+    z = _one(tmp_path, "경기도,수원팔달구,파장1구역(삼익아파트),2)정비구역지정,1)재개발(주택정비),1)조합,10",
+             {("keyword", "경기 수원팔달구 삼익아파트"): _doc("경기 수원시 팔달구 지동", name="삼익아파트")})
+    assert z["geo"] == "kakao_paren"
+
+
+def test_build_is_deterministic_and_cache_flushed_periodically(tmp_path):
+    rows = [REDEV.format(n=f"구역{i}") for i in range(60)]
+    p = _csv(tmp_path, rows)
+    cache = tmp_path / "c.json"
+    seen = []
+
+    def g(kind, q):
+        if len(seen) == 55 and cache.exists():
+            pass
+        seen.append(q)
+        if len(seen) == 52:
+            seen.append(json.loads(cache.read_text()).__len__())  # 50건째에 한 번 저장돼 있어야 함
+            raise RuntimeError("stop")
+        return None
+
+    fill_geocode_cache(load_zones(p), str(cache), geocoder=g, delay=0, say=lambda *_: None)
+    assert seen[-1] >= 50
+    c = connect(str(tmp_path / "d.db"))
+    migrate(c)
+    a = build_zones_json(c, p, date(2026, 11, 4), cache_path=str(cache))
+    b = build_zones_json(c, p, date(2026, 11, 4), cache_path=str(cache))
+    assert a == b

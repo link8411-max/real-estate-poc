@@ -276,6 +276,22 @@ def _sido_prefix(z: dict[str, Any]) -> str:
     return f"{SIDO_SHORT[z['sido']]} {z['sigungu']}"
 
 
+_GENERIC_WORDS = ("도시환경", "주거환경", "주환", "재정비", "촉진", "도시정비", "주택정비", "재개발", "재건축", "정비사업", "블럭", "블록")
+_REGION_STEMS = {re.sub(r"[구시군]$", "", n) for c, short in REGIONS.items() for n in (short, short + "구", short + "시")}
+_REGION_STEMS |= {"마포", "서대문", "종로", "중구", "동구", "서구"}
+_COMPLEX_SUFFIX = ("아파트", "주공", "단지", "차", "맨션", "빌라")
+
+
+def _paren_plausible(p: str) -> bool:
+    """괄호 안 토큰이 단지 이름처럼 보이는지 ('(마포)'·'(도시환경)'·'(B블럭)' 같은 지역·일반어는 아님)."""
+    t = _nospace(p)
+    if not t or t in _GENERIC_PAREN or any(w in t for w in _GENERIC_WORDS):
+        return False
+    if t in _REGION_STEMS or re.sub(r"[구시군]$", "", t) in _REGION_STEMS:
+        return False
+    return bool(re.search(r"\d", t)) or t.endswith(_COMPLEX_SUFFIX) or len(t) >= 3
+
+
 def _attempts(z: dict[str, Any]) -> list[tuple[str, str, str]]:
     """(방법, 종류 keyword|address, 검색어) 순서대로. 앞 방법이 같은 시군구 결과를 주면 거기서 멈춘다."""
     pre = _sido_prefix(z)
@@ -284,7 +300,7 @@ def _attempts(z: dict[str, Any]) -> list[tuple[str, str, str]]:
     out: list[tuple[str, str, str]] = [("name", "keyword", f"{pre} {name}")]  # 가장 먼저: 캐시 키가 검색어 그대로
     inner = re.findall(r"\(([^)]*)\)", name)
     for p in [i.strip() for i in inner] + [x.strip() for x in _paren_names(name)]:
-        if p and p not in _GENERIC_PAREN:
+        if p and _paren_plausible(p):
             out.append(("paren", "keyword", f"{pre} {p}"))
     if base:
         if base.endswith(("구역", "지구")):
@@ -383,6 +399,8 @@ def _name_ok(z: dict[str, Any], doc: dict[str, Any]) -> bool:
         return True
     cands = []
     for p in re.findall(r"\(([^)]*)\)", z["name"]) + _paren_names(z["name"]):
+        if not _paren_plausible(p):
+            continue
         cands += [_roman(_nospace(p)), normalize_name(p)]
     return any(len(c) >= 2 and (c in place or c in place_n) for c in cands)
 
@@ -427,10 +445,18 @@ def fill_geocode_cache(
     cache = _load_cache(cache_path)
     new = 0
 
+    def save():
+        os.makedirs(os.path.dirname(cache_path) or ".", exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=0, sort_keys=True)
+
     def fetch(kind, q):
         nonlocal new
         res = geocoder(kind, q)
+        cache[_cache_key(kind, q)] = res  # _resolve 도 넣지만, 주기 저장 전에 반영해 둔다
         new += 1
+        if new % 50 == 0:
+            save()  # 중간에 죽어도 받은 결과는 남는다
         if delay:
             time.sleep(delay)
         return res
@@ -444,9 +470,7 @@ def fill_geocode_cache(
             say(f"geocode stopped early: {type(e).__name__}: {e}")
             break
     if new:
-        os.makedirs(os.path.dirname(cache_path) or ".", exist_ok=True)
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(cache, f, ensure_ascii=False, indent=0, sort_keys=True)
+        save()
     return {"new": new, "cached": len(cache)}
 
 
@@ -505,7 +529,7 @@ def build_zones_json(
     return {
         "source": SOURCE,
         "as_of": AS_OF,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": today.isoformat(),  # 입력이 같으면 파일이 바이트 단위로 같도록 실행 시각을 쓰지 않는다
         "zones": zones,
     }
 
@@ -519,7 +543,7 @@ def build_zones_json_safe(conn: sqlite3.Connection, today: date) -> dict[str, An
     except Exception as e:  # noqa: BLE001
         log.warning("redevelopment zones skipped: %s: %s", type(e).__name__, e)
         return {"source": SOURCE, "as_of": AS_OF,
-                "generated_at": datetime.now(timezone.utc).isoformat(), "zones": []}
+                "generated_at": today.isoformat(), "zones": []}
 
 
 def main(argv: list[str] | None = None) -> int:
