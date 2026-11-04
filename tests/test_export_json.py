@@ -228,3 +228,12 @@ def test_build_apt_rent_use_rr_right_is_boolean_or_null(conn):
     )
     vals = {r["deal_date"]: r["use_rr_right"] for r in build_apt_rent(conn, 1, TODAY)["rents"]}
     assert vals["2026-10-02"] is True and vals["2026-10-03"] is None
+
+
+def test_export_writes_canceled_recent(conn, tmp_path):
+    keys = export(conn, str(tmp_path), apt_ids=[2], today=TODAY)
+    assert "v1/canceled/recent.json" in keys
+    with gzip.open(tmp_path / "v1/canceled/recent.json.gz", "rt", encoding="utf-8") as f:
+        doc = json.load(f)
+    assert doc["since"] == "2026-09-26"
+    assert [(i["amount"], i["prev_max"]) for i in doc["items"]] == [(120000, 100000)]
