@@ -5,6 +5,11 @@ import {
   aptJsonLd,
   aptTitle,
   breadcrumbJsonLd,
+  dongCrumbs,
+  dongDescription,
+  dongFromParam,
+  dongHref,
+  dongTitle,
   jsonLdHtml,
   regionDescription,
   regionTitle,
@@ -206,11 +211,14 @@ describe("aptCrumbs", () => {
       { name: "홈", url: "/" },
       { name: "서울", url: `/browse?city=${encodeURIComponent("서울")}` },
       { name: "강남구", url: "/region/11680" },
+      { name: "역삼동", url: "/region/11680/%EC%97%AD%EC%82%BC%EB%8F%99" },
       { name: "역삼래미안", url: "/apartment/764" },
     ]);
   });
   test("폐지 코드 단지는 첫 후속 구로", () => {
-    expect(aptCrumbs({ ...apt, lawd_cd: "28260", city: "인천" })[2]).toEqual({ name: "서해구", url: "/region/28275" });
+    const crumbs = aptCrumbs({ ...apt, lawd_cd: "28260", city: "인천" });
+    expect(crumbs[2]).toEqual({ name: "서해구", url: "/region/28275" });
+    expect(crumbs.map((c) => c.name)).not.toContain("역삼동"); // 후속 구에 같은 동이 있다는 보장이 없어 동 단계는 뺀다
   });
   test("모르는 코드면 구 단계 생략", () => {
     expect(aptCrumbs({ ...apt, lawd_cd: "99999" }).map((c) => c.name)).toEqual(["홈", "서울", "역삼래미안"]);
@@ -223,5 +231,53 @@ describe("jsonLdHtml", () => {
     expect(html).not.toContain("<");
     expect(html).toContain("\\u003c/script>");
     expect(JSON.parse(html)).toEqual({ name: "</script><script>alert(1)</script>" });
+  });
+});
+
+const ra = (id: number, name: string, amount: number | null, date: string | null) => ({
+  id, name, dong: "역삼동", build_year: 2005, trade_count: 5,
+  latest_trade_amount: amount, latest_trade_date: date, latest_jeonse_deposit: null, lat: null, lng: null,
+});
+const region = { code: "11680", name: "강남", city: "서울" };
+
+describe("동 페이지 헬퍼", () => {
+  test("dongHref 인코딩 ↔ dongFromParam 디코딩 왕복(괄호·숫자·공백)", () => {
+    for (const d of ["역삼동", "상계1동", "중앙동(1)", "신 사동", "가락본동"]) {
+      const href = dongHref("11680", d);
+      expect(href.startsWith("/region/11680/")).toBe(true);
+      expect(href).not.toMatch(/[ 가-힣]/); // 공백·한글은 인코딩(괄호는 URL에서 유효)
+      expect(dongFromParam(href.split("/")[3])).toBe(d);
+      expect(dongFromParam(d)).toBe(d); // 이미 디코딩된 값이 와도 같다
+    }
+    expect(dongFromParam("%E0%A4%A")).toBe("%E0%A4%A"); // 깨진 인코딩은 그대로(500 방지)
+  });
+
+  test("dongTitle: 형식 그대로, 길면 줄인다", () => {
+    expect(dongTitle(region, "역삼동")).toBe("역삼동 아파트 실거래가 · 시세 | 강남구");
+    const long = dongTitle({ code: "41135", name: "성남분당", city: "경기" }, "가".repeat(40));
+    expect(long.length).toBeLessThanOrEqual(60);
+    expect(long.startsWith("가")).toBe(true);
+  });
+
+  test("dongDescription: 시군구 동 N개 단지 + 최근 거래 대표 단지 2~3개", () => {
+    const apts = [ra(1, "A아파트", 100000, "2026-10-01"), ra(2, "B아파트", 285000, "2026-10-20"), ra(3, "C", 90000, "2026-09-01"), ra(4, "D", 80000, "2026-08-01"), ra(5, "신축", null, null)];
+    const d = dongDescription(region, "역삼동", apts);
+    expect(d).toBe("강남구 역삼동 아파트 5개 단지 실거래가. 최근 매매 B아파트 28.5억, A아파트 10억, C 9억.");
+    expect(d.length).toBeLessThanOrEqual(160);
+  });
+
+  test("dongDescription: 거래 있는 단지가 없으면 문장 생략, 아주 길면 160자", () => {
+    expect(dongDescription(region, "역삼동", [ra(1, "신축", null, null)])).toBe("강남구 역삼동 아파트 1개 단지 실거래가.");
+    const apts = [1, 2, 3].map((i) => ra(i, "가".repeat(40), 100000, `2026-10-0${i}`));
+    expect(dongDescription(region, "역삼동", apts).length).toBeLessThanOrEqual(160);
+  });
+
+  test("dongCrumbs: 홈 › 시도 › 구 › 동", () => {
+    expect(dongCrumbs(region, "역삼동")).toEqual([
+      { name: "홈", url: "/" },
+      { name: "서울", url: `/browse?city=${encodeURIComponent("서울")}` },
+      { name: "강남구", url: "/region/11680" },
+      { name: "역삼동", url: dongHref("11680", "역삼동") },
+    ]);
   });
 });

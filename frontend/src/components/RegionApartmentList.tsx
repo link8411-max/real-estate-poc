@@ -3,9 +3,24 @@ import Link from "next/link";
 import { formatDeal, formatManwon } from "@/lib/format";
 import type { RegionApartment } from "@/lib/types";
 
-/** 시군구 단지 목록(거래 많은 순). 각 항목은 단지 페이지 링크. */
-export default function RegionApartmentList({ apartments }: { apartments: RegionApartment[] }) {
-  const sorted = [...apartments].sort((a, b) => b.trade_count - a.trade_count);
+/** 최근 거래일 최신순(거래일 없는 단지는 맨 뒤) */
+const byRecent = (a: RegionApartment, b: RegionApartment): number =>
+  (b.latest_trade_date ?? "").localeCompare(a.latest_trade_date ?? "") || b.trade_count - a.trade_count;
+
+/**
+ * 단지 목록. 각 항목은 단지 페이지 링크.
+ * 시군구 페이지는 거래 많은 순, 동 페이지는 `sort="recent"`(최근 거래일순)에 `showJeonse`로 전세도 보여 준다.
+ */
+export default function RegionApartmentList({
+  apartments,
+  sort = "trades",
+  showJeonse = false,
+}: {
+  apartments: RegionApartment[];
+  sort?: "trades" | "recent";
+  showJeonse?: boolean;
+}) {
+  const sorted = [...apartments].sort(sort === "recent" ? byRecent : (a, b) => b.trade_count - a.trade_count);
   if (sorted.length === 0) return <p className="py-8 text-center text-sm text-gray-500">단지가 없습니다</p>;
 
   return (
@@ -31,6 +46,9 @@ export default function RegionApartmentList({ apartments }: { apartments: Region
                 <div>
                   <p className="font-bold text-gray-900">{formatManwon(a.latest_trade_amount)}</p>
                   {a.latest_trade_date && <p className="text-xs text-gray-400">{formatDeal(a.latest_trade_date)}</p>}
+                  {showJeonse && a.latest_jeonse_deposit != null && (
+                    <p className="text-xs text-gray-500">전세 {formatManwon(a.latest_jeonse_deposit)}</p>
+                  )}
                 </div>
               )}
               <ChevronRight className="h-4 w-4 text-gray-300" aria-hidden />

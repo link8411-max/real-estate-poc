@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { fetchJson, fetchMeta } from "@/lib/data";
 import { REGION_NAMES } from "@/lib/regionNames";
 import { regionHref } from "@/lib/regions";
-import { SITE_URL } from "@/lib/seo";
+import { dongHref, SITE_URL } from "@/lib/seo";
 import type { SearchIndexRow } from "@/lib/types";
 
 /** 사이트맵 한 파일 한도(50,000) 안쪽 */
@@ -30,6 +30,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 현행 83개 시군구 (폐지 코드는 후속 지역으로 리다이렉트되므로 넣지 않는다)
   for (const code of Object.keys(REGION_NAMES)) {
     pages.push({ url: `${SITE_URL}${regionHref(code)}`, lastModified, changeFrequency: "daily", priority: 0.7 });
+  }
+  // 동 페이지: 검색 색인의 (현행 시군구, 동) 쌍. 폐지 코드·빈 동은 제외
+  const dongs = new Set<string>();
+  for (const [, , dong, lawd] of rows ?? []) {
+    if (dong && REGION_NAMES[lawd]) dongs.add(dongHref(lawd, dong));
+  }
+  for (const href of dongs) {
+    pages.push({ url: `${SITE_URL}${href}`, lastModified, changeFrequency: "weekly", priority: 0.6 });
   }
   for (const [id] of (rows ?? []).slice(0, MAX_APARTMENT_URLS)) {
     pages.push({ url: `${SITE_URL}/apartment/${id}`, lastModified, changeFrequency: "weekly", priority: 0.5 });

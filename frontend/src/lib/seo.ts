@@ -1,6 +1,6 @@
 import { areaGroup } from "./format";
 import { browseHref, districtFullName, regionHref, resolveRegionCode } from "./regions";
-import type { Apartment, AreaStat, RegionStat, Transaction } from "./types";
+import type { Apartment, AreaStat, RegionApartment, RegionStat, Transaction } from "./types";
 
 /** 정식 주소(canonical·sitemap·JSON-LD) 기준. 도메인 연결 후 NEXT_PUBLIC_SITE_URL만 바꾼다. */
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://real-estate-poc-self.vercel.app").replace(/\/+$/, "");
@@ -79,6 +79,49 @@ export function regionDescription(region: RegionLike, apartmentCount: number, st
   return clip(parts.join(" "), MAX_DESCRIPTION);
 }
 
+/** 동 페이지 경로. 동 이름의 괄호·공백·한글은 인코딩한다. */
+export const dongHref = (code: string, dong: string): string => `/region/${code}/${encodeURIComponent(dong)}`;
+
+/** URL 파라미터 → 동 이름. 이미 디코딩돼 오든 인코딩돼 오든 같은 값을 주고, 깨진 인코딩은 그대로 둔다(500 방지). */
+export function dongFromParam(param: string): string {
+  try {
+    return decodeURIComponent(param);
+  } catch {
+    return param;
+  }
+}
+
+/** "역삼동 아파트 실거래가 · 시세 | 강남구". 길면 · 시세 → 지역 순으로 뺀다. */
+export function dongTitle(region: RegionLike, dong: string): string {
+  const head = `${dong} 아파트 실거래가`;
+  const name = regionDisplay(region);
+  return firstFit([`${head} · 시세 | ${name}`, `${head} | ${name}`, head], MAX_TITLE);
+}
+
+/** 동 페이지 설명: 단지 수 + 최근 거래 단지 2~3개의 이름·가격. 길면 단지 수를 줄이고 마지막엔 자른다. */
+export function dongDescription(region: RegionLike, dong: string, apartments: RegionApartment[]): string {
+  const head = `${regionDisplay(region)} ${dong} 아파트 ${apartments.length.toLocaleString("en-US")}개 단지 실거래가.`;
+  const recent = apartments
+    .filter((a) => a.latest_trade_amount != null && a.latest_trade_date)
+    .sort((a, b) => (b.latest_trade_date as string).localeCompare(a.latest_trade_date as string));
+  const deals = (n: number) =>
+    n > 0 && recent.length > 0
+      ? ` 최근 매매 ${recent.slice(0, n).map((a) => `${a.name} ${shortPrice(a.latest_trade_amount as number)}`).join(", ")}.`
+      : "";
+  const candidates = [3, 2, 1, 0].map((n) => head + deals(n));
+  return candidates.find((c) => c.length <= MAX_DESCRIPTION) ?? clip(head, MAX_DESCRIPTION);
+}
+
+/** 동 페이지 경로: 홈 › 시도 › 구 › 동 */
+export function dongCrumbs(region: RegionLike, dong: string): Crumb[] {
+  return [
+    { name: "홈", url: "/" },
+    { name: region.city, url: browseHref(region.city) },
+    { name: regionDisplay(region), url: regionHref(region.code) },
+    { name: dong, url: dongHref(region.code, dong) },
+  ];
+}
+
 /** schema.org ApartmentComplex. 지난 거래가는 Offer가 아니므로 넣지 않는다. */
 export function aptJsonLd(apt: Apartment): Record<string, unknown> {
   return {
@@ -104,13 +147,15 @@ export interface Crumb {
   url: string;
 }
 
-/** 단지 페이지 경로: 홈 › 시도 › 구(폐지 코드는 첫 후속 구) › 단지 */
+/** 단지 페이지 경로: 홈 › 시도 › 구(폐지 코드는 첫 후속 구) › 동(현행 코드만) › 단지 */
 export function aptCrumbs(apt: Apartment): Crumb[] {
   const r = resolveRegionCode(apt.lawd_cd);
   return [
     { name: "홈", url: "/" },
     { name: apt.city, url: browseHref(apt.city) },
     ...(r.kind === "notFound" ? [] : [{ name: districtFullName(r.code), url: regionHref(r.code) }]),
+    // 폐지 코드는 후속 구에 같은 동 페이지가 있다는 보장이 없어 동 단계를 뺀다
+    ...(r.kind === "ok" && apt.dong ? [{ name: apt.dong, url: dongHref(r.code, apt.dong) }] : []),
     { name: apt.name, url: `/apartment/${apt.id}` },
   ];
 }
