@@ -78,12 +78,12 @@ export default async function ApartmentPage({ params }: Props) {
               stats={data.area_stats}
               transactions={data.transactions}
               canceledAbove={Object.fromEntries(aboveMaxByArea)}
-              beforeList={<CanceledDeals items={canceled} />}
+              beforeList={<CanceledDeals key="canceled" items={canceled} />}
             />
           ) : (
             <div className="space-y-4">
-              <p className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-sm text-gray-500">매매 거래가 없습니다</p>
-              <CanceledDeals items={canceled} />
+              <p key="empty" className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-sm text-gray-500">매매 거래가 없습니다</p>
+              <CanceledDeals key="canceled" items={canceled} />
             </div>
           ),
           jeonse: <RentSection rent={rent} tab="jeonse" today={today} />,

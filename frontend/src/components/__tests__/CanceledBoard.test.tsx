@@ -76,4 +76,11 @@ describe("CanceledBoard", () => {
     expect(screen.getByRole("tab", { name: "7일" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("최근 7일, 신고가 3건이");
   });
+
+  test("지역명에 시·도가 이미 들어 있어 중복 출력하지 않는다", () => {
+    const one = [mk({ tx_id: 9, apt_name: "중복단지", city: "경기", region_name: "경기 성남수정" })];
+    const { container } = render(<CanceledBoard items={one} today={TODAY} />);
+    expect(screen.getAllByText(/경기 성남수정/).length).toBeGreaterThan(0);
+    expect(container.textContent).not.toContain("경기 경기");
+  });
 });

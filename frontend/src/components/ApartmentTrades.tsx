@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import AreaStatsTable from "@/components/AreaStatsTable";
 import DealList from "@/components/DealList";
 import PriceChart from "@/components/PriceChart";
@@ -39,7 +39,8 @@ export default function ApartmentTrades({
         </h2>
         <PriceChart data={history} />
       </section>
-      {beforeList}
+      {/* 서버 컴포넌트가 넘긴 요소는 형제 배열 안에서 키가 없다고 경고되므로 키 있는 Fragment 로 감싼다 */}
+      {beforeList != null && <Fragment key="before-list">{beforeList}</Fragment>}
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-3 font-bold text-gray-900">
           실거래 내역 <span className="text-sm font-normal text-gray-500">{scope}</span>
