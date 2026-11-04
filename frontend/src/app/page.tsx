@@ -1,11 +1,11 @@
-import { Building2, CalendarDays, Ban, Map as MapIcon, MapPin, TrendingUp } from "lucide-react";
+import { Building2, CalendarDays, Ban, Flame, Map as MapIcon, MapPin, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import MiniMap from "@/components/MiniMap";
 import RecentDeals from "@/components/RecentDeals";
 import SearchBox from "@/components/SearchBox";
 import { pickHeadline } from "@/lib/canceled";
-import { fetchCanceledRecent, fetchStats } from "@/lib/data";
+import { fetchCanceledRecent, fetchHighsRecent, fetchStats } from "@/lib/data";
 import { DEFAULT_CENTER, DEFAULT_LEVEL } from "@/lib/mapFilters";
 import { kstToday } from "@/lib/metrics";
 import { browseHref, CITIES } from "@/lib/regions";
@@ -30,6 +30,8 @@ export default async function Home() {
   const stats = await fetchStats();
   const canceled = await fetchCanceledRecent({ next: { revalidate: 3600 } } as RequestInit).catch(() => null);
   const canceledHead = Array.isArray(canceled?.items) ? pickHeadline(canceled.items, kstToday()) : null;
+  const highs = await fetchHighsRecent({ next: { revalidate: 3600 } } as RequestInit).catch(() => null);
+  const highsCount = Array.isArray(highs?.items) ? highs.items.length : 0;
   const districtCount = (city: string) => stats?.regions.filter((r) => r.city === city).length ?? 0;
 
   return (
@@ -90,6 +92,11 @@ export default async function Home() {
             value={stats.data_range.max_date ?? "—"}
             label="최신 거래일"
           />
+          {highsCount > 0 && (
+            <Link href="/highs" className="block sm:col-span-3">
+              <StatCard icon={<Flame className="h-5 w-5 text-rose-600" />} value={`${highsCount}건`} label="최근 30일 신고가" />
+            </Link>
+          )}
           {canceledHead && canceledHead.items.length > 0 && (
             <Link href="/canceled" className="block sm:col-span-3">
               <StatCard icon={<Ban className="h-5 w-5 text-rose-600" />} value={`${canceledHead.items.length}건`} label={`최근 ${canceledHead.days}일 취소된 신고가`} />

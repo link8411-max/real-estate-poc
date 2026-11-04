@@ -174,3 +174,27 @@ export interface CanceledRecentFile {
   since: string;
   items: CanceledHigh[];
 }
+
+export interface RecordHigh {
+  tx_id: number;
+  apt_id: number;
+  apt_name: string;
+  region_name: string;
+  city: "서울" | "경기" | "인천";
+  lawd_cd: string;
+  dong: string;
+  area: number;
+  area_group: number;
+  floor: number | null;
+  amount: number;
+  prev_max: number;
+  jump: number;
+  jump_pct: number;
+  deal_date: string;
+}
+
+export interface HighsRecentFile {
+  generated_at: string;
+  since: string;
+  items: RecordHigh[];
+}

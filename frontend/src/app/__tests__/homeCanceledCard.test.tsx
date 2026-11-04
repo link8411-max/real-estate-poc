@@ -4,7 +4,7 @@ import type { CanceledHigh } from "@/lib/types";
 
 const fetchCanceledRecent = vi.fn();
 const fetchStats = vi.fn();
-vi.mock("@/lib/data", () => ({ fetchStats: () => fetchStats(), fetchCanceledRecent: (...a: unknown[]) => fetchCanceledRecent(...a) }));
+vi.mock("@/lib/data", () => ({ fetchStats: () => fetchStats(), fetchCanceledRecent: (...a: unknown[]) => fetchCanceledRecent(...a), fetchHighsRecent: () => Promise.resolve(null) }));
 vi.mock("@/components/SearchBox", () => ({ default: () => null }));
 vi.mock("@/components/RecentDeals", () => ({ default: () => null }));
 vi.mock("@/lib/metrics", () => ({ kstToday: () => "2026-11-04" }));

@@ -3,9 +3,11 @@ import { notFound, permanentRedirect } from "next/navigation";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import JsonLd from "@/components/JsonLd";
 import MiniMap from "@/components/MiniMap";
+import RecentHighsSection from "@/components/RecentHighsSection";
 import RegionApartmentList from "@/components/RegionApartmentList";
 import { fetchRegion } from "@/lib/data";
 import { formatDeal } from "@/lib/format";
+import { fetchHighItems, recentHighsFor } from "@/lib/highs";
 import { districtFullName, regionHref, resolveRegionCode } from "@/lib/regions";
 import { breadcrumbJsonLd, dongCrumbs, dongDescription, dongFromParam, dongHref, dongTitle } from "@/lib/seo";
 
@@ -23,9 +25,9 @@ const init = { next: { revalidate } } as RequestInit;
 
 /** 지역 JSON에서 그 동 단지만 고른다. 지역이 없거나 동에 단지가 없으면 null */
 async function load(code: string, dong: string) {
-  const region = await fetchRegion(code, init);
+  const [region, highs] = await Promise.all([fetchRegion(code, init), fetchHighItems(init)]);
   const apartments = region?.apartments.filter((a) => a.dong === dong) ?? [];
-  return region && apartments.length > 0 ? { region, apartments } : null;
+  return region && apartments.length > 0 ? { region, apartments, highs: recentHighsFor(highs, code, dong) } : null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -55,7 +57,7 @@ export default async function DongPage({ params }: Props) {
   const data = await load(route.code, dong);
   if (!data) notFound();
 
-  const { region, apartments } = data;
+  const { region, apartments, highs } = data;
   const name = districtFullName(region.code) || region.name;
   const crumbs = dongCrumbs(region, dong);
   const latestDate = apartments.reduce((m, a) => (a.latest_trade_date && a.latest_trade_date > m ? a.latest_trade_date : m), "");
@@ -93,6 +95,7 @@ export default async function DongPage({ params }: Props) {
           />
         </section>
       )}
+      <RecentHighsSection items={highs} />
       <section>
         <h2 className="mb-3 text-lg font-bold text-gray-900">
           단지 목록 <span className="text-sm font-normal text-gray-500">최근 거래순</span>

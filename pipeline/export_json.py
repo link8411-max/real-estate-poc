@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from pipeline.canceled import build_canceled_recent
+from pipeline.highs import build_highs_recent
 from pipeline.collect import kst_today
 from pipeline.db import connect
 from pipeline.regions import REGIONS, city_of
@@ -267,6 +268,7 @@ def export(
 
     put(f"{PREFIX}/stats/summary.json", build_stats(conn, today))
     put(f"{PREFIX}/canceled/recent.json", build_canceled_recent(conn, today))
+    put(f"{PREFIX}/highs/recent.json", build_highs_recent(conn, today))
     put(f"{PREFIX}/search/index.json", build_search_index(conn))
     put(f"{PREFIX}/meta.json", build_meta(conn, today))
     return keys

@@ -256,3 +256,12 @@ def test_cli_default_today_is_kst_and_override_wins(conn, tmp_path, monkeypatch)
     out2 = tmp_path / "o2"
     assert main(["--db", str(db), "--out", str(out2), "--changed", str(ids), "--today", "2026-10-26"]) == 0
     assert _since_of(out2) == "2026-09-26"
+
+
+def test_export_writes_highs_recent(conn, tmp_path):
+    keys = export(conn, str(tmp_path), apt_ids=[2], today=TODAY)
+    assert "v1/highs/recent.json" in keys
+    with gzip.open(tmp_path / "v1/highs/recent.json.gz", "rt", encoding="utf-8") as f:
+        doc = json.load(f)
+    assert doc["since"] == "2026-09-26"
+    assert isinstance(doc["items"], list)

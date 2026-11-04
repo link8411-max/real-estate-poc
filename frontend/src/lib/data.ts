@@ -1,4 +1,4 @@
-import type { AptRent, AptTrade, CanceledRecentFile, Moved, MetaFile, RegionFile, SearchIndexRow, StatsFile } from "./types";
+import type { AptRent, AptTrade, CanceledRecentFile, HighsRecentFile, Moved, MetaFile, RegionFile, SearchIndexRow, StatsFile } from "./types";
 
 function dataUrl(): string {
   const url = process.env.NEXT_PUBLIC_DATA_URL;
@@ -27,6 +27,8 @@ export const fetchStats = (init?: RequestInit) => fetchJson<StatsFile>("/v1/stat
 
 export const fetchCanceledRecent = (init?: RequestInit) =>
   fetchJson<CanceledRecentFile>("/v1/canceled/recent.json", init);
+
+export const fetchHighsRecent = (init?: RequestInit) => fetchJson<HighsRecentFile>("/v1/highs/recent.json", init);
 
 export const fetchMeta = (init?: RequestInit) => fetchJson<MetaFile>("/v1/meta.json", init);
 

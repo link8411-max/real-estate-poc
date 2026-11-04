@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import JsonLd from "@/components/JsonLd";
+import RecentHighsSection from "@/components/RecentHighsSection";
 import RegionApartmentList from "@/components/RegionApartmentList";
 import { fetchRegion, fetchStats } from "@/lib/data";
+import { fetchHighItems, recentHighsFor } from "@/lib/highs";
 import { browseHref, districtFullName, regionHref, resolveRegionCode } from "@/lib/regions";
 import { breadcrumbJsonLd, type Crumb, dongHref, regionDescription, regionTitle, shortPrice } from "@/lib/seo";
 
@@ -21,8 +23,8 @@ type Props = { params: Promise<{ code: string }> };
 const init = { next: { revalidate } } as RequestInit;
 
 async function load(code: string) {
-  const [region, stats] = await Promise.all([fetchRegion(code, init), fetchStats(init)]);
-  return region ? { region, stat: stats?.regions.find((r) => r.code === code) } : null;
+  const [region, stats, highs] = await Promise.all([fetchRegion(code, init), fetchStats(init), fetchHighItems(init)]);
+  return region ? { region, stat: stats?.regions.find((r) => r.code === code), highs: recentHighsFor(highs, code) } : null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -48,7 +50,7 @@ export default async function RegionPage({ params }: Props) {
   const data = await load(route.code);
   if (!data) notFound();
 
-  const { region, stat } = data;
+  const { region, stat, highs } = data;
   const name = districtFullName(region.code) || region.name;
   const crumbs: Crumb[] = [
     { name: "홈", url: "/" },
@@ -94,6 +96,7 @@ export default async function RegionPage({ params }: Props) {
           </ul>
         </section>
       )}
+      <RecentHighsSection items={highs} />
       <section>
         <h2 className="mb-3 text-lg font-bold text-gray-900">단지 목록 <span className="text-sm font-normal text-gray-500">거래 많은 순</span></h2>
         <RegionApartmentList apartments={region.apartments} />

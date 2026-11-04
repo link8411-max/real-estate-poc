@@ -24,3 +24,9 @@ test("메타데이터: openGraph·twitter", async () => {
   expect(m.openGraph).toMatchObject({ title: "취소된 신고가", url: "/canceled", type: "website", siteName: "수도권 아파트 실거래가", locale: "ko_KR", description: m.description });
   expect(m.twitter).toMatchObject({ card: "summary", title: "취소된 신고가", description: m.description });
 });
+
+test("신고가 페이지로 가는 링크 한 줄", async () => {
+  fetchCanceledRecent.mockResolvedValue(null);
+  render(await Page());
+  expect(screen.getByRole("link", { name: /최근 신고가/ })).toHaveAttribute("href", "/highs");
+});

@@ -4,7 +4,9 @@ import type { RegionApartment, RegionFile } from "@/lib/types";
 
 const fetchRegion = vi.fn();
 const fetchStats = vi.fn();
+const fetchHighsRecent = vi.fn();
 vi.mock("@/lib/data", () => ({
+  fetchHighsRecent: (...a: unknown[]) => fetchHighsRecent(...a),
   fetchRegion: (...a: unknown[]) => fetchRegion(...a),
   fetchStats: (...a: unknown[]) => fetchStats(...a),
 }));
@@ -44,6 +46,8 @@ const params = (dong: string, code = "11680") => ({ params: Promise.resolve({ co
 beforeEach(() => {
   fetchRegion.mockReset();
   fetchStats.mockReset();
+  fetchHighsRecent.mockReset();
+  fetchHighsRecent.mockResolvedValue(null);
   fetchRegion.mockResolvedValue(file);
   fetchStats.mockResolvedValue(null);
 });
@@ -104,5 +108,51 @@ describe("지역 페이지 동 칩", () => {
     );
     expect(chips[0]).toHaveTextContent("역삼동");
     expect(chips[0]).toHaveTextContent("3");
+  });
+});
+
+const high = (n: number, o: Record<string, unknown> = {}) => ({
+  tx_id: n, apt_id: n, apt_name: `신고가단지${n}`, region_name: "서울 강남구", city: "서울", lawd_cd: "11680", dong: "역삼동",
+  area: 84.9, area_group: 84, floor: 5, amount: 120000, prev_max: 100000, jump: 20000, jump_pct: 20, deal_date: `2026-10-0${n}`, ...o,
+});
+
+describe("최근 신고가 섹션", () => {
+  test("동 페이지: 그 동 항목만, 최신순 최대 5개, /highs 링크", async () => {
+    fetchHighsRecent.mockResolvedValue({
+      items: [1, 2, 3, 4, 5, 6].map((n) => high(n)).concat([high(7, { dong: "개포동" }), high(8, { lawd_cd: "41135" })]),
+    });
+    render(await dongPage.default(params(encodeURIComponent("역삼동"))));
+    expect(screen.getByRole("heading", { name: /최근 신고가/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("link").filter((a) => a.textContent?.includes("신고가단지")).map((a) => a.textContent)).toEqual(
+      [6, 5, 4, 3, 2].map((n) => expect.stringContaining(`신고가단지${n}`)),
+    );
+    expect(screen.queryByText(/신고가단지7/)).toBeNull();
+    expect(screen.getByRole("link", { name: /전체 보기/ })).toHaveAttribute("href", "/highs");
+  });
+
+  test("지역 페이지: 지역 항목 전부(동 무관), 다른 지역 제외", async () => {
+    fetchHighsRecent.mockResolvedValue({ items: [high(1), high(2, { dong: "개포동" }), high(3, { lawd_cd: "41135" })] });
+    render(await regionPage.default({ params: Promise.resolve({ code: "11680" }) }));
+    expect(screen.getByText(/신고가단지1/)).toBeInTheDocument();
+    expect(screen.getByText(/신고가단지2/)).toBeInTheDocument();
+    expect(screen.queryByText(/신고가단지3/)).toBeNull();
+  });
+
+  test("파일 없음/throw/해당 항목 없음/깨진 JSON → 섹션 없이 정상 렌더", async () => {
+    for (const setup of [
+      () => fetchHighsRecent.mockResolvedValue(null),
+      () => fetchHighsRecent.mockRejectedValue(new Error("x")),
+      () => fetchHighsRecent.mockResolvedValue({ items: [high(1, { lawd_cd: "41135" })] }),
+      () => fetchHighsRecent.mockResolvedValue({}),
+    ]) {
+      setup();
+      const a = render(await dongPage.default(params(encodeURIComponent("역삼동"))));
+      expect(screen.queryByRole("heading", { name: /최근 신고가/ })).toBeNull();
+      expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+      a.unmount();
+      const b = render(await regionPage.default({ params: Promise.resolve({ code: "11680" }) }));
+      expect(screen.queryByRole("heading", { name: /최근 신고가/ })).toBeNull();
+      b.unmount();
+    }
   });
 });

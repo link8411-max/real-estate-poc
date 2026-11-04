@@ -93,3 +93,15 @@ describe("fetchSearchIndex 캐시", () => {
     await expect(fetchSearchIndex()).rejects.toThrow();
   });
 });
+
+describe("fetchHighsRecent", () => {
+  test("highs/recent.json 경로, 404 는 null", async () => {
+    const f = vi.fn().mockResolvedValue(ok({ items: [] }));
+    vi.stubGlobal("fetch", f);
+    const { fetchHighsRecent } = await load();
+    await fetchHighsRecent();
+    expect(f.mock.calls[0][0]).toBe("http://data.test/v1/highs/recent.json");
+    f.mockResolvedValue(status(404));
+    expect(await fetchHighsRecent()).toBeNull();
+  });
+});

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import CanceledBoard from "@/components/CanceledBoard";
 import { fetchCanceledRecent } from "@/lib/data";
 import { kstToday } from "@/lib/metrics";
@@ -28,5 +29,14 @@ export default async function CanceledPage() {
   } catch {
     items = [];
   }
-  return <CanceledBoard items={items} today={kstToday()} />;
+  return (
+    <>
+      <CanceledBoard items={items} today={kstToday()} />
+      <p className="mx-auto max-w-5xl px-4 pb-8 text-sm">
+        <Link href="/highs" className="text-blue-600 hover:underline">
+          최근 신고가 보기 ›
+        </Link>
+      </p>
+    </>
+  );
 }
