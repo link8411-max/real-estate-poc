@@ -144,3 +144,26 @@ export interface MetaFile {
   trade_count: number;
   rent_count: number;
 }
+
+export interface CanceledHigh {
+  tx_id: number;
+  apt_id: number;
+  apt_name: string;
+  region_name: string;
+  city: "서울" | "경기" | "인천";
+  area: number;
+  area_group: number;
+  floor: number | null;
+  amount: number;
+  prev_max: number;
+  jump: number;
+  deal_date: string;
+  cancel_date: string;
+  days_to_cancel: number;
+}
+
+export interface CanceledRecentFile {
+  generated_at: string;
+  since: string;
+  items: CanceledHigh[];
+}

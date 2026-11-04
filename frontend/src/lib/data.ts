@@ -1,4 +1,4 @@
-import type { AptRent, AptTrade, MetaFile, RegionFile, SearchIndexRow, StatsFile } from "./types";
+import type { AptRent, AptTrade, CanceledRecentFile, MetaFile, RegionFile, SearchIndexRow, StatsFile } from "./types";
 
 function dataUrl(): string {
   const url = process.env.NEXT_PUBLIC_DATA_URL;
@@ -24,6 +24,9 @@ export const fetchRegion = (code: string, init?: RequestInit) =>
   fetchJson<RegionFile>(`/v1/region/${code}.json`, init);
 
 export const fetchStats = (init?: RequestInit) => fetchJson<StatsFile>("/v1/stats/summary.json", init);
+
+export const fetchCanceledRecent = (init?: RequestInit) =>
+  fetchJson<CanceledRecentFile>("/v1/canceled/recent.json", init);
 
 export const fetchMeta = (init?: RequestInit) => fetchJson<MetaFile>("/v1/meta.json", init);
 
