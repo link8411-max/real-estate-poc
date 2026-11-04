@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useAreaUnit } from "@/lib/areaUnit";
 import { formatArea, formatDeal, formatPrice } from "@/lib/format";
-import { topByPct } from "@/lib/highs";
+import { newestFirst, topByPct } from "@/lib/highs";
 import type { RecordHigh } from "@/lib/types";
 
 const DISCLAIMER = "신고가는 같은 단지·같은 평형의 이전 계약 중 최고가보다 높은 거래입니다(계약일 기준, 취소된 거래 제외). 신고 지연으로 건수가 늘 수 있습니다. 국토교통부 실거래가 공개 자료 기준.";
@@ -23,7 +23,7 @@ export default function HighsBoard({ items }: { items: RecordHigh[] }) {
     () =>
       items
         .filter((i) => city === "전체" || i.city === city)
-        .sort((a, b) => b.deal_date.localeCompare(a.deal_date) || b.jump_pct - a.jump_pct),
+        .sort(newestFirst),
     [items, city],
   );
   const top = useMemo(() => topByPct(shown, 3), [shown]);

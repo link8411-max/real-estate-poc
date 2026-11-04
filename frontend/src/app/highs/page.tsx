@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import HighsBoard from "@/components/HighsBoard";
-import { fetchHighsRecent } from "@/lib/data";
+import { fetchHighItems } from "@/lib/highs";
 import { SITE_NAME } from "@/lib/seo";
-import type { RecordHigh } from "@/lib/types";
 
 export const revalidate = 3600;
 
@@ -20,12 +19,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HighsPage() {
-  let items: RecordHigh[] = [];
-  try {
-    const file = await fetchHighsRecent({ next: { revalidate } } as RequestInit);
-    items = Array.isArray(file?.items) ? file.items : [];
-  } catch {
-    items = [];
-  }
+  const items = await fetchHighItems({ next: { revalidate } } as RequestInit);
   return <HighsBoard items={items} />;
 }

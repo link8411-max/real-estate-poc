@@ -55,7 +55,8 @@ def test_equal_amount_not_a_high(hconn):
 def test_no_previous_is_not_a_high(hconn):
     _tx(hconn, 1, 90000, 59.9, "2026-10-12")
     hconn.commit()
-    assert all(i["area_group"] == 84 for i in record_highs(hconn, since="2026-10-01"))
+    # 이전 거래가 없는 59㎡ 거래는 빠지고 기존 84㎡ 신고가 하나만 남는다
+    assert [(i["area_group"], i["amount"]) for i in record_highs(hconn, since="2026-10-01")] == [(84, 120000)]
 
 
 def test_same_day_not_compared(hconn):

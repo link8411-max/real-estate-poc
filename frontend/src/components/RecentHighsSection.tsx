@@ -1,4 +1,5 @@
 import Link from "next/link";
+import HighArea from "@/components/HighArea";
 import { formatDeal, formatPrice } from "@/lib/format";
 import type { RecordHigh } from "@/lib/types";
 
@@ -25,7 +26,7 @@ export default function RecentHighsSection({ items }: { items: RecordHigh[] }) {
               <div className="min-w-0">
                 <p className="truncate font-semibold text-gray-900">{i.apt_name}</p>
                 <p className="text-xs text-gray-500">
-                  {i.area_group}㎡ · {formatDeal(i.deal_date)}
+                  <HighArea area={i.area} /> · {formatDeal(i.deal_date)}
                 </p>
               </div>
               <p className="shrink-0 text-right">
