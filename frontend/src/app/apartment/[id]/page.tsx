@@ -7,6 +7,7 @@ import AptViewTracker from "@/components/AptViewTracker";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import DealTabs from "@/components/DealTabs";
 import InsightBadges from "@/components/InsightBadges";
+import MiniMap from "@/components/MiniMap";
 import JsonLd from "@/components/JsonLd";
 import RentSection from "@/components/RentSection";
 import ShareButton from "@/components/ShareButton";
@@ -74,6 +75,21 @@ export default async function ApartmentPage({ params }: Props) {
         <InsightBadges metrics={metrics} />
         <CanceledAlert total={recent.total} highs={recent.highs} />
       </section>
+      {apt.lat != null && apt.lng != null && (
+        <section className="space-y-2">
+          <h2 className="text-base font-bold text-gray-900">위치</h2>
+          <MiniMap
+            center={{ lat: apt.lat, lng: apt.lng }}
+            level={4}
+            href={`/map?lat=${apt.lat}&lng=${apt.lng}&level=4`}
+            pillLabel="주변 단지 지도로 ›"
+            pillTone="light"
+            heightClass="h-[160px] md:h-[220px]"
+            showHere
+            excludeId={apt.id}
+          />
+        </section>
+      )}
       <DealTabs
         empty={{ jeonse: !rent.rents.some((r) => r.monthly_rent === 0), wolse: !rent.rents.some((r) => r.monthly_rent > 0) }}
         panels={{

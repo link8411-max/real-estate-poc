@@ -12,6 +12,8 @@ interface Props {
   mode: MapMode;
   /** 지도가 멈출 때마다 바뀌는 현재 범위. 바뀌면 라벨 겹침을 다시 계산한다. */
   bounds?: MapBounds | null;
+  /** false면 미니 지도: 마커 클릭(이동·확대)을 막는다. 기본 true. */
+  interactive?: boolean;
 }
 
 /** 지도 위에 올릴 오버레이 한 개의 명세. sig가 같으면 기존 오버레이를 그대로 둔다. */
@@ -32,7 +34,7 @@ function el(tag: string, className: string, text?: string): HTMLElement {
 
 const amountOf = (a: MapApartment, mode: MapMode) => (mode === "rent" ? a.latest_jeonse_deposit : a.latest_trade_amount);
 
-function apartmentSpec(a: MapApartment, mode: MapMode, go: (id: number) => void): Spec | null {
+function apartmentSpec(a: MapApartment, mode: MapMode, go: ((id: number) => void) | null): Spec | null {
   const amount = amountOf(a, mode);
   if (amount === null) return null;
   const label = formatMapLabel(amount);
@@ -49,7 +51,8 @@ function apartmentSpec(a: MapApartment, mode: MapMode, go: (id: number) => void)
         el("span", `rounded-full px-2 py-0.5 text-xs font-bold text-white shadow ${mode === "rent" ? "bg-emerald-600" : "bg-blue-600"} group-hover:bg-gray-900`, label),
         el("span", "absolute left-1/2 top-full mt-0.5 hidden -translate-x-1/2 whitespace-nowrap rounded bg-white/95 px-1.5 text-[11px] text-gray-800 shadow group-hover:block", a.name),
       );
-      root.addEventListener("click", () => go(a.id));
+      if (go) root.addEventListener("click", () => go(a.id));
+      else root.classList.add("pointer-events-none");
       return root;
     },
   };
@@ -61,7 +64,7 @@ function regionSubtitle(r: MapRegion, mode: MapMode): string {
   return r.avg_amount === null ? "-" : formatMapLabel(r.avg_amount);
 }
 
-function regionSpec(r: MapRegion, mode: MapMode, zoom: (lat: number, lng: number) => void): Spec {
+function regionSpec(r: MapRegion, mode: MapMode, zoom: ((lat: number, lng: number) => void) | null): Spec {
   const avg = regionSubtitle(r, mode);
   return {
     key: `r:${r.code}`,
@@ -75,7 +78,8 @@ function regionSpec(r: MapRegion, mode: MapMode, zoom: (lat: number, lng: number
       );
       root.setAttribute("type", "button");
       root.append(el("span", "text-xs font-semibold leading-tight", r.name), el("span", "text-[11px] leading-tight text-blue-100", avg));
-      root.addEventListener("click", () => zoom(r.lat, r.lng));
+      if (zoom) root.addEventListener("click", () => zoom(r.lat, r.lng));
+      else root.classList.add("pointer-events-none");
       return root;
     },
   };
@@ -98,16 +102,18 @@ function visibleApartments(map: kakao.maps.Map, items: MapApartment[], mode: Map
   });
 }
 
-export default function MapMarkers({ map, data, mode, bounds }: Props) {
+export default function MapMarkers({ map, data, mode, bounds, interactive = true }: Props) {
   const router = useRouter();
   const overlays = useRef(new Map<string, { overlay: kakao.maps.CustomOverlay; sig: string }>());
 
   useEffect(() => {
-    const go = (id: number) => router.push(`/apartment/${id}`);
-    const zoom = (lat: number, lng: number) => {
-      map.setLevel(6);
-      map.setCenter(new kakao.maps.LatLng(lat, lng));
-    };
+    const go = interactive ? (id: number) => router.push(`/apartment/${id}`) : null;
+    const zoom = interactive
+      ? (lat: number, lng: number) => {
+          map.setLevel(6);
+          map.setCenter(new kakao.maps.LatLng(lat, lng));
+        }
+      : null;
     const specs: Spec[] = !data
       ? []
       : data.type === "apartments"
@@ -142,7 +148,7 @@ export default function MapMarkers({ map, data, mode, bounds }: Props) {
       raiseOnHover(overlay, content);
       current.set(s.key, { overlay, sig: s.sig });
     }
-  }, [map, data, mode, router, bounds]);
+  }, [map, data, mode, router, bounds, interactive]);
 
   useEffect(() => {
     const current = overlays.current;

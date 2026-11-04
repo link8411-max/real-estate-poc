@@ -60,6 +60,14 @@ describe("MapMarkers", () => {
     expect(push).toHaveBeenCalledWith("/apartment/1");
   });
 
+  test("interactive={false}면 클릭해도 이동하지 않는다(미니 지도)", () => {
+    render(<MapMarkers map={m} data={apts(apt(1, 123000))} mode="trade" interactive={false} />);
+    const content = [...FakeOverlay.live][0].content;
+    content.click();
+    expect(push).not.toHaveBeenCalled();
+    expect(content.className).toContain("pointer-events-none");
+  });
+
   test("전세 모드는 보증금으로 라벨", () => {
     render(<MapMarkers map={m} data={apts(apt(1, 123000, 80000))} mode="rent" />);
     expect(texts()).toEqual(["8억단지1"]);

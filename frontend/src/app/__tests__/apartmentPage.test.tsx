@@ -86,3 +86,20 @@ describe("취소만 있는 단지", () => {
     expect(container.querySelector('a[href="?tab=trade#canceled"]')).not.toBeNull();
   });
 });
+
+describe("위치 지도", () => {
+  test("좌표가 있으면 위치 섹션과 /map?lat&lng&level=4 링크", async () => {
+    const apt = { ...apartment, lat: 37.4979, lng: 127.0276 };
+    fetchAptTrade.mockResolvedValue({ ...trade, apartment: apt });
+    render(await page.default({ params: Promise.resolve({ id: "7" }) }));
+    expect(screen.getByRole("heading", { name: "위치" })).toBeInTheDocument();
+    const pill = screen.getByRole("link", { name: "주변 단지 지도로 ›" });
+    expect(pill).toHaveAttribute("href", "/map?lat=37.4979&lng=127.0276&level=4");
+  });
+
+  test("좌표가 없으면 아무것도 그리지 않는다", async () => {
+    render(await page.default({ params: Promise.resolve({ id: "7" }) }));
+    expect(screen.queryByRole("heading", { name: "위치" })).toBeNull();
+    expect(screen.queryByText("주변 단지 지도로 ›")).toBeNull();
+  });
+});

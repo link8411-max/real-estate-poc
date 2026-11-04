@@ -17,6 +17,10 @@ interface Props {
   onIdle: (bounds: MapBounds, level: number, center: LatLngLiteral) => void;
   /** 지도 인스턴스 전달(지역 클릭 시 setLevel/setCenter 등에 쓴다) */
   onReady?: (map: kakao.maps.Map) => void;
+  /** false면 미니 지도: 드래그·휠 줌·더블클릭 줌을 끈다. 기본 true(/map). */
+  interactive?: boolean;
+  /** 주면 SDK 실패 때 안내 UI 대신 이 콜백만 부른다(호출한 쪽이 자리를 대신 채운다). */
+  onError?: () => void;
 }
 
 const IDLE_DEBOUNCE_MS = 300;
@@ -28,7 +32,7 @@ const hasSize = (el: HTMLElement) => {
 };
 
 /** 카카오맵. SDK는 이 컴포넌트가 있을 때(/map)만 불러온다. */
-export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
+export default function KakaoMap({ center, level, onIdle, onReady, interactive = true, onError }: Props) {
   const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<kakao.maps.Map | null>(null);
@@ -37,11 +41,15 @@ export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
   const waitRef = useRef<ResizeObserver | null>(null);
   const [failed, setFailed] = useState(false);
 
-  const callbacks = useRef({ onIdle, onReady });
+  const callbacks = useRef({ onIdle, onReady, onError });
   useEffect(() => {
-    callbacks.current = { onIdle, onReady };
+    callbacks.current = { onIdle, onReady, onError };
   });
-  const initial = useRef({ center, level });
+  const initial = useRef({ center, level, interactive });
+  const failedAndQuiet = failed && !!onError;
+  useEffect(() => {
+    if (failedAndQuiet) callbacks.current.onError?.();
+  }, [failedAndQuiet]);
 
   /**
    * idle·크기 변화·탭 복귀 처리를 붙인다. 언마운트(또는 StrictMode 재마운트) 때 떼기 위해 해제 함수를 남긴다.
@@ -113,8 +121,12 @@ export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
   const create = useCallback(() => {
     const container = containerRef.current;
     if (mapRef.current || !container) return;
-    const { center: c, level: l } = initial.current;
-    const map = new kakao.maps.Map(container, { center: new kakao.maps.LatLng(c.lat, c.lng), level: l });
+    const { center: c, level: l, interactive: i } = initial.current;
+    const map = new kakao.maps.Map(container, {
+      center: new kakao.maps.LatLng(c.lat, c.lng),
+      level: l,
+      ...(i ? {} : { draggable: false, scrollwheel: false, disableDoubleClickZoom: true }),
+    });
     mapRef.current = map;
     map.relayout();
     attach(map);
@@ -147,6 +159,7 @@ export default function KakaoMap({ center, level, onIdle, onReady }: Props) {
     });
   }, [create]);
 
+  if (failedAndQuiet) return null;
   if (!appKey || failed) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-gray-100 px-6 text-center text-sm text-gray-600">

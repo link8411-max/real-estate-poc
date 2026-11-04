@@ -57,3 +57,12 @@ test("items 없는 깨진 recent.json 이어도 던지지 않고 숨김", async 
     unmount();
   }
 });
+
+test("미니 지도 카드: /map 링크와 알약 문구, 히어로 버튼 유지", async () => {
+  fetchCanceledRecent.mockResolvedValue(null);
+  render(await Home());
+  const pill = screen.getByRole("link", { name: "⤢ 지도 크게 보기" });
+  expect(pill).toHaveAttribute("href", "/map");
+  expect(screen.getByRole("link", { name: "지도에서 찾기" })).toHaveAttribute("href", "/map");
+  expect(screen.getByTestId("mini-map-card").className).toContain("h-[180px]");
+});

@@ -195,4 +195,30 @@ describe("KakaoMap", () => {
     expect(fakeMap.relayout).toHaveBeenCalledTimes(1);
     expect(onIdle).toHaveBeenCalledTimes(1);
   });
+
+  test("interactive={false}면 드래그·휠·더블클릭 줌을 끈 옵션으로 만든다", () => {
+    stubSize();
+    const { MapCtor } = stubKakao();
+    stubResizeObserver();
+    render(<KakaoMap {...props} interactive={false} />);
+    expect((MapCtor.mock.calls as unknown as [unknown, object][])[0][1]).toMatchObject({ draggable: false, scrollwheel: false, disableDoubleClickZoom: true });
+  });
+
+  test("기본(interactive 생략)이면 /map 옵션 그대로 — 끄는 옵션을 넣지 않는다", () => {
+    stubSize();
+    const { MapCtor } = stubKakao();
+    stubResizeObserver();
+    render(<KakaoMap {...props} />);
+    const opts = (MapCtor.mock.calls as unknown as [unknown, object][])[0][1];
+    expect(opts).not.toHaveProperty("draggable");
+    expect(opts).not.toHaveProperty("scrollwheel");
+  });
+
+  test("onError를 주면 실패 때 안내 UI 없이 onError만 부른다", async () => {
+    outcome = "error";
+    const onError = vi.fn();
+    const { container } = render(<KakaoMap {...props} onError={onError} />);
+    await vi.waitFor(() => expect(onError).toHaveBeenCalled());
+    expect(container.textContent).toBe("");
+  });
 });

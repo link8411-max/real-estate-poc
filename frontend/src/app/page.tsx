@@ -1,10 +1,12 @@
 import { Building2, CalendarDays, Ban, Map as MapIcon, MapPin, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import MiniMap from "@/components/MiniMap";
 import RecentDeals from "@/components/RecentDeals";
 import SearchBox from "@/components/SearchBox";
 import { pickHeadline } from "@/lib/canceled";
 import { fetchCanceledRecent, fetchStats } from "@/lib/data";
+import { DEFAULT_CENTER, DEFAULT_LEVEL } from "@/lib/mapFilters";
 import { kstToday } from "@/lib/metrics";
 import { browseHref, CITIES } from "@/lib/regions";
 
@@ -58,8 +60,21 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* 히어로 바로 아래 미니 지도: /map 기본 화면과 같은 중심·레벨. 조작은 /map에서 */}
+      <section className="mx-auto -mt-6 max-w-5xl px-4">
+        <MiniMap
+          testId="mini-map-card"
+          center={DEFAULT_CENTER}
+          level={DEFAULT_LEVEL}
+          href="/map"
+          pillLabel="⤢ 지도 크게 보기"
+          pillTone="dark"
+          heightClass="h-[180px] md:h-[260px]"
+        />
+      </section>
+
       {stats && (
-        <section className="mx-auto -mt-6 grid max-w-5xl grid-cols-1 gap-3 px-4 sm:grid-cols-3">
+        <section className="mx-auto mt-3 grid max-w-5xl grid-cols-1 gap-3 px-4 sm:grid-cols-3">
           <StatCard
             icon={<Building2 className="h-5 w-5 text-blue-600" />}
             value={stats.total_apartments.toLocaleString("en-US")}
