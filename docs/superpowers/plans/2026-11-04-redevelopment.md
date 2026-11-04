@@ -1,0 +1,37 @@
+# 재건축·재개발 현황 1단계 Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax.
+
+**Goal:** 국토부 "전국 도시정비사업 통합 데이터"(수도권 953개 구역)로 재건축·재개발 현황을 보여 준다: 목록 페이지, 지역·동·단지 페이지 표시, 지도 위 위치 표시. (구역 경계 폴리곤·리모델링은 2단계 이후, 이번 범위 아님.)
+
+**Source file:** `data/redevelopment/molit_redevelopment_20260518.csv` (UTF-8, 1,566행, 컬럼: 시도, 시군구, 구역명칭, 현 사업추진단계, 사업유형, 사업시행자, 공급 예정 세대수). 이용허락 제한 없음. 연 1회 갱신(다음 2027-07). 단계 값 예: `2)정비구역지정`, `3)추진위구성`, `4)조합설립인가`, `5)사업시행인가`, `6)관리처분인가`, `7)착공`, `17)사업시행자지정`. 유형 예: `1)재개발(주택정비)`, `2)재개발(도시정비)`, `3)재건축(공동주택)`, `4)재건축(단독주택)`, `5)주거환경개선`. 세대수는 숫자·공백·`해당없음` 섞임. 시군구 표기는 우리 regions 짧은 이름과 같은 형식(예: `수원영통구`, `용인기흥구`, `강남구`).
+
+## Global Constraints
+- 운영비 0원. 정적 JSON(R2) + ISR. 새 서버 없음.
+- 수도권(서울특별시·경기도·인천광역시)만.
+- 단계·유형은 숫자 접두어를 떼고 표시(`관리처분인가`, `재건축(공동주택)`). 단계 순서는 접두어 숫자를 쓰되 `17)사업시행자지정`은 조합설립인가와 같은 위치(4.5)로 취급.
+- 위치 매칭은 정확도 우선. 틀린 단지에 배지를 붙이느니 매칭하지 않는다. 매칭 방법과 신뢰도를 데이터에 남긴다.
+- 문구에 "투자 추천", "호재" 같은 단정 금지. 안내: `국토교통부 전국 도시정비사업 통합 데이터(2026-05 기준). 실제 진행 상황과 다를 수 있습니다.`
+- 테스트: Python `.venv/bin/python -m pytest -q`; 프론트 `cd frontend && npx vitest run && npx tsc --noEmit && npx eslint src && npx next build`.
+
+## Review Focus
+1. 이름이 비슷한 다른 단지에 잘못 매칭(예: "삼성아파트"가 같은 구 다른 동 단지) → 매칭하지 않아야 함.
+2. 세대수 `해당없음`·공백 → null, 0과 구분.
+3. 시군구 이름이 regions에 없는 경우(폐지·통합 코드) → 건너뛰지 말고 시도 단위로라도 목록에 남김.
+4. 지오코딩 실패 구역 → 지도에는 없고 목록에는 있음.
+5. 데이터 파일이 아직 R2에 없을 때 페이지·섹션은 빈 상태(500 아님).
+
+---
+
+### Task 1: 정비구역 데이터 빌드 (파이프라인)
+**Files:** Create `pipeline/redevelopment.py`, `tests/test_redevelopment.py`; Modify `pipeline/export_json.py`(매번 `v1/redevelopment/zones.json` put), `CLAUDE.md`(모듈 한 줄).
+- `load_zones(csv_path) -> list[dict]`: 수도권만, 키 `zone_id`(시도+시군구+구역명칭 해시 앞 12자리, 안정적), `sido, sigungu, lawd_cd`(regions 짧은 이름 매칭, 없으면 null), `name, stage, stage_order, type, type_group`(`재건축`/`재개발`/`주거환경개선`), `operator, households`(int|null).
+- `match_apartments(conn, zones)`: `type_group == "재건축"`이고 lawd_cd가 있는 구역만, 같은 lawd_cd 안에서 단지 이름 매칭. 규칙: 구역명칭과 단지명을 정규화(공백·"아파트"·"APT"·괄호 안 내용 제거, 로마숫자/한글 숫자 통일 정도는 선택)한 뒤 **정확히 같거나, 한쪽이 다른 쪽을 포함하고 그 lawd_cd에서 후보가 정확히 1개**일 때만 매칭(`match: "exact"|"contains"`). 괄호 안 단지명(예: `영통2구역(매탄주공4,5단지)`)도 후보 이름으로 쓴다. 매칭된 구역에 `apt_ids`(여러 단지일 수 있음), `lat/lng`(단지 좌표 평균).
+- 지오코딩(재개발 등 단지 매칭이 안 된 구역): 카카오 로컬 키워드 검색 `"{시도 짧게} {시군구} {구역명칭}"`; 결과의 주소가 같은 시군구 안이고 첫 결과일 때만 채택(`geo: "kakao"`). 결과는 `data/redevelopment/geocode_cache.json`에 저장해 재호출하지 않는다(레포에 커밋). 키는 기존 `KAKAO_REST_API_KEY`. 실패는 null.
+- `build_zones_json(conn, csv_path, today) -> {"source": "국토교통부 전국 도시정비사업 통합 데이터", "as_of": "2026-05-18", "generated_at", "zones": [...]}`.
+- 실제 DB 복사본에서 매칭·지오코딩 결과 통계(매칭 수, 지오코딩 성공 수)를 보고서에 남긴다(복사본만, 원본 DB 쓰기 금지).
+- [ ] 테스트 먼저(접두어 파싱, 세대수 null, 수도권 필터, 정확/포함/모호 매칭, 괄호 이름, 지오코딩 채택 규칙(가짜 클라이언트), 캐시 재사용, export 키) → 구현 → 커밋 `feat(pipeline): 정비구역 데이터와 단지 매칭`
+
+### Task 2: 화면 (목록·섹션·배지·지도)
+**Files:** `lib/types.ts`, `lib/data.ts`(`fetchZones`), Create `app/redevelopment/page.tsx`(ISR, 메타 제목 `재건축·재개발 현황`), `components/ZonesBoard.tsx`(요약 숫자: 전체·재건축·재개발 구역 수, 단계별 막대; 필터 지역 전체/서울/경기/인천·유형·단계; 목록: 구역명·시군구·유형·단계 칩·세대수·사업시행자; 매칭된 단지 링크), 지역 페이지·동 페이지 "정비사업" 섹션(해당 lawd_cd, 동 페이지는 매칭 단지가 그 동이거나 지오코딩 좌표가 그 동 단지들 근처인 것은 생략 가능 — 지역 단위로만 해도 됨), 단지 페이지 배지 `재건축 · {단계}`(매칭된 경우, 클릭 시 `/redevelopment#zone-{id}`), 지도(`/map`): 토글 버튼 `정비사업` 켜면 lat/lng 있는 구역을 보라색 다이아몬드 마커 `{유형 짧게} · {단계}`로 표시, 누르면 기존 미리보기 카드와 같은 위치에 구역 카드(이름·유형·단계·세대수·사업시행자·안내 문구). 홈 카드 `재건축·재개발 {N}곳` → `/redevelopment`. 사이트맵 `/redevelopment`.
+- [ ] 테스트 먼저 → 구현 → 전체 확인 → 커밋 `feat(web): 재건축·재개발 현황 페이지·지도·배지`
