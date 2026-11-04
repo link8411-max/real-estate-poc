@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import ShareButton from "@/components/ShareButton";
-import { shareTx, parseId } from "@/lib/canceledShare";
+import { parseId, type ShareTx, shareTx } from "@/lib/canceledShare";
 import { fetchAptTrade } from "@/lib/data";
 import { formatDeal, formatPrice } from "@/lib/format";
 import { SITE_URL } from "@/lib/seo";
@@ -16,26 +16,30 @@ export function generateStaticParams() {
 
 type Props = { params: Promise<{ aptId: string; txId: string }> };
 
+const shareTitle = (name: string, tx: ShareTx) =>
+  `${name} ${tx.pyeong}평 ${formatPrice(tx.amount)}${tx.canceled ? " 신고 후 취소" : ""}`;
+
 async function load(aptId: string, txId: string) {
   const a = parseId(aptId);
   const data = a ? await fetchAptTrade(a, { next: { revalidate } } as RequestInit).catch(() => null) : null;
   const t = parseId(txId);
-  return { aptId: a, data, tx: data && t ? shareTx(data, t) : null };
+  return { aptId: a, txId: t, data, tx: data && t ? shareTx(data, t) : null };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { aptId, txId } = await params;
-  const { data, tx } = await load(aptId, txId);
+  const { txId: tid, data, tx } = await load(aptId, txId);
   if (!data || !tx) return { title: "거래를 찾을 수 없습니다", robots: { index: false } };
   const apt = data.apartment;
-  const title = `${apt.name} ${tx.pyeong}평 ${formatPrice(tx.amount)} 신고 후 취소`;
+  const title = shareTitle(apt.name, tx);
   const description = tx.canceled
     ? `${formatDeal(tx.dealDate)} 계약, ${formatDeal(tx.cancelIso!)} 취소. 국토교통부 실거래가 공개 자료 기준.`
     : "국토교통부 실거래가 공개 자료 기준.";
-  const image = `/api/og/canceled/${apt.id}/${txId}`;
+  const image = `/api/og/canceled/${apt.id}/${tid}`;
   return {
     title: { absolute: title },
     description,
+    alternates: { canonical: `/canceled/${apt.id}/${tid}` },
     robots: { index: false },
     openGraph: { title, description, type: "article", images: [{ url: image, width: 1200, height: 630 }] },
     twitter: { card: "summary_large_image", title, description, images: [image] },
@@ -44,17 +48,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CanceledSharePage({ params }: Props) {
   const { aptId, txId } = await params;
-  const { aptId: id, data, tx } = await load(aptId, txId);
+  const { aptId: id, txId: tid, data, tx } = await load(aptId, txId);
   if (!data) redirect("/canceled");
   if (!tx) redirect(`/apartment/${id}`);
   const apt = data.apartment;
-  const url = `${SITE_URL}/canceled/${apt.id}/${txId}`;
-  const title = `${apt.name} ${tx.pyeong}평 ${formatPrice(tx.amount)} 신고 후 취소`;
+  const url = `${SITE_URL}/canceled/${apt.id}/${tid}`;
+  const title = shareTitle(apt.name, tx);
   const meta = {
     title,
     description: "국토교통부 실거래가 기준 취소된 신고가",
     url,
-    imageUrl: `${SITE_URL}/api/og/canceled/${apt.id}/${txId}`,
+    imageUrl: `${SITE_URL}/api/og/canceled/${apt.id}/${tid}`,
   };
 
   return (
