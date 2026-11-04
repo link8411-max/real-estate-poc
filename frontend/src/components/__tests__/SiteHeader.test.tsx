@@ -4,7 +4,7 @@ import SiteHeader, { NAV } from "../SiteHeader";
 
 test("제목과 모든 메뉴 링크는 줄바꿈하지 않는다", () => {
   render(<SiteHeader />);
-  expect(screen.getByRole("link", { name: "수도권 실거래가" })).toHaveClass("whitespace-nowrap");
+  expect(screen.getByRole("link", { name: "집시세 홈" })).toHaveClass("whitespace-nowrap");
   const nav = within(screen.getByRole("navigation"));
   for (const n of NAV) expect(nav.getByRole("link", { name: n.label })).toHaveClass("whitespace-nowrap");
 });

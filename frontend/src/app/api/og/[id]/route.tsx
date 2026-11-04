@@ -55,7 +55,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       >
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 28, color: "#64748B" }}>
           <span>{apt.region_name}</span>
-          <span>수도권 아파트 실거래가</span>
+          <span>집시세 · zipsise.com</span>
         </div>
         <div style={{ display: "flex", marginTop: 30, fontSize: 60, fontWeight: 700, color: "#1E293B" }}>{apt.name}</div>
         {latest ? (

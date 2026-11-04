@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AreaUnitToggle from "@/components/AreaUnitToggle";
+import { SITE_NAME } from "@/lib/seo";
 
 export const NAV = [
   { href: "/", label: "홈" },
@@ -15,8 +16,9 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-gray-100 bg-white/90 backdrop-blur">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-        <Link href="/" className="mr-auto whitespace-nowrap text-lg font-bold text-gray-900">
-          수도권 실거래가
+        <Link href="/" aria-label={`${SITE_NAME} 홈`} className="mr-auto flex items-baseline gap-1.5 whitespace-nowrap">
+          <span className="text-lg font-bold text-gray-900">{SITE_NAME}</span>
+          <span className="text-xs text-gray-500">수도권 실거래가</span>
         </Link>
         <div className="order-2 md:order-3">
           <AreaUnitToggle />
