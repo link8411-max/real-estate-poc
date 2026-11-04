@@ -27,6 +27,7 @@ pipeline/            Python 파이프라인 (아래 CLI 표)
   export_json.py     단지/지역/통계/검색 인덱스 JSON 내보내기
   r2_publish.py      out/ → R2 public 버킷 업로드(변경분만)
   geocode.py         카카오 지오코딩으로 빈 좌표 채우기
+  redevelopment.py   국토부 정비구역 CSV -> v1/redevelopment/zones.json (재건축 단지 이름 매칭 + 카카오 지오코딩 캐시 data/redevelopment/geocode_cache.json; `--db X --geocode` 로 캐시 채움)
   migrate_coords.py  옛 로컬 DB 에서 좌표 이식 (1회성)
   supabase_sync.py   apartment_summary 동기화
   merge_apartments.py 이름이 바뀌어 쪼개진 단지(apt_seq 없는 옛 단지↔새 단지) 1:1 쌍만 합침 (migrate 끝에서 자동, CLI 는 --report·--dry-run 보고서)
