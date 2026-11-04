@@ -58,3 +58,16 @@ describe("apartment 페이지", () => {
     expect(regionPage.generateStaticParams()).toEqual([]);
   });
 });
+
+describe("취소만 있는 단지", () => {
+  test("정상 거래가 없어도 취소 목록(#canceled)이 렌더되고 알림이 같은 탭을 가리킨다", async () => {
+    fetchAptTrade.mockResolvedValue({
+      ...trade,
+      transactions: [{ id: 9, amount: 100000, area: 84.9, floor: 3, deal_date: "2026-03-01", cancel_date: "2026-04-01" }],
+    });
+    const { container } = render(await page.default({ params: Promise.resolve({ id: "7" }) }));
+    expect(screen.getByText("매매 거래가 없습니다")).toBeInTheDocument();
+    expect(container.querySelector("section#canceled")).not.toBeNull();
+    expect(container.querySelector('a[href="?tab=trade#canceled"]')).not.toBeNull();
+  });
+});

@@ -24,7 +24,7 @@ describe("CanceledAlert", () => {
   test("신고가 포함 문구", () => {
     render(<CanceledAlert total={5} highs={2} />);
     const a = screen.getByRole("link");
-    expect(a).toHaveAttribute("href", "#canceled");
+    expect(a).toHaveAttribute("href", "?tab=trade#canceled");
     expect(a).toHaveTextContent("최근 1년 취소된 거래 5건 · 그중 신고가였던 거래 2건");
   });
   test("신고가 0건이면 뒷부분 없음", () => {

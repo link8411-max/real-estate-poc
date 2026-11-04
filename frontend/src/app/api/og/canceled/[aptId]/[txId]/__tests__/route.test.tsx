@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const trees: unknown[] = [];
+const optsSeen: ({ headers?: Record<string, string> } | undefined)[] = [];
 vi.mock("@vercel/og", () => ({
   ImageResponse: class {
-    constructor(el: unknown) {
+    constructor(el: unknown, opts?: { headers?: Record<string, string> }) {
       trees.push(el);
+      optsSeen.push(opts);
     }
   },
 }));
@@ -66,4 +68,11 @@ describe("취소 공유 OG", () => {
     expect(r.strike).toBe(true);
     expect(r.colors).toEqual(["#FB7185"]);
   });
+});
+
+test("찾을 수 없음 대체 이미지는 1년 캐시하지 않는다", async () => {
+  fetchAptTrade.mockResolvedValue(null);
+  optsSeen.length = 0;
+  await GET(new Request("http://x"), { params: Promise.resolve({ aptId: "1554", txId: "9" }) });
+  expect(optsSeen[0]?.headers?.["cache-control"]).toBe("public, max-age=300");
 });

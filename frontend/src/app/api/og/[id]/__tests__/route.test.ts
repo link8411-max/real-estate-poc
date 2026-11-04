@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-const calls: { options: { fonts?: { data: unknown }[] } }[] = [];
+const calls: { options: { fonts?: { data: unknown }[]; headers?: Record<string, string> } }[] = [];
 vi.mock("@vercel/og", () => ({
   ImageResponse: class {
-    constructor(_el: unknown, options: { fonts?: { data: unknown }[] }) {
+    constructor(_el: unknown, options: { fonts?: { data: unknown }[]; headers?: Record<string, string> }) {
       calls.push({ options });
     }
   },
@@ -40,6 +40,13 @@ describe("OG route", () => {
     expect(readFile).toHaveBeenCalledWith(FONT_PATH);
     expect(calls[0].options.fonts).toHaveLength(1);
     expect(calls[0].options.fonts?.[0].data).toBe(buf);
+  });
+
+  test("찾을 수 없음 대체 이미지는 짧게만 캐시한다", async () => {
+    readFile.mockResolvedValue(Buffer.from("font"));
+    const { GET } = await load();
+    await GET(new Request("http://x/api/og/1"), params("1"));
+    expect(calls[0].options.headers?.["cache-control"]).toBe("public, max-age=300");
   });
 
   test("실제 폰트 파일이 저장소에 있다(트레이싱 대상)", async () => {

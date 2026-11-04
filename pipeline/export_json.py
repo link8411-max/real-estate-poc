@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from pipeline.canceled import build_canceled_recent
+from pipeline.collect import kst_today
 from pipeline.db import connect
 from pipeline.regions import REGIONS, city_of
 from pipeline.summary import apartment_summary
@@ -279,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     p = _build_parser()
     try:
         a = p.parse_args(argv)
-        today = date.fromisoformat(a.today) if a.today else date.today()
+        today = date.fromisoformat(a.today) if a.today else kst_today()
     except SystemExit as e:
         return int(e.code or 0)
     except ValueError:

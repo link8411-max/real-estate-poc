@@ -24,7 +24,7 @@ async function message(text: string) {
         {text}
       </div>
     ),
-    await options(),
+    { ...(await options()), headers: { "cache-control": "public, max-age=300" } },
   );
 }
 

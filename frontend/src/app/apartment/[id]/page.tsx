@@ -81,7 +81,10 @@ export default async function ApartmentPage({ params }: Props) {
               beforeList={<CanceledDeals items={canceled} />}
             />
           ) : (
-            <p className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-sm text-gray-500">매매 거래가 없습니다</p>
+            <div className="space-y-4">
+              <p className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-sm text-gray-500">매매 거래가 없습니다</p>
+              <CanceledDeals items={canceled} />
+            </div>
           ),
           jeonse: <RentSection rent={rent} tab="jeonse" today={today} />,
           wolse: <RentSection rent={rent} tab="wolse" today={today} />,

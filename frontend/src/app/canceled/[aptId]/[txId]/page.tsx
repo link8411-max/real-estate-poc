@@ -5,7 +5,7 @@ import ShareButton from "@/components/ShareButton";
 import { parseId, type ShareTx, shareTx } from "@/lib/canceledShare";
 import { fetchAptTrade } from "@/lib/data";
 import { formatDeal, formatPrice } from "@/lib/format";
-import { SITE_URL } from "@/lib/seo";
+import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
 export const revalidate = 3600;
 
@@ -18,6 +18,11 @@ type Props = { params: Promise<{ aptId: string; txId: string }> };
 
 const shareTitle = (name: string, tx: ShareTx) =>
   `${name} ${tx.pyeong}평 ${formatPrice(tx.amount)}${tx.canceled ? " 신고 후 취소" : ""}`;
+
+const shareDescription = (tx: ShareTx) =>
+  tx.canceled
+    ? `${formatDeal(tx.dealDate)} 계약, ${formatDeal(tx.cancelIso!)} 취소. 국토교통부 실거래가 공개 자료 기준.`
+    : "국토교통부 실거래가 공개 자료 기준.";
 
 async function load(aptId: string, txId: string) {
   const a = parseId(aptId);
@@ -32,16 +37,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!data || !tx) return { title: "거래를 찾을 수 없습니다", robots: { index: false } };
   const apt = data.apartment;
   const title = shareTitle(apt.name, tx);
-  const description = tx.canceled
-    ? `${formatDeal(tx.dealDate)} 계약, ${formatDeal(tx.cancelIso!)} 취소. 국토교통부 실거래가 공개 자료 기준.`
-    : "국토교통부 실거래가 공개 자료 기준.";
+  const description = shareDescription(tx);
   const image = `/api/og/canceled/${apt.id}/${tid}`;
   return {
     title: { absolute: title },
     description,
     alternates: { canonical: `/canceled/${apt.id}/${tid}` },
     robots: { index: false },
-    openGraph: { title, description, type: "article", images: [{ url: image, width: 1200, height: 630 }] },
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      url: `/canceled/${apt.id}/${tid}`,
+      siteName: SITE_NAME,
+      locale: "ko_KR",
+      images: [{ url: image, width: 1200, height: 630 }],
+    },
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
@@ -56,7 +67,7 @@ export default async function CanceledSharePage({ params }: Props) {
   const title = shareTitle(apt.name, tx);
   const meta = {
     title,
-    description: "국토교통부 실거래가 기준 취소된 신고가",
+    description: shareDescription(tx),
     url,
     imageUrl: `${SITE_URL}/api/og/canceled/${apt.id}/${tid}`,
   };

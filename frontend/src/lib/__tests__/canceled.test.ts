@@ -55,6 +55,8 @@ describe("analyzeCanceled", () => {
       expect(highs[0].amount).toBe(120000);
       expect(highs[0].prev_max).toBe(100000);
       expect(canceled.find((c) => c.amount === 110000)!.is_high).toBe(false);
+      // 이른 시점에 취소된 12억은 prev_max 에 들어가지 않는다(정상 거래 최고가 11억)
+      expect(canceled.find((c) => c.amount === 110000)!.prev_max).toBe(110000);
       const other = canceled.find((c) => c.amount === 90000)!;
       expect(other.is_high).toBe(false);
       expect(other.prev_max).toBeNull();
@@ -67,6 +69,22 @@ describe("analyzeCanceled", () => {
   test("equal to earlier max is not a high", () => {
     const { canceled } = analyzeCanceled([tx("2026-01-01", 100000, null), tx("2026-02-01", 100000, "2026-02-05")]);
     expect(canceled[0].is_high).toBe(false);
+  });
+});
+
+describe("analyzeCanceled 경계", () => {
+  test("같은 날 정상 거래는 이전으로 치지 않는다", () => {
+    const { canceled } = analyzeCanceled([tx("2026-05-01", 130000, null), tx("2026-05-01", 125000, "2026-05-09")]);
+    expect(canceled[0].prev_max).toBeNull();
+    expect(canceled[0].is_high).toBe(false);
+  });
+  test("취소 금액이 정상 최고가 이하이면 aboveMaxByArea 에 키 없음", () => {
+    const { aboveMaxByArea } = analyzeCanceled([
+      tx("2026-01-01", 120000, null),
+      tx("2026-02-01", 120000, "2026-02-05"),
+      tx("2026-03-01", 100000, "2026-03-05"),
+    ]);
+    expect(aboveMaxByArea.has(84)).toBe(false);
   });
 });
 

@@ -92,3 +92,13 @@ def test_ordering_and_trusts_cancel_date_not_flag(cconn):
     cconn.commit()
     items = canceled_highs(cconn, since="2026-01-01")
     assert [i["amount"] for i in items] == [150000, 120000]
+
+
+def test_only_canceled_predecessor_is_not_a_high(tmp_path):
+    c = connect(str(tmp_path / "o.db"))
+    migrate(c)
+    c.execute("INSERT INTO apartments(name, lawd_cd, dong, jibun) VALUES ('래미안','11680','역삼동','1')")
+    _tx(c, 1, 100000, 84.9, "2026-01-05", "2026-01-20")  # 취소된 거래만 앞에 있음
+    _tx(c, 1, 120000, 84.9, "2026-02-01", "2026-02-20")
+    c.commit()
+    assert canceled_highs(c, since="2026-01-01") == []

@@ -237,3 +237,22 @@ def test_export_writes_canceled_recent(conn, tmp_path):
         doc = json.load(f)
     assert doc["since"] == "2026-09-26"
     assert [(i["amount"], i["prev_max"]) for i in doc["items"]] == [(120000, 100000)]
+
+
+def _since_of(out):
+    with gzip.open(out / "v1/canceled/recent.json.gz", "rt", encoding="utf-8") as f:
+        return json.load(f)["since"]
+
+
+def test_cli_default_today_is_kst_and_override_wins(conn, tmp_path, monkeypatch):
+    db = tmp_path / "t.db"
+    ids = tmp_path / "changed.json"
+    ids.write_text("[2]")
+    conn.commit()
+    monkeypatch.setattr(export_json, "kst_today", lambda: date(2026, 11, 5))
+    out1 = tmp_path / "o1"
+    assert main(["--db", str(db), "--out", str(out1), "--changed", str(ids)]) == 0
+    assert _since_of(out1) == "2026-10-06"  # KST 11-05 - 30일
+    out2 = tmp_path / "o2"
+    assert main(["--db", str(db), "--out", str(out2), "--changed", str(ids), "--today", "2026-10-26"]) == 0
+    assert _since_of(out2) == "2026-09-26"

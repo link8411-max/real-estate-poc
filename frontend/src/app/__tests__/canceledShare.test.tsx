@@ -8,7 +8,13 @@ const redirect = vi.fn((to: string) => {
   throw new Error(`REDIRECT:${to}`);
 });
 vi.mock("next/navigation", () => ({ redirect: (to: string) => redirect(to) }));
-vi.mock("@/components/ShareButton", () => ({ default: () => <button>공유</button> }));
+const shareProps: { meta?: { description: string } }[] = [];
+vi.mock("@/components/ShareButton", () => ({
+  default: (p: { meta: { description: string } }) => {
+    shareProps.push(p);
+    return <button>공유</button>;
+  },
+}));
 
 const page = await import("../canceled/[aptId]/[txId]/page");
 
@@ -29,6 +35,7 @@ const trade: AptTrade = {
 const props = (aptId: string, txId: string) => ({ params: Promise.resolve({ aptId, txId }) });
 
 beforeEach(() => {
+  shareProps.length = 0;
   redirect.mockClear();
   fetchAptTrade.mockReset().mockResolvedValue(trade);
 });
@@ -83,5 +90,38 @@ describe("취소된 신고가 공유 페이지", () => {
     expect(m.robots).toMatchObject({ index: false });
     expect(String(m.title && typeof m.title === "object" && "absolute" in m.title ? m.title.absolute : m.title)).toContain("신고 후 취소");
     expect(JSON.stringify(m.openGraph?.images)).toContain("/api/og/canceled/1554/2");
+  });
+});
+
+describe("공유 설명·OG 메타", () => {
+  test("취소 아닌 거래: ShareButton 설명에 신고가 주장 없음", async () => {
+    render(await page.default(props("1554", "1")));
+    const d = shareProps[0].meta!.description;
+    expect(d).not.toContain("신고가");
+    expect(d).not.toContain("취소");
+    const m = await page.generateMetadata(props("1554", "1"));
+    expect(d).toBe(m.description);
+  });
+  test("취소 거래: ShareButton 설명 = 메타 설명(계약일·취소일)", async () => {
+    render(await page.default(props("1554", "2")));
+    const d = shareProps[0].meta!.description;
+    const m = await page.generateMetadata(props("1554", "2"));
+    expect(d).toBe(m.description);
+    expect(d).toContain("26.02.21 취소");
+  });
+  test("취소됐지만 신고가 아닌 거래도 신고가라 하지 않는다", async () => {
+    fetchAptTrade.mockResolvedValue({
+      ...trade,
+      transactions: [
+        { id: 1, amount: 300000, area: 84.9, floor: 3, deal_date: "2026-01-10", cancel_date: null },
+        { id: 2, amount: 250000, area: 84.9, floor: 5, deal_date: "2026-02-01", cancel_date: "2026-02-21" },
+      ],
+    });
+    render(await page.default(props("1554", "2")));
+    expect(shareProps[0].meta!.description).not.toContain("신고가");
+  });
+  test("openGraph: url·siteName·locale", async () => {
+    const m = await page.generateMetadata(props("1554", "2"));
+    expect(m.openGraph).toMatchObject({ url: "/canceled/1554/2", siteName: "수도권 아파트 실거래가", locale: "ko_KR" });
   });
 });

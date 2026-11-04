@@ -27,7 +27,7 @@ function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string
 export default async function Home() {
   const stats = await fetchStats();
   const canceled = await fetchCanceledRecent({ next: { revalidate: 3600 } } as RequestInit).catch(() => null);
-  const canceledHead = canceled ? pickHeadline(canceled.items, kstToday()) : null;
+  const canceledHead = Array.isArray(canceled?.items) ? pickHeadline(canceled.items, kstToday()) : null;
   const districtCount = (city: string) => stats?.regions.filter((r) => r.city === city).length ?? 0;
 
   return (

@@ -48,3 +48,12 @@ test("데이터 없음/throw/30일 0건이면 숨김", async () => {
     unmount();
   }
 });
+
+test("items 없는 깨진 recent.json 이어도 던지지 않고 숨김", async () => {
+  for (const v of [{}, { items: null }, { items: "x" }]) {
+    fetchCanceledRecent.mockResolvedValue(v);
+    const { unmount } = render(await Home());
+    expect(screen.queryByText(/취소된 신고가/)).toBeNull();
+    unmount();
+  }
+});
