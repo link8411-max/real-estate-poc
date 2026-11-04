@@ -27,6 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/stats`, changeFrequency: "daily", priority: 0.6 },
     { url: `${SITE_URL}/canceled`, changeFrequency: "daily", priority: 0.7 },
     { url: `${SITE_URL}/highs`, changeFrequency: "daily", priority: 0.7 },
+    { url: `${SITE_URL}/redevelopment`, changeFrequency: "weekly", priority: 0.6 },
   ];
   // 현행 83개 시군구 (폐지 코드는 후속 지역으로 리다이렉트되므로 넣지 않는다)
   for (const code of Object.keys(REGION_NAMES)) {

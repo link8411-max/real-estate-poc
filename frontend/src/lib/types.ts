@@ -198,3 +198,33 @@ export interface HighsRecentFile {
   since: string;
   items: RecordHigh[];
 }
+
+/** 정비구역(v1/redevelopment/zones.json). 필드 의미는 pipeline/redevelopment.py 참고 */
+export interface Zone {
+  zone_id: string;
+  sido: string;
+  sigungu: string;
+  /** regions 에 없는 시군구(폐지·통합)면 null — 목록에는 남는다 */
+  lawd_cd: string | null;
+  name: string;
+  stage: string;
+  stage_order: number | null;
+  type: string;
+  type_group: string;
+  operator: string | null;
+  /** '해당없음'·공백은 null (0 과 구분) */
+  households: number | null;
+  apt_ids: number[];
+  lat: number | null;
+  lng: number | null;
+  /** "apt" | "kakao_*" | "dong_approx"(동 단위 대략) | null(좌표 없음) */
+  geo: string | null;
+  match: string | null;
+}
+
+export interface ZonesFile {
+  source: string;
+  as_of: string;
+  generated_at: string;
+  zones: Zone[];
+}

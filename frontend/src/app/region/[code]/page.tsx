@@ -5,8 +5,10 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import JsonLd from "@/components/JsonLd";
 import RecentHighsSection from "@/components/RecentHighsSection";
 import RegionApartmentList from "@/components/RegionApartmentList";
+import RegionRedevelopment from "@/components/RegionRedevelopment";
 import { fetchRegion, fetchStats } from "@/lib/data";
 import { fetchHighItems, recentHighsFor } from "@/lib/highs";
+import { fetchZoneItems, zonesForRegion } from "@/lib/redevelopment";
 import { browseHref, districtFullName, regionHref, resolveRegionCode } from "@/lib/regions";
 import { breadcrumbJsonLd, type Crumb, dongHref, regionDescription, regionTitle, shortPrice } from "@/lib/seo";
 
@@ -23,8 +25,8 @@ type Props = { params: Promise<{ code: string }> };
 const init = { next: { revalidate } } as RequestInit;
 
 async function load(code: string) {
-  const [region, stats, highs] = await Promise.all([fetchRegion(code, init), fetchStats(init), fetchHighItems(init)]);
-  return region ? { region, stat: stats?.regions.find((r) => r.code === code), highs: recentHighsFor(highs, code) } : null;
+  const [region, stats, highs, zones] = await Promise.all([fetchRegion(code, init), fetchStats(init), fetchHighItems(init), fetchZoneItems(init)]);
+  return region ? { region, stat: stats?.regions.find((r) => r.code === code), highs: recentHighsFor(highs, code), zones: zonesForRegion(zones, code) } : null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -50,7 +52,7 @@ export default async function RegionPage({ params }: Props) {
   const data = await load(route.code);
   if (!data) notFound();
 
-  const { region, stat, highs } = data;
+  const { region, stat, highs, zones } = data;
   const name = districtFullName(region.code) || region.name;
   const crumbs: Crumb[] = [
     { name: "홈", url: "/" },
@@ -97,6 +99,7 @@ export default async function RegionPage({ params }: Props) {
         </section>
       )}
       <RecentHighsSection items={highs} />
+      <RegionRedevelopment zones={zones} />
       <section>
         <h2 className="mb-3 text-lg font-bold text-gray-900">단지 목록 <span className="text-sm font-normal text-gray-500">거래 많은 순</span></h2>
         <RegionApartmentList apartments={region.apartments} />

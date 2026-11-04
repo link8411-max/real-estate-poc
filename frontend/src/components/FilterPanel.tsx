@@ -15,6 +15,7 @@ import {
   PRICE_STEPS_EOK,
   readMapFilters,
 } from "@/lib/mapFilters";
+import { readZoneFilters, STAGE_NAMES, toggleIn, TYPE_GROUPS, zoneColor, ZONE_KEYS } from "@/lib/redevelopment";
 
 type Patch = Record<string, string | number | undefined>;
 
@@ -63,6 +64,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/** 범례 견본: 유형 색상 + 단계가 진행될수록 진해지는 3칸(정비구역지정 → 관리처분인가 → 착공) */
+function LegendRow({ group }: { group: string }) {
+  return (
+    <li className="flex items-center gap-2 text-sm text-gray-700">
+      <span aria-hidden className="flex gap-1">
+        {[2, 4.5, 7].map((o) => {
+          const c = zoneColor(group, o);
+          return <span key={o} className="block h-3 w-3 rotate-45 border-2" style={{ background: c.fill, borderColor: c.border }} />;
+        })}
+      </span>
+      {group}
+    </li>
+  );
+}
+
 /** 지도 필터. 상태는 URL 쿼리에 있다. 데스크톱(md+) 좌측 패널, 모바일은 하단 시트. */
 export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
   const router = useRouter();
@@ -71,7 +87,8 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
   const [unit] = useAreaUnit();
   const [open, setOpen] = useState(false);
   const f = readMapFilters(new URLSearchParams(search.toString()));
-  const active = countActiveFilters(f);
+  const zf = readZoneFilters(new URLSearchParams(search.toString()));
+  const active = countActiveFilters(f) + (zf.on ? 1 : 0);
 
   const update = (patch: Patch) => {
     const next = new URLSearchParams(search.toString());
@@ -89,7 +106,7 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
       ? update({ minPrice: f.maxPrice, maxPrice: v })
       : update({ minPrice: v });
 
-  const reset = () => update(Object.fromEntries(["mode", ...FILTER_KEYS].map((k) => [k, undefined])));
+  const reset = () => update(Object.fromEntries(["mode", ...FILTER_KEYS, ...ZONE_KEYS].map((k) => [k, undefined])));
 
   return (
     <aside className="absolute inset-x-0 bottom-0 z-10 rounded-t-2xl bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.08)] md:inset-x-auto md:bottom-auto md:left-3 md:top-3 md:w-64 md:rounded-2xl md:shadow-lg">
@@ -109,7 +126,7 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
         <ChevronUp className={`ml-auto h-4 w-4 transition ${open ? "" : "rotate-180"}`} aria-hidden />
       </button>
 
-      <div className={`${open ? "block" : "hidden"} max-h-[60dvh] space-y-4 overflow-y-auto px-4 pb-4 md:block md:max-h-none md:pt-4`}>
+      <div className={`${open ? "block" : "hidden"} max-h-[60dvh] space-y-4 overflow-y-auto px-4 pb-4 md:block md:max-h-[calc(100dvh-53px-5rem)] md:pt-4`}>
         <Section title="거래종류">
           <div role="radiogroup" aria-label="거래종류" className="flex gap-2">
             {MODES.map((m) => (
@@ -166,6 +183,62 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
               );
             })}
           </div>
+        </Section>
+
+        <Section title="정비사업 (재건축·재개발)">
+          <button type="button" aria-pressed={zf.on} onClick={() => update({ zones: zf.on ? undefined : 1 })} className={chip(zf.on)}>
+            정비사업
+          </button>
+          {zf.on && (
+            <div className="mt-3 space-y-3">
+              <div>
+                <p className="mb-1.5 text-xs text-gray-500">유형 (여러 개 선택, 비우면 전체)</p>
+                <div role="group" aria-label="정비사업 유형" className="flex flex-wrap gap-2">
+                  {TYPE_GROUPS.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      aria-pressed={zf.types.includes(t)}
+                      onClick={() => {
+                        const next = toggleIn(zf.types, t, TYPE_GROUPS);
+                        update({ zt: next.length ? next.join(",") : undefined });
+                      }}
+                      className={chip(zf.types.includes(t))}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs text-gray-500">단계 (여러 개 선택, 비우면 전체)</p>
+                <div role="group" aria-label="정비사업 단계" className="flex flex-wrap gap-1.5">
+                  {STAGE_NAMES.map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      aria-pressed={zf.stages.includes(st)}
+                      onClick={() => {
+                        const next = toggleIn(zf.stages, st, STAGE_NAMES);
+                        update({ zs: next.length ? next.join(",") : undefined });
+                      }}
+                      className={`${chip(zf.stages.includes(st))} !px-2 !py-1 !text-xs`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div role="group" aria-label="범례" className="rounded-lg bg-gray-50 p-2.5">
+                <ul className="space-y-1">
+                  {TYPE_GROUPS.map((t) => (
+                    <LegendRow key={t} group={t} />
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] leading-snug text-gray-500">색이 진할수록 사업 단계가 진행된 구역입니다. 속이 빈 마름모는 위치가 동 단위 대략입니다.</p>
+              </div>
+            </div>
+          )}
         </Section>
 
         <button type="button" onClick={reset} className="text-sm text-gray-500 underline-offset-2 hover:underline">

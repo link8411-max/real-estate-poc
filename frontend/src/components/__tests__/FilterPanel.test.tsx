@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import FilterPanel from "../FilterPanel";
@@ -144,5 +144,55 @@ describe("FilterPanel", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
     await userEvent.click(toggle);
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("FilterPanel 정비사업", () => {
+  test("기본은 꺼짐: 토글만 있고 유형·단계·범례는 없다", () => {
+    render(<FilterPanel />);
+    expect(screen.getByRole("button", { name: "정비사업" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("group", { name: "정비사업 유형" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "범례" })).toBeNull();
+  });
+
+  test("켜면 zones=1, 기존 쿼리 유지. 끄면 지운다", async () => {
+    render(<FilterPanel />);
+    await userEvent.click(screen.getByRole("button", { name: "정비사업" }));
+    expect(lastQuery()).toEqual({ lat: "37.5", lng: "127", level: "6", zones: "1" });
+  });
+
+  test("켜져 있으면 유형·단계 필터와 범례가 보인다", async () => {
+    search = new URLSearchParams("zones=1");
+    render(<FilterPanel />);
+    expect(screen.getByRole("button", { name: "정비사업" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByRole("group", { name: "정비사업 유형" })).getAllByRole("button")).toHaveLength(3);
+    expect(within(screen.getByRole("group", { name: "정비사업 단계" })).getAllByRole("button")).toHaveLength(7);
+    const legend = screen.getByRole("group", { name: "범례" });
+    expect(legend.textContent).toContain("재건축");
+    expect(legend.textContent).toContain("주거환경개선");
+    expect(legend.textContent).toContain("진할수록");
+    expect(legend.textContent).toContain("동 단위 대략");
+    await userEvent.click(screen.getByRole("button", { name: "정비사업" }));
+    expect(lastQuery()).toEqual({});
+  });
+
+  test("유형·단계 복수 선택, 해제하면 쿼리에서 지운다", async () => {
+    search = new URLSearchParams("zones=1&zt=재건축");
+    render(<FilterPanel />);
+    const types = within(screen.getByRole("group", { name: "정비사업 유형" }));
+    expect(types.getByRole("button", { name: "재건축" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(types.getByRole("button", { name: "재개발" }));
+    expect(lastQuery()).toMatchObject({ zones: "1", zt: "재건축,재개발" });
+    await userEvent.click(types.getByRole("button", { name: "재건축" }));
+    expect(lastQuery().zt).toBeUndefined();
+    await userEvent.click(within(screen.getByRole("group", { name: "정비사업 단계" })).getByRole("button", { name: "착공" }));
+    expect(lastQuery()).toMatchObject({ zs: "착공" });
+  });
+
+  test("초기화는 정비사업 설정도 지운다", async () => {
+    search = new URLSearchParams("zones=1&zt=재건축&zs=착공&lat=37.5");
+    render(<FilterPanel />);
+    await userEvent.click(screen.getByRole("button", { name: "초기화" }));
+    expect(lastQuery()).toEqual({ lat: "37.5" });
   });
 });

@@ -11,10 +11,12 @@ import MiniMap from "@/components/MiniMap";
 import JsonLd from "@/components/JsonLd";
 import RentSection from "@/components/RentSection";
 import ShareButton from "@/components/ShareButton";
+import { ZoneBadge } from "@/components/ZoneChips";
 import { analyzeCanceled, countSince } from "@/lib/canceled";
 import { fetchAptRent, fetchAptTrade } from "@/lib/data";
 import { areaGroup, areaToPyeong, formatPrice } from "@/lib/format";
 import { kstToday, liveMetrics } from "@/lib/metrics";
+import { fetchZoneItems, zonesForApartment } from "@/lib/redevelopment";
 import { isMoved } from "@/lib/types";
 import { aptCrumbs, aptJsonLd, breadcrumbJsonLd, SITE_URL } from "@/lib/seo";
 
@@ -32,13 +34,14 @@ export default async function ApartmentPage({ params }: Props) {
   const id = Number((await params).id);
   if (!Number.isSafeInteger(id) || id <= 0) notFound();
   const init = { next: { revalidate } } as RequestInit;
-  const [data, rentRaw] = await Promise.all([fetchAptTrade(id, init), fetchAptRent(id, init)]);
+  const [data, rentRaw, zoneItems] = await Promise.all([fetchAptTrade(id, init), fetchAptRent(id, init), fetchZoneItems(init)]);
   if (!data) notFound();
   // 합쳐진 단지: 남은 단지로 영구 이동. 페이지가 ISR 이라 쿼리(?tab=)는 서버에서 볼 수 없다 — 탭은 기본값으로 열린다.
   if (isMoved(data)) permanentRedirect(`/apartment/${data.moved_to}`);
 
   const rentData = isMoved(rentRaw) ? null : rentRaw;
   const apt = data.apartment;
+  const zones = zonesForApartment(zoneItems, apt.id); // 정비구역에 매칭된 단지에만 배지(틀리게 붙이느니 안 붙인다)
   const rent = rentData ?? { apartment: apt, rent_area_stats: [], rents: [] };
   const latest = data.transactions.find((t) => t.cancel_date == null);
   const crumbs = aptCrumbs(apt);
@@ -73,6 +76,13 @@ export default async function ApartmentPage({ params }: Props) {
           </p>
         )}
         <InsightBadges metrics={metrics} />
+        {zones.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {zones.map((z) => (
+              <ZoneBadge key={z.zone_id} zone={z} />
+            ))}
+          </div>
+        )}
         <CanceledAlert total={recent.total} highs={recent.highs} />
       </section>
       {apt.lat != null && apt.lng != null && (

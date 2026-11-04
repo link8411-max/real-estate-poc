@@ -28,7 +28,7 @@ describe("sitemap", () => {
     const apts = urls.filter((u) => u.url.startsWith(`${SITE_URL}/apartment/`));
     expect(apts.map((u) => u.url)).toEqual([1, 2, 3].map((i) => `${SITE_URL}/apartment/${i}`));
     expect(apts[0].lastModified).toBe("2026-10-26T16:15:45+00:00");
-    expect(urls.map((u) => u.url)).toEqual(expect.arrayContaining([`${SITE_URL}/`, `${SITE_URL}/browse`, `${SITE_URL}/map`, `${SITE_URL}/stats`, `${SITE_URL}/canceled`, `${SITE_URL}/highs`]));
+    expect(urls.map((u) => u.url)).toEqual(expect.arrayContaining([`${SITE_URL}/`, `${SITE_URL}/browse`, `${SITE_URL}/map`, `${SITE_URL}/stats`, `${SITE_URL}/canceled`, `${SITE_URL}/highs`, `${SITE_URL}/redevelopment`]));
     expect(urls.some((u) => u.url.includes("/search") || u.url.includes("/compare"))).toBe(false);
   });
 

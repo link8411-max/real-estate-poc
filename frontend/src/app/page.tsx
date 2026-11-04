@@ -1,4 +1,4 @@
-import { Building2, CalendarDays, Ban, Flame, Map as MapIcon, MapPin, TrendingUp } from "lucide-react";
+import { Building2, CalendarDays, Ban, Flame, Hammer, Map as MapIcon, MapPin, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import MiniMap from "@/components/MiniMap";
@@ -6,6 +6,7 @@ import RecentDeals from "@/components/RecentDeals";
 import SearchBox from "@/components/SearchBox";
 import { pickHeadline } from "@/lib/canceled";
 import { fetchCanceledRecent, fetchHighsRecent, fetchStats } from "@/lib/data";
+import { fetchZoneItems } from "@/lib/redevelopment";
 import { DEFAULT_CENTER, DEFAULT_LEVEL } from "@/lib/mapFilters";
 import { kstToday } from "@/lib/metrics";
 import { browseHref, CITIES } from "@/lib/regions";
@@ -34,6 +35,7 @@ export default async function Home() {
   const canceledHead = Array.isArray(canceled?.items) ? pickHeadline(canceled.items, kstToday()) : null;
   const highs = await fetchHighsRecent({ next: { revalidate: 3600 } } as RequestInit).catch(() => null);
   const highsCount = Array.isArray(highs?.items) ? highs.items.length : 0;
+  const zoneCount = (await fetchZoneItems({ next: { revalidate: 3600 } } as RequestInit)).length;
   const districtCount = (city: string) => stats?.regions.filter((r) => r.city === city).length ?? 0;
 
   return (
@@ -98,6 +100,11 @@ export default async function Home() {
           {highsCount > 0 && (
             <Link href="/highs" className="block sm:col-span-3">
               <StatCard icon={<Flame className="h-5 w-5 text-rose-600" />} value={`${highsCount}건`} label="최근 30일 신고가" />
+            </Link>
+          )}
+          {zoneCount > 0 && (
+            <Link href="/redevelopment" className="block sm:col-span-3">
+              <StatCard icon={<Hammer className="h-5 w-5 text-violet-600" />} value={`재건축·재개발 ${zoneCount.toLocaleString("en-US")}곳`} label="정비구역 단계별 현황" />
             </Link>
           )}
           {canceledHead && canceledHead.items.length > 0 && (
