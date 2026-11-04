@@ -16,6 +16,9 @@ import {
   regionTitle,
   shortPrice,
   SITE_URL,
+  MAX_APT_TITLE,
+  shortDistrict,
+  websiteJsonLd,
 } from "../seo";
 import type { Apartment, AreaStat, Rent, Transaction } from "../types";
 
@@ -67,28 +70,57 @@ describe("shortPrice", () => {
   });
 });
 
+describe("shortDistrict", () => {
+  test("시군구 이름의 마지막 단어", () => {
+    expect(shortDistrict("용인시 기흥구")).toBe("기흥구");
+    expect(shortDistrict("송파구")).toBe("송파구");
+    expect(shortDistrict("성남시 분당구")).toBe("분당구");
+    expect(shortDistrict("광명시")).toBe("광명시");
+    expect(shortDistrict("")).toBe("");
+  });
+});
+
 describe("aptTitle", () => {
-  test("최근 거래가 있으면 가격·연월까지", () => {
-    expect(aptTitle(apt, tx(350000, "2025-10-30"))).toBe("역삼래미안 실거래가 | 서울 강남구 역삼동 · 최근 35억(25.10)");
+  const giheung: Apartment = { ...apt, name: "기흥역더퍼스트푸르지오", dong: "구갈동", lawd_cd: "41463", region_name: "경기 용인기흥", city: "경기" };
+  test("가격 먼저, 지역은 짧게", () => {
+    expect(aptTitle(giheung, tx(103000, "2025-10-30"))).toBe("기흥역더퍼스트푸르지오 실거래가 10.3억 · 기흥구 구갈동");
+    expect(aptTitle(apt, tx(350000, "2025-10-30"))).toBe("역삼래미안 실거래가 35억 · 강남구 역삼동");
   });
-  test("최근 거래가 없으면 뒷부분 생략", () => {
-    expect(aptTitle(apt)).toBe("역삼래미안 실거래가 | 서울 강남구 역삼동");
+  test("최근 거래가 없으면 가격 생략", () => {
+    expect(aptTitle(apt)).toBe("역삼래미안 실거래가 · 강남구 역삼동");
   });
-  test("60자를 넘으면 동을 먼저 뺀다", () => {
-    const name = "가".repeat(30);
-    const t = aptTitle({ ...apt, name }, tx(350000, "2025-10-30"));
-    expect(t).toBe(`${name} 실거래가 | 서울 강남구 · 최근 35억(25.10)`);
-    expect(t.length).toBeLessThanOrEqual(60);
+  test("모르는 코드는 region_name에서 시도를 뺀 값으로", () => {
+    expect(aptTitle({ ...apt, lawd_cd: "99999", region_name: "서울 어딘구" }, tx(350000, "2025-10-30"))).toBe("역삼래미안 실거래가 35억 · 어딘구 역삼동");
   });
-  test("그래도 넘으면 가격 부분을 뺀다", () => {
-    const name = "가".repeat(38);
-    const t = aptTitle({ ...apt, name }, tx(350000, "2025-10-30"));
-    expect(t).toBe(`${name} 실거래가 | 서울 강남구`);
-    expect(t.length).toBeLessThanOrEqual(60);
+  test("길면 동 → 지역 → 가격 순으로 뺀다", () => {
+    const t = (name: string) => aptTitle({ ...apt, name }, tx(350000, "2025-10-30"));
+    expect(t("가".repeat(17))).toBe(`${"가".repeat(17)} 실거래가 35억 · 강남구`);
+    expect(t("가".repeat(20))).toBe(`${"가".repeat(20)} 실거래가 35억`);
+    expect(t("가".repeat(40))).toBe(`${"가".repeat(40)} 실거래가`);
+    expect(t("가".repeat(17)).length).toBeLessThanOrEqual(MAX_APT_TITLE);
   });
-  test("이름만으로 넘으면 지역도 뺀다", () => {
-    const name = "가".repeat(60);
-    expect(aptTitle({ ...apt, name }, tx(350000, "2025-10-30"))).toBe(`${name} 실거래가`);
+  test("브랜드 접미사는 붙이지 않는다", () => {
+    expect(aptTitle(apt, tx(350000, "2025-10-30"))).not.toContain("집시세");
+  });
+});
+
+describe("websiteJsonLd", () => {
+  test("이름·대체 이름·검색 액션", () => {
+    const ld = websiteJsonLd() as { [k: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(ld["@type"]).toBe("WebSite");
+    expect(ld.name).toBe("집시세");
+    expect(ld.alternateName).toBe("zipsise");
+    expect(ld.url).toBe(`${SITE_URL}/`);
+    expect(ld.potentialAction.target.urlTemplate).toBe(`${SITE_URL}/search?q={search_term_string}`);
+  });
+});
+
+describe("aptDescription 지역 표기", () => {
+  test("regions 약칭(경기 용인기흥) 대신 정식 시군구 이름", () => {
+    const g: Apartment = { ...apt, name: "기흥역더퍼스트푸르지오", dong: "구갈동", lawd_cd: "41463", region_name: "경기 용인기흥", city: "경기" };
+    const d = aptDescription(g, []);
+    expect(d).toContain("경기 용인시 기흥구 구갈동 기흥역더퍼스트푸르지오");
+    expect(d).not.toContain("용인기흥");
   });
 });
 

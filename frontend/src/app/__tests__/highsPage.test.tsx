@@ -11,7 +11,7 @@ test("ISR 3600, 메타데이터", async () => {
   expect(mod.revalidate).toBe(3600);
   const m = await mod.generateMetadata();
   expect(m.alternates?.canonical).toBe("/highs");
-  expect(m.openGraph).toMatchObject({ url: "/highs", siteName: "수도권 아파트 실거래가", description: m.description });
+  expect(m.openGraph).toMatchObject({ url: "/highs", siteName: "집시세", description: m.description });
 });
 
 test("null 이어도 빈 상태 렌더 (첫 배포 직후)", async () => {

@@ -4,11 +4,16 @@ import type { Apartment, AreaStat, Metrics, RegionApartment, RegionStat, Rent, T
 
 /** 정식 주소(canonical·sitemap·JSON-LD) 기준. 도메인 연결 후 NEXT_PUBLIC_SITE_URL만 바꾼다. */
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://real-estate-poc-self.vercel.app").replace(/\/+$/, "");
-export const SITE_NAME = "수도권 아파트 실거래가";
+export const SITE_NAME = "집시세";
+export const SITE_ALT_NAME = "zipsise";
+/** 홈 제목(absolute): 브랜드를 앞에 두고 무엇을 하는 사이트인지 한 줄로. */
+export const HOME_TITLE = `${SITE_NAME} - 수도권 아파트 실거래가·신고가 조회`;
 
 /** 검색 결과에서 잘리지 않는 제목·설명 길이(대략) */
 export const MAX_TITLE = 60;
 export const MAX_DESCRIPTION = 160;
+/** 단지 제목은 모바일 검색 결과(약 580px)에서 가격까지 보이도록 더 짧게 자른다. */
+export const MAX_APT_TITLE = 34;
 
 export const absUrl = (path: string): string => (/^https?:\/\//.test(path) ? path : `${SITE_URL}${path.startsWith("/") ? "" : "/"}${path}`);
 
@@ -26,15 +31,21 @@ const yymm = (d: string): string => d.slice(2, 7).replace("-", ".");
 const firstFit = (candidates: string[], max: number): string =>
   candidates.find((c) => c.length <= max) ?? candidates[candidates.length - 1];
 
-/** "역삼래미안 실거래가 | 서울 강남구 역삼동 · 최근 35억(25.10)". 길면 동 → 가격 → 지역 순으로 뺀다. */
+/** 시군구 전체 이름 → 마지막 단어. "용인시 기흥구" → "기흥구", "광명시" → "광명시" */
+export const shortDistrict = (fullName: string): string => fullName.split(/\s+/).filter(Boolean).pop() ?? "";
+
+/** 단지의 정식 시군구 이름("용인시 기흥구"). 모르는 코드면 regions 표기에서 시도를 뺀 값. */
+const aptDistrict = (apt: Apartment): string => districtFullName(apt.lawd_cd) || apt.region_name.replace(/^\S+\s/, "");
+
+/**
+ * "역삼래미안 실거래가 35억 · 강남구 역삼동". 가격을 앞에 두고 지역은 짧게(시군구 마지막 단어).
+ * 길면 동 → 지역 → 가격 순으로 뺀다. 브랜드 접미사는 붙이지 않는다(absolute).
+ */
 export function aptTitle(apt: Apartment, latest?: Transaction): string {
-  const head = `${apt.name} 실거래가`;
-  const price = latest ? ` · 최근 ${shortPrice(latest.amount)}(${yymm(latest.deal_date)})` : "";
-  const withDong = `${apt.region_name} ${apt.dong}`;
-  return firstFit(
-    [`${head} | ${withDong}${price}`, `${head} | ${apt.region_name}${price}`, `${head} | ${apt.region_name}`, head],
-    MAX_TITLE,
-  );
+  const head = `${apt.name} 실거래가${latest ? ` ${shortPrice(latest.amount)}` : ""}`;
+  const gu = shortDistrict(aptDistrict(apt));
+  const place = (withDong: boolean) => (gu ? ` · ${gu}${withDong && apt.dong ? ` ${apt.dong}` : ""}` : "");
+  return firstFit([`${head}${place(true)}`, `${head}${place(false)}`, head, `${apt.name} 실거래가`], MAX_APT_TITLE);
 }
 
 /** 평형별 최근가 요약(거래 많은 평형 n개, 면적순). "59㎡ 28억(25.11), 80㎡ 35억(25.10)" */
@@ -63,7 +74,7 @@ export function latestJeonse(rents: Rent[], metrics: Metrics): JeonseInfo | null
 
 /** 단지 페이지 설명(160자 이내). 전세는 평형 요약보다 우선해서 남긴다: 평형 수 → 꼬리 문장 → 평형 요약 → 전세 순으로 줄이고, 그래도 길면 자른다. */
 export function aptDescription(apt: Apartment, areaStats: AreaStat[], jeonse?: JeonseInfo | null): string {
-  const head = `${apt.region_name} ${apt.dong} ${apt.name} 아파트 매매 실거래가${apt.build_year ? `(${apt.build_year}년 준공)` : ""}.`;
+  const head = `${apt.city} ${aptDistrict(apt)} ${apt.dong} ${apt.name} 아파트 매매 실거래가${apt.build_year ? `(${apt.build_year}년 준공)` : ""}.`;
   const tail = " 평형별 시세·전월세·거래 내역.";
   const jeonseText = jeonse
     ? ` 최근 전세 ${shortPrice(jeonse.deposit)}${jeonse.ratio != null ? `, 전세가율 ${Math.round(jeonse.ratio)}%` : ""}.`
@@ -181,6 +192,22 @@ export function breadcrumbJsonLd(items: Crumb[]): Record<string, unknown> {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: items.map((c, i) => ({ "@type": "ListItem", position: i + 1, name: c.name, item: absUrl(c.url) })),
+  };
+}
+
+/** schema.org WebSite: 검색 결과에 사이트 이름·대체 이름을 알리고 사이트 내 검색(/search?q=)을 연결한다. */
+export function websiteJsonLd(): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    alternateName: SITE_ALT_NAME,
+    url: absUrl("/"),
+    potentialAction: {
+      "@type": "SearchAction",
+      target: { "@type": "EntryPoint", urlTemplate: `${absUrl("/search")}?q={search_term_string}` },
+      "query-input": "required name=search_term_string",
+    },
   };
 }
 

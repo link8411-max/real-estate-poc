@@ -130,6 +130,6 @@ describe("공유 설명·OG 메타", () => {
   });
   test("openGraph: url·siteName·locale", async () => {
     const m = await page.generateMetadata(props("1554", "2"));
-    expect(m.openGraph).toMatchObject({ url: "/canceled/1554/2", siteName: "수도권 아파트 실거래가", locale: "ko_KR" });
+    expect(m.openGraph).toMatchObject({ url: "/canceled/1554/2", siteName: "집시세", locale: "ko_KR" });
   });
 });

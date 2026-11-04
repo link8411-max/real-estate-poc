@@ -21,7 +21,7 @@ test("throw 해도 빈 상태 렌더", async () => {
 test("메타데이터: openGraph·twitter", async () => {
   const { generateMetadata } = await import("../canceled/page");
   const m = await generateMetadata();
-  expect(m.openGraph).toMatchObject({ title: "취소된 신고가", url: "/canceled", type: "website", siteName: "수도권 아파트 실거래가", locale: "ko_KR", description: m.description });
+  expect(m.openGraph).toMatchObject({ title: "취소된 신고가", url: "/canceled", type: "website", siteName: "집시세", locale: "ko_KR", description: m.description });
   expect(m.twitter).toMatchObject({ card: "summary", title: "취소된 신고가", description: m.description });
 });
 

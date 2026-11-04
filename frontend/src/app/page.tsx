@@ -9,8 +9,10 @@ import { fetchCanceledRecent, fetchHighsRecent, fetchStats } from "@/lib/data";
 import { DEFAULT_CENTER, DEFAULT_LEVEL } from "@/lib/mapFilters";
 import { kstToday } from "@/lib/metrics";
 import { browseHref, CITIES } from "@/lib/regions";
+import { HOME_TITLE, websiteJsonLd } from "@/lib/seo";
+import JsonLd from "@/components/JsonLd";
 
-export const metadata: Metadata = { alternates: { canonical: "/" } };
+export const metadata: Metadata = { title: { absolute: HOME_TITLE }, alternates: { canonical: "/" } };
 
 const KEYWORDS = ["잠실", "반포", "래미안", "판교", "ㄹㅁㅇ"];
 
@@ -36,6 +38,7 @@ export default async function Home() {
 
   return (
     <main className="pb-12">
+      <JsonLd data={websiteJsonLd()} />
       <section className="bg-gradient-to-b from-blue-600 to-blue-700 py-14">
         <div className="mx-auto max-w-2xl px-4 text-center">
           <h1 className="mb-2 text-3xl font-bold text-white">아파트 실거래가 조회</h1>
