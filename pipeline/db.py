@@ -136,6 +136,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     except sqlite3.OperationalError:
         pass
     conn.commit()
+    from pipeline.canceled import normalize_cancel_dates  # 순환 import 회피
+
+    normalize_cancel_dates(conn)
 
 
 def upsert_apartment(
