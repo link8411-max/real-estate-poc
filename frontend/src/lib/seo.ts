@@ -1,6 +1,6 @@
 import { areaGroup } from "./format";
 import { browseHref, districtFullName, regionHref, resolveRegionCode } from "./regions";
-import type { Apartment, AreaStat, RegionApartment, RegionStat, Transaction } from "./types";
+import type { Apartment, AreaStat, Metrics, RegionApartment, RegionStat, Rent, Transaction } from "./types";
 
 /** 정식 주소(canonical·sitemap·JSON-LD) 기준. 도메인 연결 후 NEXT_PUBLIC_SITE_URL만 바꾼다. */
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://real-estate-poc-self.vercel.app").replace(/\/+$/, "");
@@ -49,13 +49,28 @@ function areaSummary(stats: AreaStat[], n: number): string {
 
 const clip = (s: string, max: number): string => (s.length <= max ? s : `${s.slice(0, max - 1)}…`);
 
-/** 단지 페이지 설명(160자 이내). 길면 평형 수 → 꼬리 문장 순으로 줄이고, 그래도 길면 자른다. */
-export function aptDescription(apt: Apartment, areaStats: AreaStat[]): string {
+export interface JeonseInfo {
+  deposit: number;
+  ratio?: number;
+}
+
+/** 가장 최근 전세(월세 0) 거래의 보증금 + 매매 지표의 전세가율. 전세 거래가 없으면 null. */
+export function latestJeonse(rents: Rent[], metrics: Metrics): JeonseInfo | null {
+  const jeonse = rents.filter((r) => r.monthly_rent === 0).sort((a, b) => b.deal_date.localeCompare(a.deal_date))[0];
+  if (!jeonse) return null;
+  return { deposit: jeonse.deposit, ...(metrics.jeonse_ratio != null ? { ratio: metrics.jeonse_ratio } : {}) };
+}
+
+/** 단지 페이지 설명(160자 이내). 전세는 평형 요약보다 우선해서 남긴다: 평형 수 → 꼬리 문장 → 평형 요약 → 전세 순으로 줄이고, 그래도 길면 자른다. */
+export function aptDescription(apt: Apartment, areaStats: AreaStat[], jeonse?: JeonseInfo | null): string {
   const head = `${apt.region_name} ${apt.dong} ${apt.name} 아파트 매매 실거래가${apt.build_year ? `(${apt.build_year}년 준공)` : ""}.`;
   const tail = " 평형별 시세·전월세·거래 내역.";
+  const jeonseText = jeonse
+    ? ` 최근 전세 ${shortPrice(jeonse.deposit)}${jeonse.ratio != null ? `, 전세가율 ${Math.round(jeonse.ratio)}%` : ""}.`
+    : "";
   const deals = (n: number) => (n > 0 && areaStats.length > 0 ? ` 최근 거래 ${areaSummary(areaStats, n)}.` : "");
-  const candidates = [3, 2, 1].map((n) => head + deals(n) + tail);
-  candidates.push(head + deals(1), head);
+  const candidates = [3, 2, 1].map((n) => head + jeonseText + deals(n) + tail);
+  candidates.push(head + jeonseText + deals(1), head + jeonseText, head);
   const fit = candidates.find((c) => c.length <= MAX_DESCRIPTION);
   return fit ?? clip(head, MAX_DESCRIPTION);
 }

@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   aptCrumbs,
   aptDescription,
+  latestJeonse,
   aptJsonLd,
   aptTitle,
   breadcrumbJsonLd,
@@ -16,7 +17,7 @@ import {
   shortPrice,
   SITE_URL,
 } from "../seo";
-import type { Apartment, AreaStat, Transaction } from "../types";
+import type { Apartment, AreaStat, Rent, Transaction } from "../types";
 
 const apt: Apartment = {
   id: 764,
@@ -121,6 +122,53 @@ describe("aptDescription", () => {
     const huge = aptDescription({ ...apt, name: "가".repeat(200) }, stats);
     expect(huge.length).toBe(160);
     expect(huge.endsWith("…")).toBe(true);
+  });
+});
+
+describe("aptDescription 전세", () => {
+  const stats = [stat(59, 699, 280000, "2025-11-08"), stat(80, 229, 350000, "2025-10-30"), stat(84, 500, 330000, "2025-09-01")];
+  test("전세 데이터가 있으면 전세가·전세가율을 거래 요약 앞에 넣는다", () => {
+    const d = aptDescription(apt, stats, { deposit: 190000, ratio: 61.4 });
+    expect(d).toContain("최근 전세 19억, 전세가율 61%.");
+    expect(d.indexOf("최근 전세")).toBeLessThan(d.indexOf("최근 거래"));
+    expect(d.length).toBeLessThanOrEqual(160);
+  });
+  test("전세가율이 없으면 전세가만", () => {
+    const d = aptDescription(apt, stats, { deposit: 190000 });
+    expect(d).toContain("최근 전세 19억.");
+    expect(d).not.toContain("전세가율");
+  });
+  test("전세 정보 없으면 기존과 같다", () => {
+    expect(aptDescription(apt, stats, null)).toBe(aptDescription(apt, stats));
+  });
+  test("공간이 모자라면 평형 요약을 먼저 줄이고 전세는 남긴다", () => {
+    const long = { ...apt, name: "가".repeat(75) };
+    const d = aptDescription(long, stats, { deposit: 190000, ratio: 61.4 });
+    expect(d.length).toBeLessThanOrEqual(160);
+    expect(d).toContain("최근 전세 19억, 전세가율 61%.");
+    expect(d).not.toContain("84㎡");
+  });
+  test("아주 길면 전세도 빼고 160자로 자른다", () => {
+    const huge = aptDescription({ ...apt, name: "가".repeat(200) }, stats, { deposit: 190000, ratio: 61.4 });
+    expect(huge.length).toBe(160);
+  });
+});
+
+describe("latestJeonse", () => {
+  const rent = (deposit: number, monthly: number, date: string): Rent => ({
+    id: 1, deposit, monthly_rent: monthly, area: 84, floor: 3, deal_date: date,
+    contract_type: null, use_rr_right: null, pre_deposit: null, pre_monthly_rent: null,
+  });
+  test("월세 없는 가장 최근 거래의 보증금 + 매매 지표의 전세가율", () => {
+    const rents = [rent(150000, 0, "2025-09-01"), rent(30000, 100, "2025-11-01"), rent(160000, 0, "2025-10-01")];
+    expect(latestJeonse(rents, { jeonse_ratio: 55.5 })).toEqual({ deposit: 160000, ratio: 55.5 });
+  });
+  test("전세 거래가 없으면 null", () => {
+    expect(latestJeonse([rent(30000, 100, "2025-11-01")], {})).toBeNull();
+    expect(latestJeonse([], {})).toBeNull();
+  });
+  test("전세가율 지표가 없으면 ratio 생략", () => {
+    expect(latestJeonse([rent(150000, 0, "2025-09-01")], {})).toEqual({ deposit: 150000 });
   });
 });
 
