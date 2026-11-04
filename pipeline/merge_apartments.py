@@ -2,7 +2,7 @@
 
 L = apt_seq 없는 옛 단지, N = apt_seq 있는 새 단지. 같은 (lawd_cd, dong, jibun, build_year)에
 L 정확히 1개와 N 정확히 1개만 있고, 거래 이력이 이름 변경 모양일 때만 합친다
-(L 에 N 첫 거래 전 이력이 있고, N 첫 거래일 이후 L 거래는 모두 N 거래와 중복). 나머지는 사유와 함께 '애매'로 보고만 한다.
+(L 에 N 첫 거래 전 이력이 있고, 1년 넘게 끊기지 않았으며, N 첫 거래일 이후 L 거래는 모두 N 거래와 중복). 나머지는 사유와 함께 '애매'로 보고만 한다.
 남는 쪽은 L 의 id, 이름·apt_seq 는 N 의 것. 사라진 N 의 id 는 apartment_aliases 에 남긴다.
 """
 from __future__ import annotations
@@ -10,7 +10,10 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+from datetime import date, timedelta
 from typing import Any
+
+MAX_GAP_DAYS = 365  # L 마지막 거래 >= N 첫 거래 - 365일
 
 # 묶음 찾기는 apartments 한 번 GROUP BY (거래 테이블은 보지 않는다 — 매일 migrate 에서 돈다).
 _GROUPS_SQL = """
@@ -42,6 +45,7 @@ def _rename_reason(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> str 
     """1×1 후보가 확실한 이름 변경이면 None, 아니면 애매 사유.
 
     확실한 이름 변경 = N 에 거래가 있고, L 에 N 첫 거래일보다 이른 거래가 있으며(L 이 옛 이력),
+    L 마지막 거래가 N 첫 거래 365일 전 이후이고(이력이 이어짐),
     N 첫 거래일 이후의 L 거래는 전부 N 거래와 중복(같은 거래가 두 이름으로 들어온 것)일 때.
     1×1 후보(수십 개)에만 부른다 — 단지별 거래만 읽는다(idx_trans_apt_id).
     """
@@ -53,6 +57,9 @@ def _rename_reason(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> str 
     l_rows = conn.execute(sql, (keep_id,)).fetchall()
     if not any(r[0] < first for r in l_rows):
         return "no_older_history"
+    last = max(r[0] for r in l_rows)
+    if date.fromisoformat(last[:10]) < date.fromisoformat(first[:10]) - timedelta(days=MAX_GAP_DAYS):
+        return "history_gap"  # 1년 넘게 끊긴 이력은 재건축 등일 수 있다
     pool: dict[tuple[Any, ...], int] = {}
     for r in n_rows:
         k = _trade_key(r)

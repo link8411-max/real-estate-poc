@@ -312,3 +312,30 @@ def test_cli_dry_run_and_apply(tmp_path, world, conn):
     chk = sqlite3.connect(db)
     assert chk.execute("SELECT count(*) FROM apartments WHERE id=?", (world["N"],)).fetchone()[0] == 0
     chk.close()
+
+
+def _gap_pair(c, l_dates, n_dates):
+    L = _apt(c, "옛단지", "700", 1990, None)
+    N = _apt(c, "새단지", "700", 1990, "S-9")
+    for i, d in enumerate(l_dates):
+        _trade(c, L, 10000 + i, d)
+    for i, d in enumerate(n_dates):
+        _trade(c, N, 20000 + i, d)
+    return L, N
+
+
+def test_history_gap_over_a_year_is_ambiguous(conn):
+    L, N = _gap_pair(conn, ["2009-07-22", "2014-04-23"], ["2018-04-04", "2020-01-01"])
+    pairs, ambiguous = find_rename_pairs(conn)
+    assert pairs == []
+    assert [(g["reason"], g["legacy"][0]["id"], g["new"][0]["id"]) for g in ambiguous] == [("history_gap", L, N)]
+    assert merge_renamed(conn) == 0
+
+
+def test_history_gap_within_a_year_merges(conn):
+    L, N = _gap_pair(conn, ["2020-01-01", "2025-03-01"], ["2026-02-01"])
+    assert find_rename_pairs(conn) == ([(L, N)], [])
+    L2, N2 = (_apt(conn, "옛", "701", 1990, None), _apt(conn, "새", "701", 1990, "S-10"))
+    _trade(conn, L2, 1, "2025-02-01")
+    _trade(conn, N2, 2, "2026-02-01")  # 정확히 365일
+    assert (L2, N2) in find_rename_pairs(conn)[0]
