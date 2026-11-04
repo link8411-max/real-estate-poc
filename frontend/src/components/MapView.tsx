@@ -2,10 +2,11 @@
 
 import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import FilterPanel from "@/components/FilterPanel";
 import KakaoMap, { type LatLngLiteral } from "@/components/KakaoMap";
 import MapMarkers from "@/components/MapMarkers";
+import MyLocationButton from "@/components/MyLocationButton";
 import { type MapBounds, readInitialView, readMapFilters, toApiQuery } from "@/lib/mapFilters";
 import { useMapData } from "@/lib/useMapData";
 
@@ -28,6 +29,16 @@ export default function MapView() {
   const [initial] = useState(() => readInitialView(new URLSearchParams(search.toString())));
   const [view, setView] = useState<{ bounds: MapBounds; level: number } | null>(null);
   const [map, setMap] = useState<kakao.maps.Map | null>(null);
+
+  // 내 위치 버튼의 안내·오류 토스트(3초 뒤 사라진다)
+  const [notice, setNotice] = useState<{ text: string; tone: "info" | "error" } | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const showNotice = useCallback((text: string, tone: "info" | "error") => {
+    clearTimeout(noticeTimer.current);
+    setNotice({ text, tone });
+    noticeTimer.current = setTimeout(() => setNotice(null), 3000);
+  }, []);
+  useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
   const filters = readMapFilters(new URLSearchParams(search.toString()));
   const { data, loading, error, tooWide } = useMapData(
@@ -53,8 +64,11 @@ export default function MapView() {
         <KakaoMap center={initial.center} level={initial.level} onIdle={onIdle} onReady={setMap} />
       </div>
       {map && <MapMarkers map={map} data={data} mode={filters.mode} bounds={view?.bounds} />}
+      {map && <MyLocationButton map={map} onNotice={showNotice} />}
       <FilterPanel />
-      {tooWide ? (
+      {notice ? (
+        <Toast tone={notice.tone}>{notice.text}</Toast>
+      ) : tooWide ? (
         <Toast>지도를 더 확대해 주세요</Toast>
       ) : error ? (
         <Toast tone="error">{error}</Toast>
