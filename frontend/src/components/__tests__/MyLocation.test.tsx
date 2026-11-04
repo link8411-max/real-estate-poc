@@ -142,9 +142,12 @@ describe("내 위치 버튼", () => {
     const { rerender } = render(<MyLocationButton map={map as never} onNotice={() => {}} />);
     const btn = () => screen.getByRole("button", { name: "내 위치" });
     expect(btn().style.getPropertyValue("--lift")).toBe("");
-    rerender(<MyLocationButton map={map as never} onNotice={() => {}} liftPx={304} />);
-    expect(btn().style.getPropertyValue("--lift")).toBe("304px");
-    expect(btn().className).toContain("bottom-[var(--lift)]");
+    rerender(<MyLocationButton map={map as never} onNotice={() => {}} liftPx={240} />);
+    expect(btn().style.getPropertyValue("--lift")).toBe("240px");
+    expect(btn().className).toContain("bottom-[calc(var(--card-bottom)+var(--lift)+8px)]");
+    // 데스크톱(md+)에서도 같은 lift가 적용된다: 카드 하단 여백만 32px로 바뀐다
+    expect(btn().className).toContain("md:[--card-bottom:32px]");
+    expect(btn().className).not.toContain("md:bottom-8");
     rerender(<MyLocationButton map={map as never} onNotice={() => {}} liftPx={180} />);
     expect(btn().style.getPropertyValue("--lift")).toBe("180px");
   });

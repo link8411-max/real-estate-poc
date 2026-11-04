@@ -90,8 +90,15 @@ describe("MapView 미리보기 카드", () => {
     expect(screen.getByText("전세가율")).toBeTruthy();
     expect(screen.getByText("60%")).toBeTruthy();
     expect(screen.getByRole("link", { name: "상세 보기 ›" }).getAttribute("href")).toBe("/apartment/1");
-    // 카드 높이 240px 가정: 56 + 240 + 8
-    expect(screen.getByTestId("loc").getAttribute("data-lift")).toBe("304");
+    // 카드 높이 240px 가정
+    expect(screen.getByTestId("loc").getAttribute("data-lift")).toBe("240");
+    // md+에서는 오른쪽 아래에 붙어 왼쪽 필터 패널과 겹치지 않는다
+    const cls = screen.getByRole("region").className;
+    expect(cls).toContain("md:right-4");
+    expect(cls).toContain("md:bottom-8");
+    expect(cls).toContain("md:w-[360px]");
+    expect(cls).not.toContain("md:left-");
+    expect(cls).toContain("overflow-y-auto");
   });
 
   test("값이 없으면 -, 전세가율은 한쪽이라도 없으면 -", () => {

@@ -15,7 +15,7 @@ interface Props {
   map: kakao.maps.Map;
   /** 안내·오류 문구 전달(토스트는 호출한 쪽이 띄운다) */
   onNotice: (message: string, tone: "info" | "error") => void;
-  /** 모바일에서 미리보기 카드가 열려 있으면 이 높이(px, 하단 기준)로 올려 카드를 가리지 않게 한다 */
+  /** 모바일에서 미리보기 카드가 열려 있으면 카드 높이(px)만큼 카드 위로 올려 가리지 않게 한다(카드 하단 여백은 모바일 56px, md+ 32px) */
   liftPx?: number;
 }
 
@@ -76,7 +76,7 @@ export default function MyLocationButton({ map, onNotice, liftPx }: Props) {
       aria-label="내 위치"
       onClick={locate}
       disabled={busy}
-      className={`absolute right-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg hover:bg-gray-50 md:bottom-8 ${liftPx === undefined ? "bottom-14" : "bottom-[var(--lift)]"}`}
+      className={`absolute right-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg hover:bg-gray-50 ${liftPx === undefined ? "bottom-14 md:bottom-8" : "bottom-[calc(var(--card-bottom)+var(--lift)+8px)] [--card-bottom:56px] md:[--card-bottom:32px]"}`}
       style={liftPx === undefined ? undefined : ({ "--lift": `${liftPx}px` } as React.CSSProperties)}
     >
       {busy ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <LocateFixed className="h-5 w-5" aria-hidden />}

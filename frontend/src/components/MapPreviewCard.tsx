@@ -58,7 +58,7 @@ export default function MapPreviewCard({ apartment: a, onClose, onHeight }: Prop
     <section
       ref={ref}
       aria-label={`${a.name} 미리보기`}
-      className="absolute inset-x-3 bottom-14 z-10 rounded-2xl bg-white p-4 shadow-xl md:inset-x-auto md:bottom-3 md:left-3 md:w-[360px]"
+      className="absolute inset-x-3 bottom-14 z-10 max-h-[calc(100dvh-81px-68px)] overflow-y-auto rounded-2xl bg-white p-4 shadow-xl md:inset-x-auto md:bottom-8 md:right-4 md:max-h-[calc(100dvh-53px-44px)] md:w-[360px]"
     >
       <button type="button" aria-label="닫기" onClick={onClose} className="absolute right-2 top-2 rounded-full p-1.5 text-gray-400 hover:bg-gray-100">
         <X className="h-4 w-4" aria-hidden />
