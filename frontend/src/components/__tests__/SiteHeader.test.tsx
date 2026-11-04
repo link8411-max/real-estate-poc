@@ -13,3 +13,9 @@ test("면적 단위 토글이 헤더에 있다", () => {
   render(<SiteHeader />);
   expect(screen.getByRole("radiogroup")).toBeInTheDocument();
 });
+
+test("취소된 신고가 메뉴가 통계 앞에 있다", () => {
+  const labels = NAV.map((n) => n.label);
+  expect(NAV.find((n) => n.label === "취소된 신고가")?.href).toBe("/canceled");
+  expect(labels.indexOf("취소된 신고가")).toBe(labels.indexOf("통계") - 1);
+});

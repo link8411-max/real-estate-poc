@@ -5,6 +5,7 @@ export const NAV = [
   { href: "/", label: "홈" },
   { href: "/map", label: "지도" },
   { href: "/browse", label: "탐색" },
+  { href: "/canceled", label: "취소된 신고가" },
   { href: "/stats", label: "통계" },
   { href: "/compare", label: "비교" },
 ];
