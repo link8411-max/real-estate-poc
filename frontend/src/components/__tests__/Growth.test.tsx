@@ -15,7 +15,9 @@ describe("ShareButton", () => {
     Object.defineProperty(navigator, "share", { value: share, configurable: true });
     render(<ShareButton aptId={1554} meta={meta} />);
     await userEvent.click(screen.getByRole("button", { name: "공유" }));
-    expect(share).toHaveBeenCalledWith({ title: meta.title, text: meta.description, url: meta.url });
+    expect(share).toHaveBeenCalledWith({
+      title: meta.title, text: meta.description, url: "https://x/apartment/1554?utm_source=share_sheet&utm_medium=share",
+    });
     Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
   });
 
@@ -24,7 +26,7 @@ describe("ShareButton", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     render(<ShareButton aptId={1554} meta={meta} />);
     await user.click(screen.getByRole("button", { name: "공유" }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(meta.url));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("https://x/apartment/1554?utm_source=link_copy&utm_medium=share"));
     expect(await screen.findByRole("button", { name: "링크 복사됨" })).toBeInTheDocument();
   });
 });

@@ -7,6 +7,17 @@ export const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "";
 
 export type ShareMethod = "kakao" | "share" | "link";
 
+const UTM_SOURCE: Record<ShareMethod, string> = { kakao: "kakaotalk", share: "share_sheet", link: "link_copy" };
+
+/** 공유 링크에 UTM 을 붙인다 — 카톡·인스타 인앱 브라우저는 레퍼러를 지워서 유입 경로를 UTM 으로 구분한다.
+ *  페이지마다 canonical 이 있어 검색 색인에는 영향이 없다. */
+export function withUtm(url: string, method: ShareMethod): string {
+  const u = new URL(url);
+  u.searchParams.set("utm_source", UTM_SOURCE[method]);
+  u.searchParams.set("utm_medium", "share");
+  return u.toString();
+}
+
 type Events = {
   apt_view: { apt_id: string; region: string };
   search_select: { apt_id: string };

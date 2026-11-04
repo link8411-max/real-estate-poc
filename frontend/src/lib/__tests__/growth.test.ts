@@ -56,3 +56,21 @@ describe("analytics", () => {
     expect(s).toMatch(/if\(new RegExp\(.+\)\.test\(location\.hostname\)\)\{.*gtag\/js\?id=G-TEST/);
   });
 });
+
+describe("withUtm", () => {
+  test("공유 방법별 utm_source·utm_medium 을 붙인다", async () => {
+    const { withUtm } = await import("../analytics");
+    expect(withUtm("https://zipsise.com/apartment/1554", "kakao")).toBe(
+      "https://zipsise.com/apartment/1554?utm_source=kakaotalk&utm_medium=share",
+    );
+    expect(withUtm("https://zipsise.com/canceled/1/2", "link")).toBe(
+      "https://zipsise.com/canceled/1/2?utm_source=link_copy&utm_medium=share",
+    );
+  });
+  test("기존 쿼리는 남기고 utm 은 덮어쓴다", async () => {
+    const { withUtm } = await import("../analytics");
+    expect(withUtm("https://zipsise.com/map?lat=37.5&utm_source=old", "share")).toBe(
+      "https://zipsise.com/map?lat=37.5&utm_source=share_sheet&utm_medium=share",
+    );
+  });
+});
