@@ -77,6 +77,23 @@ def world(conn):
     w["c_L1"] = _apt(c, "한양2", "200", 1990, None)
     w["c_L2"] = _apt(c, "한양3", "200", 1990, None)
     w["c_N"] = _apt(c, "한양새이름", "200", 1990, "S-3")
+    # (f) 1:1 이지만 같은 지번의 다른 단지: 같은 해들에 서로 다른 거래
+    w["f_L"] = _apt(c, "한양3", "400", 1988, None)
+    w["f_N"] = _apt(c, "한양2", "400", 1988, "S-6")
+    _trade(c, w["f_L"], 29000, "2008-01-01")
+    _trade(c, w["f_L"], 30000, "2010-01-01")
+    _trade(c, w["f_L"], 31000, "2012-01-01")
+    _trade(c, w["f_N"], 40000, "2009-06-01")
+    _trade(c, w["f_N"], 41000, "2011-06-01")
+    # (g) 1:1 이지만 L 에 N 이전 이력이 없음
+    w["g_L"] = _apt(c, "옛G", "500", 2015, None)
+    w["g_N"] = _apt(c, "새G", "500", 2015, "S-7")
+    _trade(c, w["g_L"], 70000, "2026-03-01")
+    _trade(c, w["g_N"], 70000, "2026-02-01")
+    # (h) 1:1 이지만 N 에 거래가 없음
+    w["h_L"] = _apt(c, "옛H", "600", 2015, None)
+    w["h_N"] = _apt(c, "새H", "600", 2015, "S-8")
+    _trade(c, w["h_L"], 80000, "2020-03-01")
     # (d) build_year 다름
     w["d_L"] = _apt(c, "옛D", "300", 2000, None)
     w["d_N"] = _apt(c, "새D", "300", 2001, "S-4")
@@ -92,14 +109,18 @@ def test_find_pairs_only_strict_one_to_one(conn, world):
     pairs, ambiguous = find_rename_pairs(conn)
     assert pairs == [(world["L"], world["N"])]
     groups = sorted(
-        (sorted(x["id"] for x in g["legacy"]), sorted(x["id"] for x in g["new"])) for g in ambiguous
+        (sorted(x["id"] for x in g["legacy"]), sorted(x["id"] for x in g["new"]), g["reason"])
+        for g in ambiguous
     )
     assert groups == sorted([
-        ([world["b_L"]], sorted([world["b_N1"], world["b_N2"]])),
-        (sorted([world["c_L1"], world["c_L2"]]), [world["c_N"]]),
+        ([world["b_L"]], sorted([world["b_N1"], world["b_N2"]]), "one_to_many"),
+        (sorted([world["c_L1"], world["c_L2"]]), [world["c_N"]], "many_to_one"),
+        ([world["f_L"]], [world["f_N"]], "overlapping_distinct_trades"),
+        ([world["g_L"]], [world["g_N"]], "no_older_history"),
+        ([world["h_L"]], [world["h_N"]], "new_has_no_trades"),
     ])
     g = next(g for g in ambiguous if g["jibun"] == "100")
-    assert set(g) == {"lawd_cd", "dong", "jibun", "build_year", "legacy", "new"}
+    assert set(g) == {"lawd_cd", "dong", "jibun", "build_year", "reason", "legacy", "new"}
     assert set(g["legacy"][0]) == {"id", "name", "trades"}
     assert set(g["new"][0]) == {"id", "name", "apt_seq", "trades"}
 
@@ -122,7 +143,8 @@ def test_merge_renamed_merges_pair(conn, world):
     assert [tuple(r) for r in conn.execute("SELECT old_id, canonical_id FROM apartment_aliases")] == [(N, L)]
     assert pop_changed(conn) == sorted([L, N])
     # 애매·비대상은 그대로
-    for k in ("b_L", "b_N1", "b_N2", "c_L1", "c_L2", "c_N", "d_L", "d_N", "e_L", "e_N"):
+    for k in ("b_L", "b_N1", "b_N2", "c_L1", "c_L2", "c_N", "d_L", "d_N", "e_L", "e_N",
+              "f_L", "f_N", "g_L", "g_N", "h_L", "h_N"):
         assert conn.execute("SELECT count(*) FROM apartments WHERE id=?", (world[k],)).fetchone()[0] == 1
     # 멱등
     assert merge_renamed(conn) == 0
@@ -282,7 +304,7 @@ def test_cli_dry_run_and_apply(tmp_path, world, conn):
     assert main(["--db", str(db), "--report", str(report), "--dry-run"]) == 0
     r = json.loads(report.read_text())
     assert [[p["keep_id"], p["drop_id"]] for p in r["pairs"]] == [[world["L"], world["N"]]]
-    assert len(r["ambiguous"]) == 2
+    assert len(r["ambiguous"]) == 5
     chk = sqlite3.connect(db)
     assert chk.execute("SELECT count(*) FROM apartments WHERE id=?", (world["N"],)).fetchone()[0] == 1
     chk.close()
