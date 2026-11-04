@@ -193,12 +193,19 @@ def merge_pair(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dict[str
 
 
 def merge_renamed(conn: sqlite3.Connection) -> int:
-    """1:1 쌍을 모두 합치고 쌍 개수를 돌려준다. 쌍마다 한 트랜잭션."""
-    pairs = _pairs(conn)
-    for keep_id, drop_id in pairs:
-        with conn:
-            merge_pair(conn, keep_id, drop_id)
-    return len(pairs)
+    """1:1 쌍을 모두 합치고 합친 쌍 개수를 돌려준다. 쌍마다 한 트랜잭션.
+
+    한 쌍이 실패하면 그 쌍만 롤백하고 경고를 찍은 뒤 다음 쌍으로 넘어간다(migrate 를 막지 않는다)."""
+    merged = 0
+    for keep_id, drop_id in _pairs(conn):
+        try:
+            with conn:
+                merge_pair(conn, keep_id, drop_id)
+        except Exception as e:  # noqa: BLE001
+            print(f"경고: 단지 합치기 실패 keep={keep_id} drop={drop_id}: {e}")
+            continue
+        merged += 1
+    return merged
 
 
 def _build_parser() -> argparse.ArgumentParser:

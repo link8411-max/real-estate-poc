@@ -339,3 +339,28 @@ def test_history_gap_within_a_year_merges(conn):
     _trade(conn, L2, 1, "2025-02-01")
     _trade(conn, N2, 2, "2026-02-01")  # 정확히 365일
     assert (L2, N2) in find_rename_pairs(conn)[0]
+
+
+def test_merge_renamed_continues_after_one_pair_fails(conn, monkeypatch, capsys):
+    import pipeline.merge_apartments as ma
+
+    L1, N1 = _gap_pair(conn, ["2025-12-01"], ["2026-02-01"])
+    L2, N2 = (_apt(conn, "옛2", "702", 1990, None), _apt(conn, "새2", "702", 1990, "S-11"))
+    _trade(conn, L2, 1, "2025-12-01")
+    _trade(conn, N2, 2, "2026-02-01")
+    conn.commit()
+    real = ma.merge_pair
+
+    def flaky(c, keep_id, drop_id):
+        if keep_id == L1:
+            c.execute("DELETE FROM transactions WHERE apt_id=?", (drop_id,))  # 롤백돼야 하는 부분 변경
+            raise RuntimeError("boom")
+        return real(c, keep_id, drop_id)
+
+    monkeypatch.setattr(ma, "merge_pair", flaky)
+    assert ma.merge_renamed(conn) == 1
+    assert conn.execute("SELECT count(*) FROM apartments WHERE id=?", (N2,)).fetchone()[0] == 0  # 성공한 쌍
+    assert conn.execute("SELECT count(*) FROM apartments WHERE id=?", (N1,)).fetchone()[0] == 1  # 실패한 쌍은 그대로
+    assert conn.execute("SELECT count(*) FROM transactions WHERE apt_id=?", (N1,)).fetchone()[0] == 1
+    out = capsys.readouterr().out
+    assert str(L1) in out and str(N1) in out and "boom" in out
