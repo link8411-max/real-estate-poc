@@ -51,7 +51,9 @@ jobs:
         run: python -m pipeline.geocode --db real_estate.db --limit 500
 
       - name: Collect (this + previous month)
-        run: python -m pipeline.collect --kind both --daily --changed-out changed_apts.json --summary-out summary.json
+        run: |
+          LATE=""; if [ "$(TZ=Asia/Seoul date +%u)" = 1 ] && [ "$(TZ=Asia/Seoul date +%H)" -lt 10 ]; then LATE="--with-late"; fi
+          python -m pipeline.collect --kind both --daily $LATE --changed-out changed_apts.json --summary-out summary.json
 
       - name: Export changed apartments
         run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out

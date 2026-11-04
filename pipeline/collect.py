@@ -51,6 +51,15 @@ def current_and_previous_month(today: date) -> list[str]:
     return [f"{prev[0]:04d}{prev[1]:02d}", f"{today.year:04d}{today.month:02d}"]
 
 
+def late_months(today: date) -> list[str]:
+    """늦은 취소 재수집 대상: 2~5개월 전 4개 달(오래된 순)."""
+    out = []
+    for back in (5, 4, 3, 2):
+        idx = today.year * 12 + today.month - 1 - back
+        out.append(f"{idx // 12:04d}{idx % 12 + 1:02d}")
+    return out
+
+
 def _save(conn: sqlite3.Connection, kind: str, items: list) -> int:
     insert = insert_trade if kind == "trade" else insert_rent
     saved = 0
@@ -125,6 +134,8 @@ def _build_parser() -> argparse.ArgumentParser:
     g.add_argument("--daily", action="store_true", help="이번 달 + 지난 달")
     g.add_argument("--retry-failed", metavar="SUMMARY",
                    help="이전 --summary-out JSON 의 실패 (지역, 월) 쌍만 다시 수집")
+    p.add_argument("--with-late", action="store_true",
+                   help="--daily 와만: 2~5개월 전 매매도 다시 수집(늦은 취소 반영)")
     p.add_argument("--to", metavar="YYYYMM")
     p.add_argument("--regions", help="쉼표 구분 시군구 코드 (REGIONS 부분집합만 수집)")
     p.add_argument("--changed-out", default="changed_apts.json")
@@ -192,6 +203,8 @@ def main(argv: list[str] | None = None) -> int:
             a.retry = _load_retry(p, a.retry_failed)
             a.kind = a.kind or a.retry.get("kind") or "both"
         a.kind = a.kind or "both"
+        if a.with_late and not a.daily:
+            p.error("--with-late 는 --daily 와 함께 써야 합니다")
         months = _resolve_months(p, a)
         regions = _resolve_regions(p, a)
     except SystemExit as e:
@@ -215,6 +228,12 @@ def main(argv: list[str] | None = None) -> int:
                 res.failed += r.failed
         else:
             res = collect(conn, months=months, regions=regions, **common)
+            if a.with_late:
+                late = collect(conn, **{**common, "kinds": {"trade"}},
+                               months=late_months(kst_today()), regions=regions)
+                res.fetched += late.fetched
+                res.saved += late.saved
+                res.failed += late.failed
         changed = pop_changed(conn)
     finally:
         conn.close()

@@ -93,6 +93,7 @@ gh workflow enable "Daily Collection" -R link8411-max/real-estate-poc    # uploa
 ## 워크플로
 
 - **Daily Collection** (`collect-daily.yml`): KST 07/13/19시(cron 3회) + 수동. R2 DB 다운로드 → geocode(`--limit 500`) → `collect --daily` → `export_json --changed` → `r2_publish` → `supabase_sync --changed` → DB 업로드 → `data/last_run.json` 커밋·푸시.
+  - 월요일 07:00 KST 실행은 `--with-late` 로 2~5개월 전 매매도 다시 수집해 늦게 들어온 취소를 반영한다.
 - **Backfill** (`backfill.yml`, 수동): 입력 kind/from/to/regions. 호출 수(지역×개월×종류) > 8,000 이면 시작 전에 실패. 같은 `collect` concurrency 그룹.
 
 ## 프론트엔드 (`frontend/`)

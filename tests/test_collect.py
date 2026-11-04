@@ -280,3 +280,55 @@ def test_main_daily_uses_kst_date(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert main(["--db", str(tmp_path / "x.db"), "--daily", "--delay", "0"]) == 0
     assert got["months"] == ["202612", "202701"]
+
+
+def test_late_months_examples():
+    assert collect_mod.late_months(date(2026, 11, 4)) == ["202606", "202607", "202608", "202609"]
+    assert collect_mod.late_months(date(2026, 2, 10)) == ["202509", "202510", "202511", "202512"]
+
+
+def test_main_daily_with_late_collects_trades_two_to_five_months_back(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    calls = {"trade": [], "rent": []}
+
+    def ft(lawd, ym, **kw):
+        calls["trade"].append(ym)
+        return []
+
+    def fr(lawd, ym, **kw):
+        calls["rent"].append(ym)
+        return []
+
+    monkeypatch.setattr(collect_mod, "fetch_trades", ft)
+    monkeypatch.setattr(collect_mod, "fetch_rents", fr)
+    monkeypatch.setattr(collect_mod, "REGIONS", {"11680": "강남구"})
+    monkeypatch.setattr(collect_mod, "_utcnow",
+                        lambda: datetime(2026, 11, 3, 22, 0, tzinfo=timezone.utc))  # KST 11/4
+    summ = tmp_path / "s.json"
+    code = main(["--db", str(tmp_path / "d.db"), "--daily", "--with-late", "--delay", "0",
+                 "--changed-out", str(tmp_path / "c.json"), "--summary-out", str(summ)])
+    assert code == 0
+    assert calls["trade"] == ["202610", "202611", "202606", "202607", "202608", "202609"]
+    assert calls["rent"] == ["202610", "202611"]
+    assert json.loads(summ.read_text())["kind"] == "both"
+
+
+def test_main_with_late_combines_summary(tmp_path, monkeypatch):
+    def fake_collect(conn, **kw):
+        migrate(conn)
+        if kw["kinds"] == {"trade"}:
+            return collect_mod.CollectResult(fetched=1, saved=5, failed=[("11680", "202606", "x")])
+        return collect_mod.CollectResult(fetched=1, saved=2, failed=[("11680", "202611", "y")])
+
+    monkeypatch.setattr(collect_mod, "collect", fake_collect)
+    summ = tmp_path / "s.json"
+    assert main(["--db", str(tmp_path / "d.db"), "--kind", "both", "--daily", "--with-late",
+                 "--delay", "0", "--changed-out", str(tmp_path / "c.json"),
+                 "--summary-out", str(summ)]) == 0
+    data = json.loads(summ.read_text())
+    assert data["saved"] == 7 and data["failed_count"] == 2 and data["kind"] == "both"
+
+
+def test_main_with_late_requires_daily():
+    assert main(["--months", "202610", "--with-late"]) == 2
+    assert main(["--with-late"]) == 2
