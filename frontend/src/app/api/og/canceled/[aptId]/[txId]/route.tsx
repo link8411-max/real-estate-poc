@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { parseId, shareTx } from "@/lib/canceledShare";
 import { fetchAptTrade } from "@/lib/data";
 import { formatDeal, formatPrice } from "@/lib/format";
+import { isMoved } from "@/lib/types";
 import { FONT_FAMILY, options } from "@/lib/ogFont";
 
 // Node 런타임(엣지 아님). 폰트 로더는 lib/ogFont.ts.
@@ -32,7 +33,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ aptId: 
   const p = await params;
   const aptId = parseId(p.aptId);
   const txId = parseId(p.txId);
-  const data = aptId && txId ? await fetchAptTrade(aptId).catch(() => null) : null;
+  let raw = aptId && txId ? await fetchAptTrade(aptId).catch(() => null) : null;
+  if (isMoved(raw)) raw = await fetchAptTrade(raw.moved_to).catch(() => null); // 합쳐진 단지: 남은 단지로 그린다
+  const data = isMoved(raw) ? null : raw;
   const tx = data && txId ? shareTx(data, txId) : null;
   if (!data || !tx) return message("거래 정보를 찾을 수 없습니다");
 

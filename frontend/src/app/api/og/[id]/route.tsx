@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { fetchAptTrade } from "@/lib/data";
 import { areaGroup, formatPrice } from "@/lib/format";
+import { isMoved } from "@/lib/types";
 import { FONT_FAMILY, options } from "@/lib/ogFont";
 
 // Node 런타임(엣지 함수 크기 제한을 피함). 폰트 로더는 lib/ogFont.ts.
@@ -30,7 +31,9 @@ async function message(text: string) {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
-  const data = Number.isSafeInteger(id) && id > 0 ? await fetchAptTrade(id).catch(() => null) : null;
+  let raw = Number.isSafeInteger(id) && id > 0 ? await fetchAptTrade(id).catch(() => null) : null;
+  if (isMoved(raw)) raw = await fetchAptTrade(raw.moved_to).catch(() => null); // 합쳐진 단지: 남은 단지로 그린다
+  const data = isMoved(raw) ? null : raw;
   if (!data) return message("아파트 정보를 찾을 수 없습니다");
 
   const apt = data.apartment;

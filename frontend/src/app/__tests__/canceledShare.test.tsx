@@ -7,7 +7,10 @@ vi.mock("@/lib/data", () => ({ fetchAptTrade: (...a: unknown[]) => fetchAptTrade
 const redirect = vi.fn((to: string) => {
   throw new Error(`REDIRECT:${to}`);
 });
-vi.mock("next/navigation", () => ({ redirect: (to: string) => redirect(to) }));
+const permanentRedirect = vi.fn((to: string) => {
+  throw new Error(`PERMANENT:${to}`);
+});
+vi.mock("next/navigation", () => ({ redirect: (to: string) => redirect(to), permanentRedirect: (to: string) => permanentRedirect(to) }));
 const shareProps: { meta?: { description: string } }[] = [];
 vi.mock("@/components/ShareButton", () => ({
   default: (p: { meta: { description: string } }) => {
@@ -44,6 +47,11 @@ describe("취소된 신고가 공유 페이지", () => {
   test("단지 JSON 없음 → /canceled", async () => {
     fetchAptTrade.mockResolvedValue(null);
     await expect(page.default(props("1554", "2"))).rejects.toThrow("REDIRECT:/canceled");
+  });
+  test("합쳐진 단지 → 남은 단지의 같은 거래 주소로 영구 이동", async () => {
+    fetchAptTrade.mockResolvedValue({ moved_to: 7 });
+    await expect(page.default(props("1554", "2"))).rejects.toThrow("PERMANENT:/canceled/7/2");
+    await expect(page.generateMetadata(props("1554", "2"))).rejects.toThrow("PERMANENT:/canceled/7/2");
   });
   test("잘못된 id → /canceled", async () => {
     await expect(page.default(props("abc", "2"))).rejects.toThrow("REDIRECT:/canceled");

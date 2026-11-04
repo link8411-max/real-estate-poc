@@ -67,4 +67,15 @@ describe("OG route", () => {
     expect(readFile).toHaveBeenCalledTimes(2);
     spy.mockRestore();
   });
+
+  test("moved_to 면 남은 단지 데이터로 그린다", async () => {
+    readFile.mockResolvedValue(Buffer.from("font"));
+    fetchAptTrade.mockImplementation(async (id: number) =>
+      id === 1 ? { moved_to: 2 } : { apartment: { id: 2, name: "남은단지", dong: "", region_name: "", build_year: null }, transactions: [], metrics: {} },
+    );
+    const { GET } = await load();
+    await GET(new Request("http://x/api/og/1"), params("1"));
+    expect(fetchAptTrade).toHaveBeenCalledWith(2);
+    expect(calls[0].options.headers).toBeUndefined();
+  });
 });

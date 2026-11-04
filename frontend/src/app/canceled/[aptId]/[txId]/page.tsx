@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { permanentRedirect, redirect } from "next/navigation";
 import ShareButton from "@/components/ShareButton";
 import { parseId, type ShareTx, shareTx } from "@/lib/canceledShare";
 import { fetchAptTrade } from "@/lib/data";
 import { formatDeal, formatPrice } from "@/lib/format";
+import { isMoved } from "@/lib/types";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
 export const revalidate = 3600;
@@ -28,6 +29,8 @@ async function load(aptId: string, txId: string) {
   const a = parseId(aptId);
   const data = a ? await fetchAptTrade(a, { next: { revalidate } } as RequestInit).catch(() => null) : null;
   const t = parseId(txId);
+  // 합쳐진 단지: 남은 단지의 같은 거래 주소로 영구 이동(거래가 없으면 거기서 단지 페이지로 간다)
+  if (isMoved(data)) permanentRedirect(`/canceled/${data.moved_to}/${t ?? txId}`);
   return { aptId: a, txId: t, data, tx: data && t ? shareTx(data, t) : null };
 }
 

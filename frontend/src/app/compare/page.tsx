@@ -4,7 +4,7 @@ import CompareTable from "@/components/CompareTable";
 import { MAX_COMPARE } from "@/lib/compare";
 import { fetchAptRent, fetchAptTrade } from "@/lib/data";
 import { kstToday } from "@/lib/metrics";
-import type { AptRent, AptTrade } from "@/lib/types";
+import { type AptRent, type AptTrade, isMoved } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "단지 비교",
@@ -20,7 +20,10 @@ const parseIds = (raw: string | undefined): number[] =>
 export default async function ComparePage({ searchParams }: Props) {
   const ids = parseIds((await searchParams).ids);
   const loaded = await Promise.all(ids.map((id) => Promise.all([fetchAptTrade(id), fetchAptRent(id)])));
-  const found = loaded.filter((p): p is [AptTrade, AptRent | null] => p[0] != null);
+  // 합쳐져 사라진 단지(moved_to)는 없는 단지로 본다
+  const found = loaded
+    .map(([t, r]): [AptTrade | null, AptRent | null] => [isMoved(t) ? null : t, isMoved(r) ? null : r])
+    .filter((p): p is [AptTrade, AptRent | null] => p[0] != null);
   const items = found.map(([t]) => t);
   const rents = found.map(([, r]) => r);
   const today = kstToday(); // 요청마다 서버에서(이 페이지는 동적) — 클라이언트 렌더에서 new Date() 를 부르지 않는다

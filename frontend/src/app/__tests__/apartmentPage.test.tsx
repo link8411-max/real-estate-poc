@@ -13,7 +13,9 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NOT_FOUND");
   },
-  permanentRedirect: vi.fn(),
+  permanentRedirect: (to: string) => {
+    throw new Error(`PERMANENT:${to}`);
+  },
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => "/apartment/7",
   useSearchParams: () => new URLSearchParams(),
@@ -56,6 +58,19 @@ describe("apartment 페이지", () => {
     expect(page.generateStaticParams()).toEqual([]);
     expect(regionPage.revalidate).toBe(3600);
     expect(regionPage.generateStaticParams()).toEqual([]);
+  });
+});
+
+describe("합쳐져 사라진 단지", () => {
+  test("trade.json 이 moved_to 면 남은 단지로 영구 이동", async () => {
+    fetchAptTrade.mockResolvedValue({ moved_to: 3 });
+    await expect(page.default({ params: Promise.resolve({ id: "7" }) })).rejects.toThrow("PERMANENT:/apartment/3");
+  });
+  test("메타데이터는 noindex", async () => {
+    fetchAptTrade.mockResolvedValue({ moved_to: 3 });
+    const layout = await import("../apartment/[id]/layout");
+    const m = await layout.generateMetadata({ params: Promise.resolve({ id: "7" }) });
+    expect(m.robots).toMatchObject({ index: false });
   });
 });
 

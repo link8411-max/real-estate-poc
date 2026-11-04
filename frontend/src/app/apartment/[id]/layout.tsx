@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { fetchAptTrade } from "@/lib/data";
+import { isMoved } from "@/lib/types";
 import { aptDescription, aptTitle } from "@/lib/seo";
 
 /** 단지 페이지는 첫 요청 때 만들고 한 시간마다 다시 만든다(generateStaticParams 없음). */
@@ -11,7 +12,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const n = Number(id);
   const data = Number.isSafeInteger(n) && n > 0 ? await fetchAptTrade(n, { next: { revalidate } } as RequestInit) : null;
-  if (!data) return { title: "아파트를 찾을 수 없습니다", robots: { index: false } };
+  if (!data || isMoved(data)) return { title: "아파트를 찾을 수 없습니다", robots: { index: false } };
 
   const apt = data.apartment;
   const latest = data.transactions.find((t) => !t.cancel_date);

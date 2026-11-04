@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import ApartmentHeader from "@/components/ApartmentHeader";
 import CanceledAlert from "@/components/CanceledAlert";
 import CanceledDeals from "@/components/CanceledDeals";
@@ -14,6 +14,7 @@ import { analyzeCanceled, countSince } from "@/lib/canceled";
 import { fetchAptRent, fetchAptTrade } from "@/lib/data";
 import { areaGroup, areaToPyeong, formatPrice } from "@/lib/format";
 import { kstToday, liveMetrics } from "@/lib/metrics";
+import { isMoved } from "@/lib/types";
 import { aptCrumbs, aptJsonLd, breadcrumbJsonLd, SITE_URL } from "@/lib/seo";
 
 /** ISR: 첫 요청 때 생성, 한 시간마다 갱신. 최근가·평형별 시세는 서버 HTML에 텍스트로 들어간다. */
@@ -30,9 +31,12 @@ export default async function ApartmentPage({ params }: Props) {
   const id = Number((await params).id);
   if (!Number.isSafeInteger(id) || id <= 0) notFound();
   const init = { next: { revalidate } } as RequestInit;
-  const [data, rentData] = await Promise.all([fetchAptTrade(id, init), fetchAptRent(id, init)]);
+  const [data, rentRaw] = await Promise.all([fetchAptTrade(id, init), fetchAptRent(id, init)]);
   if (!data) notFound();
+  // 합쳐진 단지: 남은 단지로 영구 이동. 페이지가 ISR 이라 쿼리(?tab=)는 서버에서 볼 수 없다 — 탭은 기본값으로 열린다.
+  if (isMoved(data)) permanentRedirect(`/apartment/${data.moved_to}`);
 
+  const rentData = isMoved(rentRaw) ? null : rentRaw;
   const apt = data.apartment;
   const rent = rentData ?? { apartment: apt, rent_area_stats: [], rents: [] };
   const latest = data.transactions.find((t) => t.cancel_date == null);

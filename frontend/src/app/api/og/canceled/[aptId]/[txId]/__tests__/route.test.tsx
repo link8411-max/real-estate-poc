@@ -46,6 +46,14 @@ const run = async (txId: string) => {
 beforeEach(() => fetchAptTrade.mockReset());
 
 describe("취소 공유 OG", () => {
+  test("moved_to 면 남은 단지로 그린다", async () => {
+    fetchAptTrade.mockImplementation(async (id: number) =>
+      id === 1554 ? { moved_to: 9 } : { ...base, apartment: { ...apartment, id: 9, name: "남은단지" }, transactions: [tx(1, 200000, "2026-01-10", null)] },
+    );
+    const r = await run("1");
+    expect(fetchAptTrade).toHaveBeenCalledWith(9);
+    expect(r.all).toContain("남은단지");
+  });
   test("취소 아님: 실거래 헤더, 취소선 없음, 중립색", async () => {
     fetchAptTrade.mockResolvedValue({ ...base, transactions: [tx(1, 200000, "2026-01-10", null)] });
     const r = await run("1");

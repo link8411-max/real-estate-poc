@@ -66,6 +66,13 @@ export interface Rent {
   pre_monthly_rent: number | null;
 }
 
+/** 다른 단지에 합쳐져 사라진 단지의 trade.json / rent.json 내용. */
+export type Moved = { moved_to: number };
+
+export function isMoved(x: unknown): x is Moved {
+  return typeof x === "object" && x !== null && Number.isSafeInteger((x as Moved).moved_to) && (x as Moved).moved_to > 0;
+}
+
 export interface AptTrade {
   apartment: Apartment;
   area_stats: AreaStat[];

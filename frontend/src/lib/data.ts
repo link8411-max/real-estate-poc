@@ -1,4 +1,4 @@
-import type { AptRent, AptTrade, CanceledRecentFile, MetaFile, RegionFile, SearchIndexRow, StatsFile } from "./types";
+import type { AptRent, AptTrade, CanceledRecentFile, Moved, MetaFile, RegionFile, SearchIndexRow, StatsFile } from "./types";
 
 function dataUrl(): string {
   const url = process.env.NEXT_PUBLIC_DATA_URL;
@@ -15,10 +15,10 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T 
 }
 
 export const fetchAptTrade = (id: number, init?: RequestInit) =>
-  fetchJson<AptTrade>(`/v1/apt/${id}/trade.json`, init);
+  fetchJson<AptTrade | Moved>(`/v1/apt/${id}/trade.json`, init);
 
 export const fetchAptRent = (id: number, init?: RequestInit) =>
-  fetchJson<AptRent>(`/v1/apt/${id}/rent.json`, init);
+  fetchJson<AptRent | Moved>(`/v1/apt/${id}/rent.json`, init);
 
 export const fetchRegion = (code: string, init?: RequestInit) =>
   fetchJson<RegionFile>(`/v1/region/${code}.json`, init);
