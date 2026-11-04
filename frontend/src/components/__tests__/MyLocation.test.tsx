@@ -26,10 +26,10 @@ class FakeLatLng {
   getLat() { return this.lat; }
   getLng() { return this.lng; }
 }
-const overlays: { setMap: ReturnType<typeof vi.fn> }[] = [];
+const overlays: { setMap: ReturnType<typeof vi.fn>; opts: { zIndex?: number; content: HTMLElement } }[] = [];
 class FakeOverlay {
   setMap = vi.fn();
-  constructor() { overlays.push(this); }
+  constructor(public opts: { zIndex?: number; content: HTMLElement }) { overlays.push(this); }
 }
 
 const getCurrentPosition = vi.fn();
@@ -76,6 +76,9 @@ describe("내 위치 버튼", () => {
     expect(map.setLevel).toHaveBeenCalledWith(5);
     expect(overlays).toHaveLength(1);
     expect(overlays[0].setMap).toHaveBeenCalledWith(map);
+    // 단지 라벨(호버 시 10)보다 위, 마커 클릭을 막지 않는다
+    expect(overlays[0].opts.zIndex).toBeGreaterThan(10);
+    expect(overlays[0].opts.content.className).toContain("pointer-events-none");
   });
 
   test("레벨이 5 이하면 레벨은 그대로", () => {
