@@ -23,7 +23,7 @@ from typing import Any, Callable
 import requests
 from dotenv import load_dotenv
 
-from pipeline.regions import REGION_FULLNAME, REGIONS, candidate_codes
+from pipeline.regions import REGION_FULLNAME, REGIONS, RETIRED_FULLNAME, SUCCEEDED_BY, candidate_codes
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -50,7 +50,32 @@ def _build_sigungu_index() -> dict[tuple[str, str], str]:
 
 _SIGUNGU_INDEX = _build_sigungu_index()
 
+
+def _build_retired_index() -> dict[tuple[str, str], str]:
+    """(시도, CSV 시군구 표기) -> 폐지 코드 (인천 서구·중구·동구, 부천시, 화성시)."""
+    sido_full = {v: k for k, v in SIDO_SHORT.items()}
+    out = {}
+    for code, full in RETIRED_FULLNAME.items():
+        short, name = full.split(" ", 1)
+        out[(sido_full[short], name)] = code
+    return out
+
+
+_RETIRED_INDEX = _build_retired_index()
+
+
+def _successors(sido: str, sigungu: str) -> list[str]:
+    """폐지된 시군구면 후속 코드 목록, 아니면 []."""
+    old = _RETIRED_INDEX.get((sido, sigungu))
+    return list(SUCCEEDED_BY.get(old, [])) if old else []
+
 _ROMAN = {"Ⅰ": "1", "Ⅱ": "2", "Ⅲ": "3", "Ⅳ": "4", "Ⅴ": "5", "Ⅵ": "6", "Ⅶ": "7", "Ⅷ": "8", "Ⅸ": "9", "Ⅹ": "10"}
+
+
+def _roman(s: str) -> str:
+    for k, v in _ROMAN.items():
+        s = s.replace(k, v)
+    return s
 
 
 def _read_csv_rows(path: str) -> list[dict[str, str]]:
@@ -97,11 +122,15 @@ def load_zones(csv_path: str) -> list[dict[str, Any]]:
         name = (r.get("구역명칭") or "").strip()
         hh = (r.get("공급 예정 세대수") or "").strip()
         typ = _strip_prefix(r.get("사업유형") or "")
+        lawd = _SIGUNGU_INDEX.get((sido, sigungu))
+        if lawd is None:
+            succ = _successors(sido, sigungu)
+            lawd = succ[0] if len(succ) == 1 else None  # 후속이 하나일 때만 (예: 인천 동구 -> 제물포구)
         zone = {
             "zone_id": hashlib.sha1(f"{sido}|{sigungu}|{name}".encode()).hexdigest()[:12],
             "sido": sido,
             "sigungu": sigungu,
-            "lawd_cd": _SIGUNGU_INDEX.get((sido, sigungu)),
+            "lawd_cd": lawd,
             "name": name,
             "stage": _strip_prefix(r.get("현 사업추진단계") or ""),
             "stage_order": _stage_order(r.get("현 사업추진단계") or ""),
@@ -250,7 +279,7 @@ def _sido_prefix(z: dict[str, Any]) -> str:
 def _attempts(z: dict[str, Any]) -> list[tuple[str, str, str]]:
     """(방법, 종류 keyword|address, 검색어) 순서대로. 앞 방법이 같은 시군구 결과를 주면 거기서 멈춘다."""
     pre = _sido_prefix(z)
-    name = z["name"]
+    name = _roman(z["name"])  # Ⅰ/Ⅱ/Ⅲ -> 1/2/3 (카카오는 숫자 표기로 더 잘 찾는다)
     base = re.sub(r"\([^)]*\)", "", name).strip()
     out: list[tuple[str, str, str]] = [("name", "keyword", f"{pre} {name}")]  # 가장 먼저: 캐시 키가 검색어 그대로
     inner = re.findall(r"\(([^)]*)\)", name)
@@ -327,13 +356,45 @@ def _nospace(s: str) -> str:
     return re.sub(r"\s+", "", s or "")
 
 
-def _accept(z: dict[str, Any], doc: dict[str, Any] | None) -> tuple[float, float] | None:
-    """캐시된 첫 결과가 같은 시군구 안일 때만 좌표를 돌려준다."""
+def _core_name(name: str) -> str:
+    """구역명칭의 핵심어: 괄호 제거, 공백 제거, 로마숫자 통일, 끝의 구역/지구/재개발/재건축 제거."""
+    base = _roman(re.sub(r"\([^)]*\)", "", name or ""))
+    return re.sub(r"(구역|지구|재개발|재건축)+$", "", _nospace(base))
+
+
+def _expected_prefixes(z: dict[str, Any]) -> list[str]:
+    """채택할 주소 접두(공백 제거). 현행 코드 이름 + CSV 표기 그대로 + 폐지 구역의 모든 후속 구."""
+    out = [_nospace(_sido_prefix(z))]  # 카카오가 옛 이름을 돌려줄 수도 있다
+    if z.get("lawd_cd") and z["lawd_cd"] in REGION_FULLNAME:
+        out.append(_nospace(REGION_FULLNAME[z["lawd_cd"]]))
+    for c in _successors(z["sido"], z["sigungu"]):
+        out.append(_nospace(REGION_FULLNAME[c]))
+    return out
+
+
+def _name_ok(z: dict[str, Any], doc: dict[str, Any]) -> bool:
+    """키워드 결과의 장소명이 구역 핵심어(또는 괄호 안 단지명)를 담고 있는지."""
+    place = _roman(_nospace(doc.get("place_name", "")))
+    place_n = place.replace("아파트", "")
+    core = _core_name(z["name"])
+    # 핵심어 뒤에 숫자나 동·가·리가 이어지면 다른 것('대림1' 이 '대림1동')
+    if len(core) >= 2 and (re.search(re.escape(core) + r"(?![0-9동가리읍면호])", place)
+                           or re.search(re.escape(core) + r"(?![0-9동가리읍면호])", place_n)):
+        return True
+    cands = []
+    for p in re.findall(r"\(([^)]*)\)", z["name"]) + _paren_names(z["name"]):
+        cands += [_roman(_nospace(p)), normalize_name(p)]
+    return any(len(c) >= 2 and (c in place or c in place_n) for c in cands)
+
+
+def _accept(z: dict[str, Any], doc: dict[str, Any] | None, kind: str = "keyword") -> tuple[float, float] | None:
+    """캐시된 첫 결과가 같은 시군구 안이고(+키워드는 장소명이 구역 핵심어를 담을 때) 좌표를 돌려준다."""
     if not doc:
         return None
-    expected = REGION_FULLNAME.get(z["lawd_cd"]) if z.get("lawd_cd") else _sido_prefix(z)
-    exp = _nospace(expected or "")
-    if not exp or not any(_nospace(doc.get(k, "")).startswith(exp) for k in ("address_name", "road_address_name")):
+    exps = _expected_prefixes(z)
+    if not any(_nospace(doc.get(k, "")).startswith(e) for k in ("address_name", "road_address_name") for e in exps):
+        return None
+    if kind == "keyword" and not _name_ok(z, doc):
         return None
     try:
         return float(doc["y"]), float(doc["x"])
@@ -349,7 +410,7 @@ def _resolve(z, cache, fetch=None):
             if fetch is None:
                 continue
             cache[ck] = fetch(kind, q)  # 오류는 호출자가 처리 (캐시에 남기지 않음)
-        pos = _accept(z, cache[ck])
+        pos = _accept(z, cache[ck], kind)
         if pos:
             return method, pos[0], pos[1], cache[ck]
     return None
@@ -391,6 +452,37 @@ def fill_geocode_cache(
 
 # ---------------------------------------------------------------- 빌드
 
+def _dong_stem(dong: str) -> str:
+    return re.sub(r"(동|리|읍|면)\d*가?$|\d*가$", "", dong or "")
+
+
+def _dong_approx(conn: sqlite3.Connection, z: dict[str, Any], cache: dict[tuple, Any]) -> tuple[float, float] | None:
+    """구역 핵심어가 그 시군구의 동 이름으로 시작하면 그 동 단지들의 평균 좌표 (대략적 위치)."""
+    if not z.get("lawd_cd") and not _successors(z["sido"], z["sigungu"]):
+        return None
+    codes = [z["lawd_cd"]] if z.get("lawd_cd") else _successors(z["sido"], z["sigungu"])
+    key = tuple(codes)
+    if key not in cache:
+        allc = sorted({c for lc in codes for c in candidate_codes(lc)})
+        q = ",".join("?" * len(allc))
+        by: dict[str, list[tuple[float, float]]] = {}
+        for dong, lat, lng in conn.execute(
+            f"SELECT dong, latitude, longitude FROM apartments WHERE lawd_cd IN ({q}) AND latitude IS NOT NULL", allc
+        ):
+            st = _dong_stem(dong)
+            if len(st) >= 2:
+                by.setdefault(st, []).append((lat, lng))
+        cache[key] = by
+    by = cache[key]
+    core = _core_name(z["name"])
+    hits = [st for st in by if core.startswith(st)]
+    if not hits:
+        return None
+    best = max(hits, key=len)
+    pts = by[best]
+    return round(sum(p[0] for p in pts) / len(pts), 6), round(sum(p[1] for p in pts) / len(pts), 6)
+
+
 def build_zones_json(
     conn: sqlite3.Connection, csv_path: str, today: date, *, cache_path: str = CACHE_PATH
 ) -> dict[str, Any]:
@@ -404,6 +496,12 @@ def build_zones_json(
             hit = _resolve(z, cache)
             if hit:
                 z["lat"], z["lng"], z["geo"] = hit[1], hit[2], f"kakao_{hit[0]}"
+    dong_cache: dict[tuple, Any] = {}
+    for z in zones:  # 정밀한 방법이 모두 실패한 구역만, 동 단위 대략 위치
+        if z["lat"] is None:
+            pos = _dong_approx(conn, z, dong_cache)
+            if pos:
+                z["lat"], z["lng"], z["geo"] = pos[0], pos[1], "dong_approx"
     return {
         "source": SOURCE,
         "as_of": AS_OF,

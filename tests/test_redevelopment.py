@@ -171,12 +171,15 @@ def _doc(addr, y="37.5", x="127.0", name="장소"):
     return {"place_name": name, "address_name": addr, "road_address_name": "", "y": y, "x": x}
 
 
-def _one(tmp_path, row, docs, calls=None):
+def _one(tmp_path, row, docs, calls=None, setup=None):
+    tmp_path.mkdir(exist_ok=True)
     p = _csv(tmp_path, [row])
     cache = tmp_path / "c.json"
     fill_geocode_cache(load_zones(p), str(cache), geocoder=_fake(docs, [] if calls is None else calls), delay=0)
     c = connect(str(tmp_path / "e.db"))
     migrate(c)
+    if setup:
+        setup(c)
     return build_zones_json(c, p, date(2026, 11, 4), cache_path=str(cache))["zones"][0]
 
 
@@ -185,7 +188,7 @@ REDEV = "서울특별시,마포구,{n},2)정비구역지정,1)재개발(주택�
 
 def test_geocode_accepts_first_result_in_same_sigungu(tmp_path):
     z = _one(tmp_path, REDEV.format(n="아현1"),
-             {("keyword", "서울 마포구 아현1"): _doc("서울 마포구 아현동 1-1", "37.55", "126.95")})
+             {("keyword", "서울 마포구 아현1"): _doc("서울 마포구 아현동 1-1", "37.55", "126.95", name="아현1구역")})
     assert (z["lat"], z["lng"], z["geo"]) == (37.55, 126.95, "kakao_name")
 
 
@@ -196,13 +199,13 @@ def test_geocode_rejects_other_sigungu_and_failure_stays_in_list(tmp_path):
 
 def test_geocode_fallback_paren_suffix_lot_address(tmp_path):
     z = _one(tmp_path, '경기도,수원영통구,"영통2구역(매탄주공4,5단지)",2)정비구역지정,3)재건축(공동주택),1)조합,10',
-             {("keyword", "경기 수원영통구 매탄주공4단지"): _doc("경기 수원시 영통구 매탄동 1")})
+             {("keyword", "경기 수원영통구 매탄주공4단지"): _doc("경기 수원시 영통구 매탄동 1", name="매탄주공4단지")})
     assert z["geo"] == "kakao_paren"
     z = _one(tmp_path, "경기도,고양덕양구,능곡5,2)정비구역지정,1)재개발(주택정비),1)조합,10",
-             {("keyword", "경기 고양덕양구 능곡5구역"): _doc("경기 고양시 덕양구 능곡동 1")})
+             {("keyword", "경기 고양덕양구 능곡5구역"): _doc("경기 고양시 덕양구 능곡동 1", name="능곡5구역")})
     assert z["geo"] == "kakao_suffix"
     z = _one(tmp_path, "경기도,수원팔달구,111-3,2)정비구역지정,1)재개발(주택정비),1)조합,10",
-             {("keyword", "경기 수원시 111-3구역"): _doc("경기 수원시 팔달구 인계동 1")})
+             {("keyword", "경기 수원시 111-3구역"): _doc("경기 수원시 팔달구 인계동 1", name="111-3구역")})
     assert z["geo"] == "kakao_lot"
     z = _one(tmp_path, "경기도,용인처인구,단구동14통,2)정비구역지정,1)재개발(주택정비),1)조합,10",
              {("address", "경기 용인처인구 단구동"): _doc("경기 용인시 처인구 단구동")})
@@ -263,3 +266,51 @@ def test_match_zone_number_name_does_not_contain_into_longer_apt(conn):
     z = [_zone("성수1", lawd="11200")]
     match_apartments(conn, z)
     assert z[0]["match"] is None
+
+
+def test_geocode_rejects_unrelated_place_name(tmp_path):
+    # 같은 시군구여도 장소명에 구역 핵심어(또는 괄호 안 단지명)가 없으면 거부
+    z = _one(tmp_path, "서울특별시,종로구,도렴16,2)정비구역지정,1)재개발(주택정비),1)조합,10",
+             {("keyword", "서울 종로구 도렴16"): _doc("서울 종로구 통인동", name="동네골목길관광코스 16코스")})
+    assert z["lat"] is None
+    z = _one(tmp_path / "b", "서울특별시,종로구,도렴16,2)정비구역지정,1)재개발(주택정비),1)조합,10",
+             {("keyword", "서울 종로구 도렴16"): _doc("서울 종로구 도렴동 1", name="도렴16구역 추진위")})
+    assert z["geo"] == "kakao_name"
+    z = _one(tmp_path / "c", "서울특별시,영등포구,대림1구역,2)정비구역지정,1)재개발(주택정비),1)조합,10",
+             {("keyword", "서울 영등포구 대림1구역"): _doc("서울 영등포구 대림동", name="서울대림1동 우편취급국")})
+    assert z["lat"] is None  # '대림1' 뒤에 '동' 이 붙은 '대림1동' 은 다른 곳
+
+
+def test_geocode_roman_numerals_normalized_in_query_and_filter(tmp_path):
+    z = _one(tmp_path, "경기도,고양덕양구,행신Ⅰ-1구역,2)정비구역지정,1)재개발(주택정비),1)조합,10",
+             {("keyword", "경기 고양덕양구 행신1-1구역"): _doc("경기 고양시 덕양구 행신동", name="행신1-1구역 조합")})
+    assert z["geo"] == "kakao_name"
+
+
+def test_retired_sigungu_mapped_to_successor_and_geocode_accepts_successors(tmp_path):
+    p = _csv(tmp_path, [
+        "인천광역시,동구,송현,2)정비구역지정,1)재개발(주택정비),1)조합,10",
+        "인천광역시,서구,가좌,2)정비구역지정,1)재개발(주택정비),1)조합,10",
+    ])
+    z = {x["name"]: x for x in load_zones(p)}
+    assert z["송현"]["lawd_cd"] == "28125"  # 동구 -> 제물포구 (후속 하나)
+    assert z["가좌"]["lawd_cd"] is None  # 서구 -> 서해구/검단구 (모호)
+    zz = _one(tmp_path / "s", "인천광역시,서구,가좌,2)정비구역지정,1)재개발(주택정비),1)조합,10",
+              {("keyword", "인천 서구 가좌"): _doc("인천 서해구 가좌동 1", name="가좌구역")})
+    assert zz["geo"] == "kakao_name"  # 후속 구 주소도 인정
+
+
+def test_dong_approx_fallback_and_never_overrides_precise(tmp_path):
+    def setup(c):
+        _apt(c, "가", "11440", dong="신흥동", lat=37.0, lng=127.0)
+        _apt(c, "나", "11440", dong="신흥동", lat=37.2, lng=127.2, jibun="2")
+        _apt(c, "다", "11440", dong="다른동", lat=38.0, lng=128.0)
+
+    row = "서울특별시,마포구,{n},2)정비구역지정,1)재개발(주택정비),1)조합,10"
+    z = _one(tmp_path / "a", row.format(n="신흥1"), {}, setup=setup)
+    assert z["geo"] == "dong_approx" and z["lat"] == pytest.approx(37.1) and z["match"] is None
+    z = _one(tmp_path / "b", row.format(n="없는곳1"), {}, setup=setup)
+    assert z["geo"] is None
+    z = _one(tmp_path / "c", row.format(n="신흥1"),
+             {("keyword", "서울 마포구 신흥1"): _doc("서울 마포구 신흥동", "37.9", "127.9", name="신흥1구역")}, setup=setup)
+    assert z["geo"] == "kakao_name" and z["lat"] == 37.9
