@@ -3,11 +3,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import RecentDeals from "@/components/RecentDeals";
 import SearchBox from "@/components/SearchBox";
-import { toIsoDate } from "@/lib/canceled";
+import { pickHeadline } from "@/lib/canceled";
 import { fetchCanceledRecent, fetchStats } from "@/lib/data";
 import { kstToday } from "@/lib/metrics";
 import { browseHref, CITIES } from "@/lib/regions";
-import type { CanceledHigh } from "@/lib/types";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
@@ -25,15 +24,10 @@ function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string
   );
 }
 
-function canceledCount7(items: CanceledHigh[]): number {
-  const since = new Date(Date.parse(kstToday()) - 7 * 86_400_000).toISOString().slice(0, 10);
-  return items.filter((i) => toIsoDate(i.cancel_date) >= since).length;
-}
-
 export default async function Home() {
   const stats = await fetchStats();
-  const canceled = await fetchCanceledRecent().catch(() => null);
-  const canceled7 = canceled ? canceledCount7(canceled.items) : 0;
+  const canceled = await fetchCanceledRecent({ next: { revalidate: 3600 } } as RequestInit).catch(() => null);
+  const canceledHead = canceled ? pickHeadline(canceled.items, kstToday()) : null;
   const districtCount = (city: string) => stats?.regions.filter((r) => r.city === city).length ?? 0;
 
   return (
@@ -81,9 +75,9 @@ export default async function Home() {
             value={stats.data_range.max_date ?? "—"}
             label="최신 거래일"
           />
-          {canceled && (
+          {canceledHead && canceledHead.items.length > 0 && (
             <Link href="/canceled" className="block sm:col-span-3">
-              <StatCard icon={<Ban className="h-5 w-5 text-rose-600" />} value={`${canceled7}건`} label="최근 7일 취소된 신고가" />
+              <StatCard icon={<Ban className="h-5 w-5 text-rose-600" />} value={`${canceledHead.items.length}건`} label={`최근 ${canceledHead.days}일 취소된 신고가`} />
             </Link>
           )}
         </section>

@@ -57,4 +57,23 @@ describe("CanceledBoard", () => {
     render(<CanceledBoard items={items} today={TODAY} />);
     expect(screen.getByText("거래 해제는 대출 불발·계약 합의 해지 등 여러 이유로 생깁니다. 국토교통부 실거래가 공개 자료 기준.")).toBeInTheDocument();
   });
+
+  test("7일 탭이 비면 현재 기간으로 빈 상태", () => {
+    render(<CanceledBoard items={items.slice(2)} today={TODAY} />);
+    fireEvent.click(screen.getByRole("tab", { name: "7일" }));
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("최근 7일 취소된 신고가가 없습니다");
+  });
+
+  test("지역 필터 결과가 비어도 빈 상태", () => {
+    render(<CanceledBoard items={items} today={TODAY} />);
+    fireEvent.click(screen.getByRole("button", { name: "인천" }));
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("최근 30일 취소된 신고가가 없습니다");
+  });
+
+  test("7일 3건 이상이면 처음부터 7일 탭", () => {
+    const recent = [1, 2, 3].map((n) => mk({ tx_id: n, apt_id: n, cancel_date: "2026-11-03" }));
+    render(<CanceledBoard items={recent} today={TODAY} />);
+    expect(screen.getByRole("tab", { name: "7일" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("최근 7일, 신고가 3건이");
+  });
 });

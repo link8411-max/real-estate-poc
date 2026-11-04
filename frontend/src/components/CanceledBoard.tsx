@@ -25,11 +25,15 @@ export default function CanceledBoard({ items, today }: { items: CanceledHigh[];
     const since = new Date(Date.parse(today) - days * 86_400_000).toISOString().slice(0, 10);
     return items
       .filter((i) => toIsoDate(i.cancel_date) >= since && (city === "전체" || i.city === city))
-      .sort((a, b) => (a.cancel_date < b.cancel_date ? 1 : a.cancel_date > b.cancel_date ? -1 : 0));
+      .sort((a, b) => {
+        const x = toIsoDate(a.cancel_date);
+        const y = toIsoDate(b.cancel_date);
+        return x < y ? 1 : x > y ? -1 : 0;
+      });
   }, [items, today, days, city]);
   const top = useMemo(() => topJumps(shown, 3), [shown]);
 
-  const headline = shown.length === 0 && days === 30 && city === "전체" ? "최근 30일 취소된 신고가가 없습니다" : `최근 ${days}일, 신고가 ${shown.length}건이 신고 후 취소됐습니다`;
+  const headline = shown.length === 0 ? `최근 ${days}일 취소된 신고가가 없습니다` : `최근 ${days}일, 신고가 ${shown.length}건이 신고 후 취소됐습니다`;
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
