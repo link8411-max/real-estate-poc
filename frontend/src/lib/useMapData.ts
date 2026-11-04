@@ -13,6 +13,7 @@ export interface MapApartment {
   trade_count: number | null;
   build_year: number | null;
   latest_trade_area: number | null;
+  latest_trade_date: string | null;
 }
 
 export interface MapRegion {

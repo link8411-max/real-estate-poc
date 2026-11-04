@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import MapView from "../MapView";
 
@@ -47,9 +47,12 @@ beforeEach(() => {
   map.setLevel.mockReset();
   map.setCenter.mockReset();
   setGeo(true);
-  vi.stubGlobal("kakao", { maps: { LatLng: FakeLatLng, CustomOverlay: FakeOverlay } });
+  vi.stubGlobal("kakao", { maps: { LatLng: FakeLatLng, CustomOverlay: FakeOverlay, event: { addListener: vi.fn(), removeListener: vi.fn() } } });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("내 위치 버튼", () => {
   test("geolocation이 없으면 버튼을 숨긴다", () => {

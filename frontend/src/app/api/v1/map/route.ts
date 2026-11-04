@@ -2,7 +2,8 @@ import { applyFilters, parseApartmentFilters, parseBbox, parseNumber, type Filte
 import { supabaseServer } from "@/lib/supabase/server";
 import { fail, guard, ok, upstreamError } from "@/lib/apiResponse";
 
-const MAP_COLUMNS = "id,name,lat,lng,latest_trade_amount,latest_jeonse_deposit,trade_count,build_year,latest_trade_area";
+export const MAP_COLUMNS =
+  "id,name,lat,lng,latest_trade_amount,latest_jeonse_deposit,trade_count,build_year,latest_trade_area,latest_trade_date";
 const MAX_SPAN_DEG = 1.5;
 const MAX_ROWS = 500;
 

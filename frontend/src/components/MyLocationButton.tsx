@@ -4,7 +4,7 @@ import { Loader2, LocateFixed } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export const LOCATE_LEVEL = 5;
-/** 단지 라벨(MapMarkers: 평소 0, 호버 10)보다 항상 위에 보이게 한다 */
+/** 단지 라벨(MapMarkers: 평소 0, 선택 10, 호버 11)보다 항상 위에 보이게 한다 */
 const LOCATE_Z = 100;
 /** 수도권 데이터 범위(대략). 밖이어도 이동은 하되 안내한다. */
 const AREA = { minLat: 36.9, maxLat: 38.3, minLng: 126.0, maxLng: 127.9 };
@@ -15,10 +15,12 @@ interface Props {
   map: kakao.maps.Map;
   /** 안내·오류 문구 전달(토스트는 호출한 쪽이 띄운다) */
   onNotice: (message: string, tone: "info" | "error") => void;
+  /** 모바일에서 미리보기 카드가 열려 있으면 카드 위로 올려 가리지 않게 한다 */
+  raised?: boolean;
 }
 
 /** "내 위치" 버튼: 클릭할 때만 위치를 요청하고, 지도를 옮긴 뒤 파란 점을 찍는다. */
-export default function MyLocationButton({ map, onNotice }: Props) {
+export default function MyLocationButton({ map, onNotice, raised = false }: Props) {
   const [busy, setBusy] = useState(false);
   const overlayRef = useRef<kakao.maps.CustomOverlay | null>(null);
 
@@ -74,7 +76,7 @@ export default function MyLocationButton({ map, onNotice }: Props) {
       aria-label="내 위치"
       onClick={locate}
       disabled={busy}
-      className="absolute bottom-14 right-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg hover:bg-gray-50 md:bottom-8"
+      className={`absolute right-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg hover:bg-gray-50 md:bottom-8 ${raised ? "bottom-60" : "bottom-14"}`}
     >
       {busy ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <LocateFixed className="h-5 w-5" aria-hidden />}
     </button>

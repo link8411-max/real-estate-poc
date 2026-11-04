@@ -6,9 +6,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import FilterPanel from "@/components/FilterPanel";
 import KakaoMap, { type LatLngLiteral } from "@/components/KakaoMap";
 import MapMarkers from "@/components/MapMarkers";
+import MapPreviewCard from "@/components/MapPreviewCard";
 import MyLocationButton from "@/components/MyLocationButton";
 import { type MapBounds, readInitialView, readMapFilters, toApiQuery } from "@/lib/mapFilters";
-import { useMapData } from "@/lib/useMapData";
+import { useMapData, type MapApartment } from "@/lib/useMapData";
 
 function Toast({ children, tone = "info" }: { children: React.ReactNode; tone?: "info" | "error" }) {
   return (
@@ -48,6 +49,19 @@ export default function MapView() {
     toApiQuery(filters),
   );
 
+  // 미리보기 카드: 마커 선택 → 카드. 지도 빈 곳 클릭·Escape·닫기로 닫는다.
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const closeCard = useCallback(() => setSelectedId(null), []);
+  const selectApartment = useCallback((a: MapApartment) => setSelectedId(a.id), []);
+  const selected = data?.type === "apartments" ? (data.items.find((a) => a.id === selectedId) ?? null) : null;
+  // 선택한 단지가 불러온 데이터에서 빠지면(이동·필터·확대) 선택을 푼다
+  if (selectedId !== null && data && !selected) setSelectedId(null);
+  useEffect(() => {
+    if (!map) return;
+    kakao.maps.event.addListener(map, "click", closeCard);
+    return () => kakao.maps.event.removeListener(map, "click", closeCard);
+  }, [map, closeCard]);
+
   const onIdle = useCallback((bounds: MapBounds, level: number, center: LatLngLiteral) => {
     setView({ bounds, level });
     const sp = new URLSearchParams(window.location.search);
@@ -63,8 +77,9 @@ export default function MapView() {
       <div className="absolute inset-x-0 top-0 bottom-11 md:bottom-0">
         <KakaoMap center={initial.center} level={initial.level} onIdle={onIdle} onReady={setMap} />
       </div>
-      {map && <MapMarkers map={map} data={data} mode={filters.mode} bounds={view?.bounds} />}
-      {map && <MyLocationButton map={map} onNotice={showNotice} />}
+      {map && <MapMarkers map={map} data={data} mode={filters.mode} bounds={view?.bounds} selectedId={selected?.id ?? null} onSelect={selectApartment} />}
+      {map && <MyLocationButton map={map} onNotice={showNotice} raised={selected !== null} />}
+      {selected && <MapPreviewCard apartment={selected} onClose={closeCard} />}
       <FilterPanel />
       {notice ? (
         <Toast tone={notice.tone}>{notice.text}</Toast>
