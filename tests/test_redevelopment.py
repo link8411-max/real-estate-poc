@@ -337,23 +337,28 @@ def test_paren_complex_name_still_authorizes(tmp_path):
     assert z["geo"] == "kakao_paren"
 
 
+def test_paren_dong_name_does_not_authorize_place(tmp_path):
+    for i, (sg, n, q, place) in enumerate([
+        ("은평구", "역촌역세권(대조동)장기전세주택", "서울 은평구 대조동", "대조동 주민센터"),
+        ("종로구", "내자필운구역2-1지구(내자동)", "서울 종로구 내자동", "내자동 공영주차장"),
+    ]):
+        row = f'서울특별시,{sg},"{n}",2)정비구역지정,1)재개발(주택정비),1)조합,10'
+        z = _one(tmp_path / str(i), row, {("keyword", q): _doc(f"서울 {sg} 아무동", name=place)})
+        assert z["lat"] is None and z["geo"] is None
+
+
 def test_build_is_deterministic_and_cache_flushed_periodically(tmp_path):
-    rows = [REDEV.format(n=f"구역{i}") for i in range(60)]
-    p = _csv(tmp_path, rows)
+    p = _csv(tmp_path, [REDEV.format(n=f"구역{i}") for i in range(60)])
     cache = tmp_path / "c.json"
-    seen = []
+    snapshots = {}
 
     def g(kind, q):
-        if len(seen) == 55 and cache.exists():
-            pass
-        seen.append(q)
-        if len(seen) == 52:
-            seen.append(json.loads(cache.read_text()).__len__())  # 50건째에 한 번 저장돼 있어야 함
-            raise RuntimeError("stop")
+        snapshots[len(snapshots)] = len(json.loads(cache.read_text())) if cache.exists() else 0
         return None
 
-    fill_geocode_cache(load_zones(p), str(cache), geocoder=g, delay=0, say=lambda *_: None)
-    assert seen[-1] >= 50
+    fill_geocode_cache(load_zones(p), str(cache), geocoder=g, delay=0)
+    n = len(snapshots)
+    assert n > 50 and snapshots[49] == 0 and snapshots[50] == 50  # 50건째까지 받은 뒤 한 번 저장
     c = connect(str(tmp_path / "d.db"))
     migrate(c)
     a = build_zones_json(c, p, date(2026, 11, 4), cache_path=str(cache))

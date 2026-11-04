@@ -289,7 +289,11 @@ def _paren_plausible(p: str) -> bool:
         return False
     if t in _REGION_STEMS or re.sub(r"[구시군]$", "", t) in _REGION_STEMS:
         return False
-    return bool(re.search(r"\d", t)) or t.endswith(_COMPLEX_SUFFIX) or len(t) >= 3
+    if t.endswith(_COMPLEX_SUFFIX):
+        return True
+    if t.endswith(("동", "리", "가", "로", "길")):  # '(대조동)' 같은 지명은 단지 이름이 아니다
+        return False
+    return bool(re.search(r"\d", t)) or len(t) >= 3
 
 
 def _attempts(z: dict[str, Any]) -> list[tuple[str, str, str]]:
