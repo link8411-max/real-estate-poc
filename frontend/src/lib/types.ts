@@ -215,6 +215,8 @@ export interface Zone {
   /** '해당없음'·공백은 null (0 과 구분) */
   households: number | null;
   apt_ids: number[];
+  /** apt_ids 와 같은 순서의 단지 이름(이전 버전 파일에는 없을 수 있다) */
+  apt_names?: string[];
   lat: number | null;
   lng: number | null;
   /** "apt" | "kakao_*" | "dong_approx"(동 단위 대략) | null(좌표 없음) */

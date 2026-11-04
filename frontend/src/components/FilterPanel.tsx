@@ -127,6 +127,65 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
       </button>
 
       <div className={`${open ? "block" : "hidden"} max-h-[60dvh] space-y-4 overflow-y-auto px-4 pb-4 md:block md:max-h-[calc(100dvh-53px-5rem)] md:pt-4`}>
+        <Section title="정비사업 (재건축·재개발)">
+          <button type="button" aria-pressed={zf.on} onClick={() => update({ zones: zf.on ? undefined : 1 })} className={chip(zf.on)}>
+            정비사업
+          </button>
+          {zf.on && (
+            <div className="mt-3 space-y-3">
+              <div role="group" aria-label="범례" className="rounded-lg bg-gray-50 p-2.5">
+                <ul className="space-y-1">
+                  {TYPE_GROUPS.map((t) => (
+                    <LegendRow key={t} group={t} />
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] leading-snug text-gray-500">색이 진할수록 사업 단계가 진행된 구역입니다. 속이 빈 마름모는 위치가 동 단위 대략입니다.</p>
+              </div>
+              <button type="button" aria-pressed={zf.hideApts} onClick={() => update({ apts: zf.hideApts ? undefined : 0 })} className={chip(zf.hideApts)}>
+                아파트 시세 숨기기
+              </button>
+              <div>
+                <p className="mb-1.5 text-xs text-gray-500">유형 (여러 개 선택, 비우면 전체)</p>
+                <div role="group" aria-label="정비사업 유형" className="flex flex-wrap gap-2">
+                  {TYPE_GROUPS.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      aria-pressed={zf.types.includes(t)}
+                      onClick={() => {
+                        const next = toggleIn(zf.types, t, TYPE_GROUPS);
+                        update({ zt: next.length ? next.join(",") : undefined });
+                      }}
+                      className={chip(zf.types.includes(t))}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs text-gray-500">단계 (여러 개 선택, 비우면 전체)</p>
+                <div role="group" aria-label="정비사업 단계" className="flex flex-wrap gap-1.5">
+                  {STAGE_NAMES.map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      aria-pressed={zf.stages.includes(st)}
+                      onClick={() => {
+                        const next = toggleIn(zf.stages, st, STAGE_NAMES);
+                        update({ zs: next.length ? next.join(",") : undefined });
+                      }}
+                      className={`${chip(zf.stages.includes(st))} !px-2 !py-1 !text-xs`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </Section>
+
         <Section title="거래종류">
           <div role="radiogroup" aria-label="거래종류" className="flex gap-2">
             {MODES.map((m) => (
@@ -183,62 +242,6 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
               );
             })}
           </div>
-        </Section>
-
-        <Section title="정비사업 (재건축·재개발)">
-          <button type="button" aria-pressed={zf.on} onClick={() => update({ zones: zf.on ? undefined : 1 })} className={chip(zf.on)}>
-            정비사업
-          </button>
-          {zf.on && (
-            <div className="mt-3 space-y-3">
-              <div>
-                <p className="mb-1.5 text-xs text-gray-500">유형 (여러 개 선택, 비우면 전체)</p>
-                <div role="group" aria-label="정비사업 유형" className="flex flex-wrap gap-2">
-                  {TYPE_GROUPS.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      aria-pressed={zf.types.includes(t)}
-                      onClick={() => {
-                        const next = toggleIn(zf.types, t, TYPE_GROUPS);
-                        update({ zt: next.length ? next.join(",") : undefined });
-                      }}
-                      className={chip(zf.types.includes(t))}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="mb-1.5 text-xs text-gray-500">단계 (여러 개 선택, 비우면 전체)</p>
-                <div role="group" aria-label="정비사업 단계" className="flex flex-wrap gap-1.5">
-                  {STAGE_NAMES.map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      aria-pressed={zf.stages.includes(st)}
-                      onClick={() => {
-                        const next = toggleIn(zf.stages, st, STAGE_NAMES);
-                        update({ zs: next.length ? next.join(",") : undefined });
-                      }}
-                      className={`${chip(zf.stages.includes(st))} !px-2 !py-1 !text-xs`}
-                    >
-                      {st}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div role="group" aria-label="범례" className="rounded-lg bg-gray-50 p-2.5">
-                <ul className="space-y-1">
-                  {TYPE_GROUPS.map((t) => (
-                    <LegendRow key={t} group={t} />
-                  ))}
-                </ul>
-                <p className="mt-2 text-[11px] leading-snug text-gray-500">색이 진할수록 사업 단계가 진행된 구역입니다. 속이 빈 마름모는 위치가 동 단위 대략입니다.</p>
-              </div>
-            </div>
-          )}
         </Section>
 
         <button type="button" onClick={reset} className="text-sm text-gray-500 underline-offset-2 hover:underline">

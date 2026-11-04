@@ -26,8 +26,13 @@ describe("ZonePreviewCard", () => {
 
   test("매칭 단지 링크와 목록 링크", () => {
     render(<ZonePreviewCard zone={byId("z002")} onClose={() => {}} />);
-    expect(screen.getAllByRole("link", { name: /단지 \d 보기/ }).map((a) => a.getAttribute("href"))).toEqual(["/apartment/102", "/apartment/103"]);
+    expect(screen.getAllByRole("link", { name: /주공\d단지 보기/ }).map((a) => a.getAttribute("href"))).toEqual(["/apartment/102", "/apartment/103"]);
     expect(screen.getByRole("link", { name: /목록에서 보기/ }).getAttribute("href")).toBe("/redevelopment#zone-z002");
+  });
+
+  test("apt_names 가 없는 옛 파일이면 일반 문구로", () => {
+    render(<ZonePreviewCard zone={{ ...byId("z002"), apt_names: undefined }} onClose={() => {}} />);
+    expect(screen.getByRole("link", { name: "단지 1 보기 ›" })).toBeTruthy();
   });
 
   test("동 단위 대략 위치면 안내를 보여준다, 정확한 위치면 없다", () => {

@@ -92,9 +92,11 @@ export interface ZoneFilters {
   on: boolean;
   types: string[];
   stages: string[];
+  /** 정비사업을 켠 채 아파트 시세 마커를 숨긴다(?apts=0) */
+  hideApts: boolean;
 }
 
-export const ZONE_KEYS = ["zones", "zt", "zs"] as const;
+export const ZONE_KEYS = ["zones", "zt", "zs", "apts"] as const;
 
 const readList = (raw: string | null, allowed: readonly string[]): string[] => {
   const set = new Set((raw ?? "").split(",").map((s) => s.trim()));
@@ -106,6 +108,7 @@ export function readZoneFilters(sp: URLSearchParams): ZoneFilters {
     on: sp.get("zones") === "1",
     types: readList(sp.get("zt"), TYPE_GROUPS),
     stages: readList(sp.get("zs"), STAGE_NAMES),
+    hideApts: sp.get("apts") === "0",
   };
 }
 

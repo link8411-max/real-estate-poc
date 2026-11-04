@@ -42,7 +42,7 @@ def _apt(conn, name, lawd, dong="d", jibun="1", lat=37.5, lng=127.0):
 
 def _zone(name, lawd="11680", group="재건축", sido="서울특별시", sigungu="강남구"):
     return {"zone_id": name, "sido": sido, "sigungu": sigungu, "lawd_cd": lawd, "name": name,
-            "type_group": group, "lat": None, "lng": None, "geo": None, "match": None, "apt_ids": []}
+            "type_group": group, "lat": None, "lng": None, "geo": None, "match": None, "apt_ids": [], "apt_names": []}
 
 
 # ---- load_zones ----
@@ -103,7 +103,7 @@ def test_match_exact_and_contains_unique(conn):
     a2 = _apt(conn, "대치삼성래미안", "11680")
     zs = [_zone("은마아파트"), _zone("삼성래미안")]
     stats = match_apartments(conn, zs)
-    assert zs[0]["match"] == "exact" and zs[0]["apt_ids"] == [a1]
+    assert zs[0]["match"] == "exact" and zs[0]["apt_ids"] == [a1] and zs[0]["apt_names"] == ["은마"]
     assert zs[1]["match"] == "contains" and zs[1]["apt_ids"] == [a2]
     assert stats["exact"] == 1 and stats["contains"] == 1 and stats["ambiguous"] == 0
 
@@ -146,6 +146,7 @@ def test_match_parenthesized_names_and_multi_apts(conn):
     z = [_zone("영통2구역(매탄주공4,5단지)", lawd="41117", sido="경기도", sigungu="수원영통구")]
     match_apartments(conn, z)
     assert z[0]["apt_ids"] == [a1, a2]
+    assert z[0]["apt_names"] == ["매탄주공4단지", "매탄주공5단지"]  # apt_ids 와 같은 순서·원래 이름
     assert z[0]["lat"] == pytest.approx(37.1) and z[0]["lng"] == pytest.approx(127.1)
     assert z[0]["match"] == "exact"
 
@@ -245,8 +246,9 @@ def test_build_zones_json_shape_and_matched_skip_geocode(tmp_path, conn):
     assert "generated_at" in doc
     z = doc["zones"][0]
     assert (z["match"], z["apt_ids"], z["lat"], z["geo"]) == ("exact", [a], 37.49, "apt")
+    assert z["apt_names"] == ["은마"]
     assert set(z) == {"zone_id", "sido", "sigungu", "lawd_cd", "name", "stage", "stage_order", "type",
-                      "type_group", "operator", "households", "lat", "lng", "geo", "match", "apt_ids"}
+                      "type_group", "operator", "households", "lat", "lng", "geo", "match", "apt_ids", "apt_names"}
 
 
 def test_export_writes_zones_and_survives_missing_csv(conn, tmp_path, monkeypatch):

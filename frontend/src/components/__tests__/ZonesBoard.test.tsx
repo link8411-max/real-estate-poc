@@ -45,6 +45,7 @@ describe("ZonesBoard", () => {
     const { container } = render(<ZonesBoard zones={SAMPLE_ZONES} />);
     const links = within(container.querySelector("#zone-z002") as HTMLElement).getAllByRole("link");
     expect(links.map((a) => a.getAttribute("href"))).toEqual(["/apartment/102", "/apartment/103"]);
+    expect(links.map((a) => a.textContent)).toEqual(["잠실주공5단지 ›", "잠실주공4단지 ›"]); // 이름으로 표시
     expect(within(container.querySelector("#zone-z003") as HTMLElement).queryAllByRole("link")).toHaveLength(0);
   });
 

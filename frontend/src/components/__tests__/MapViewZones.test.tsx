@@ -82,6 +82,39 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("MapView 정비사업: 시세 숨기기·겹침", () => {
+  test("apts=0 이면 아파트 시세 마커가 없고 구역만 보인다", () => {
+    query = "zones=1&apts=0";
+    mapData = { type: "apartments", items: [apt({ lng: 127.2 })] };
+    render(<MapView />);
+    expect(aptMarkers()).toHaveLength(0);
+    expect(zoneMarkers().length).toBeGreaterThan(0);
+  });
+  test("apts=0 이어도 정비사업이 꺼져 있으면 시세는 그대로", () => {
+    query = "apts=0";
+    mapData = { type: "apartments", items: [apt({ lng: 127.2 })] };
+    render(<MapView />);
+    expect(aptMarkers()).toHaveLength(1);
+  });
+  test("시세 숨기기를 켜 두면 열려 있던 단지 카드도 닫힌다", () => {
+    query = "zones=1";
+    mapData = { type: "apartments", items: [apt({ lng: 127.2 })] };
+    const { rerender } = render(<MapView />);
+    click(aptMarkers()[0]);
+    expect(screen.getByRole("heading", { name: "래미안" })).toBeTruthy();
+    query = "zones=1&apts=0";
+    rerender(<MapView />);
+    expect(screen.queryByRole("heading", { name: "래미안" })).toBeNull();
+  });
+  test("구역 마커와 겹치는 시세 라벨은 숨긴다(구역 우선), 먼 시세는 남는다", () => {
+    query = "zones=1";
+    // z001(은마) 좌표 37.4985,127.0665 위에 그대로 놓인 단지 + 멀리 있는 단지
+    mapData = { type: "apartments", items: [apt({ id: 1, name: "겹침", lat: 37.4985, lng: 127.0665 }), apt({ id: 2, name: "먼곳", lat: 37.4, lng: 127.3 })] };
+    render(<MapView />);
+    expect(aptMarkers().map((c) => c.title)).toEqual(["먼곳"]);
+  });
+});
+
 describe("MapView 정비사업 레이어", () => {
   test("기본(꺼짐)은 구역 마커가 없고 데이터도 받지 않는다", () => {
     render(<MapView />);

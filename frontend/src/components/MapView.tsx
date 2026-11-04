@@ -13,6 +13,7 @@ import ZonePreviewCard from "@/components/ZonePreviewCard";
 import { panForCard } from "@/lib/cardPan";
 import { type MapBounds, readInitialView, readMapFilters, toApiQuery } from "@/lib/mapFilters";
 import { mapZones, readZoneFilters } from "@/lib/redevelopment";
+import { layoutZones, showZoneLabels } from "@/lib/zoneLayout";
 import type { Zone } from "@/lib/types";
 import { useMapData, type MapApartment } from "@/lib/useMapData";
 import { useZones } from "@/lib/useZones";
@@ -83,12 +84,23 @@ export default function MapView() {
     setSelectedId(null);
     setSelectedZoneId(z.zone_id);
   }, []);
-  const selected = data?.type === "apartments" ? (data.items.find((a) => a.id === selectedId) ?? null) : null;
+  // 정비사업을 켜고 "아파트 시세 숨기기"를 고르면 시세 마커·카드는 없다
+  const aptData = zoneFilters.on && zoneFilters.hideApts ? null : data;
+  const selected = aptData?.type === "apartments" ? (aptData.items.find((a) => a.id === selectedId) ?? null) : null;
   // 선택한 단지가 불러온 데이터에서 빠지면(이동·필터·확대) 선택을 푼다
-  if (selectedId !== null && data && !selected) setSelectedId(null);
+  if (selectedId !== null && aptData && !selected) setSelectedId(null);
+  if (selectedId !== null && zoneFilters.on && zoneFilters.hideApts) setSelectedId(null);
   // 구역도 마찬가지: 필터·범위에서 빠지거나 레이어를 끄면 선택을 푼다
   const selectedZone = shownZones.find((z) => z.zone_id === selectedZoneId) ?? null;
   if (selectedZoneId !== null && !selectedZone) setSelectedZoneId(null);
+  // 구역 마커가 차지한 자리: 아파트 시세 라벨이 피한다(구역·선택 항목 우선, 한 번에 겹침 계산)
+  const level = view?.level ?? initial.level;
+  const zoneBoxes = useMemo(
+    () => (map && zoneFilters.on ? layoutZones(map, shownZones, selectedZone?.zone_id ?? null, showZoneLabels(level)).boxes : undefined),
+    // zoneFilters.on 은 shownZones 가 비는 것으로 갈음된다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [map, shownZones, selectedZone?.zone_id, level],
+  );
   // 선택한 마커가 카드에 가리면 보이는 영역으로 지도를 부드럽게 옮긴다
   const wrapRef = useRef<HTMLDivElement>(null);
   const selLat = selected?.lat ?? selectedZone?.lat ?? undefined;
@@ -127,8 +139,8 @@ export default function MapView() {
       <div className="absolute inset-x-0 top-0 bottom-11 md:bottom-0">
         <KakaoMap center={initial.center} level={initial.level} onIdle={onIdle} onReady={setMap} />
       </div>
-      {map && <MapMarkers map={map} data={data} mode={filters.mode} bounds={view?.bounds} selectedId={selected?.id ?? null} onSelect={selectApartment} />}
-      {map && zoneFilters.on && <ZoneMarkers map={map} zones={shownZones} bounds={view?.bounds} selectedId={selectedZone?.zone_id ?? null} onSelect={selectZone} />}
+      {map && <MapMarkers map={map} data={aptData} mode={filters.mode} bounds={view?.bounds} selectedId={selected?.id ?? null} onSelect={selectApartment} avoid={zoneBoxes} />}
+      {map && zoneFilters.on && <ZoneMarkers map={map} zones={shownZones} bounds={view?.bounds} level={level} selectedId={selectedZone?.zone_id ?? null} onSelect={selectZone} />}
       {map && <MyLocationButton map={map} onNotice={showNotice} liftPx={(selected || selectedZone) && cardHeight > 0 ? cardHeight : undefined} />}
       {selected ? (
         <MapPreviewCard apartment={selected} onClose={closeCard} onHeight={setCardHeight} />

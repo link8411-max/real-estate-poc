@@ -42,15 +42,17 @@ const intersects = (a: Box, b: Box) => a.left < b.right && b.left < a.right && a
 export function cullLabels<T>(
   items: readonly T[],
   project: (item: T) => Point,
-  opts: { label: (item: T) => string; weight: (item: T) => number; top?: (item: T) => string | null },
+  opts: { label: (item: T) => string; weight: (item: T) => number; top?: (item: T) => string | null; occupied?: readonly Box[] },
 ): T[] {
   const sorted = items
     .map((item, i) => ({ item, i, w: opts.weight(item) }))
     .sort((a, b) => b.w - a.w || a.i - b.i);
   const kept: T[] = [];
   const boxes: Box[] = [];
-  for (const { item } of sorted) {
+  for (const { item, w } of sorted) {
     const box = labelBox(project(item), opts.label(item), opts.top?.(item));
+    // occupied: 다른 레이어(정비사업)가 이미 차지한 자리. 가중치 무한(선택한 항목)은 피하지 않는다.
+    if (w !== Infinity && opts.occupied?.some((b) => intersects(b, box))) continue;
     if (boxes.some((b) => intersects(b, box))) continue;
     boxes.push(box);
     kept.push(item);

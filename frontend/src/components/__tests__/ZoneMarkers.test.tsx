@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SAMPLE_ZONES, zone } from "@/test/zones.fixture";
 import ZoneMarkers from "../ZoneMarkers";
@@ -33,6 +33,37 @@ afterEach(() => vi.unstubAllGlobals());
 
 const located = SAMPLE_ZONES.filter((z) => z.lat !== null);
 const live = () => [...FakeOverlay.live].map((o) => o.content);
+
+describe("ZoneMarkers 줌 레벨", () => {
+  test("레벨 6 이상: 글자 없이 색 마름모만, 이름은 title", () => {
+    render(<ZoneMarkers map={map} zones={located} level={6} />);
+    for (const c of live()) {
+      expect(c.textContent).toBe("");
+      expect(c.querySelector("[data-diamond]")).toBeTruthy();
+      expect(c.title).not.toBe("");
+    }
+    expect(live().find((c) => c.dataset.zoneId === "z003")!.title).toBe("한남3구역");
+  });
+  test("레벨 5 이하: '유형 · 단계' 라벨", () => {
+    render(<ZoneMarkers map={map} zones={located} level={5} />);
+    expect(live().find((c) => c.dataset.zoneId === "z003")!.textContent).toBe("재개발 · 착공");
+  });
+  test("레벨이 바뀌면 라벨 유무가 바뀐다", () => {
+    const { rerender } = render(<ZoneMarkers map={map} zones={located} level={4} />);
+    rerender(<ZoneMarkers map={map} zones={located} level={7} />);
+    expect(live()[0].textContent).toBe("");
+  });
+  test("글자 없는 마름모는 가까워도 겹치지 않으면 모두 남는다", () => {
+    const a = zone({ zone_id: "a", lat: 37.5, lng: 127.0 });
+    const b = zone({ zone_id: "b", lat: 37.5, lng: 127.0004 }); // 40px 떨어짐: 라벨이면 겹치지만 마름모는 아님
+    render(<ZoneMarkers map={map} zones={[a, b]} level={7} />);
+    expect(live()).toHaveLength(2);
+    cleanup();
+    FakeOverlay.live.clear();
+    render(<ZoneMarkers map={map} zones={[a, b]} level={3} />);
+    expect(live()).toHaveLength(1);
+  });
+});
 
 describe("ZoneMarkers", () => {
   test("구역마다 '유형 · 단계' 라벨 마커 한 개", () => {

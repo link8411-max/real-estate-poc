@@ -196,3 +196,41 @@ describe("FilterPanel 정비사업", () => {
     expect(lastQuery()).toEqual({ lat: "37.5" });
   });
 });
+
+describe("FilterPanel 정비사업: 시세 숨기기·범례 위치", () => {
+  test("꺼져 있으면 '아파트 시세 숨기기'는 없다", () => {
+    render(<FilterPanel />);
+    expect(screen.queryByRole("button", { name: "아파트 시세 숨기기" })).toBeNull();
+  });
+  test("켜면 토글이 생기고 apts=0 으로 URL에 남는다, 다시 누르면 지운다", async () => {
+    search = new URLSearchParams("zones=1");
+    const { unmount } = render(<FilterPanel />);
+    const b = screen.getByRole("button", { name: "아파트 시세 숨기기" });
+    expect(b).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(b);
+    expect(lastQuery()).toEqual({ zones: "1", apts: "0" });
+    unmount();
+    search = new URLSearchParams("zones=1&apts=0");
+    render(<FilterPanel />);
+    expect(screen.getByRole("button", { name: "아파트 시세 숨기기" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "아파트 시세 숨기기" }));
+    expect(lastQuery()).toEqual({ zones: "1" });
+  });
+  test("정비사업 섹션이 패널 맨 위, 범례는 토글 바로 아래(스크롤 없이 보임)", () => {
+    search = new URLSearchParams("zones=1");
+    render(<FilterPanel />);
+    const toggle = screen.getByRole("button", { name: "정비사업" });
+    const mode = screen.getByRole("radio", { name: "매매" });
+    const legend = screen.getByRole("group", { name: "범례" });
+    const follows = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(toggle, legend)).toBe(true);
+    expect(follows(legend, mode)).toBe(true); // 거래종류·가격 필터보다 위
+    expect(follows(legend, screen.getByRole("group", { name: "정비사업 유형" }))).toBe(true);
+  });
+  test("초기화는 apts 도 지운다", async () => {
+    search = new URLSearchParams("zones=1&apts=0");
+    render(<FilterPanel />);
+    await userEvent.click(screen.getByRole("button", { name: "초기화" }));
+    expect(lastQuery()).toEqual({});
+  });
+});

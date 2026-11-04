@@ -138,7 +138,7 @@ def load_zones(csv_path: str) -> list[dict[str, Any]]:
             "type_group": _type_group(typ),
             "operator": _strip_prefix(r.get("사업시행자") or "") or None,
             "households": int(hh) if hh.isdigit() else None,  # '해당없음'·공백은 null (0 과 구분)
-            "lat": None, "lng": None, "geo": None, "match": None, "apt_ids": [],
+            "lat": None, "lng": None, "geo": None, "match": None, "apt_ids": [], "apt_names": [],
         }
         zid = zone["zone_id"]
         if zid in seen:
@@ -213,14 +213,14 @@ def match_apartments(conn: sqlite3.Connection, zones: list[dict[str, Any]]) -> d
     구역 이름 후보(본이름 + 괄호 안 이름)마다: 정규화 이름이 같은 단지가 정확히 1개면 exact, 여럿이면 모호,
     없으면 한쪽이 다른 쪽을 포함하는 단지가 정확히 1개일 때만 contains. 모호하면 매칭하지 않는다.
     """
-    by_code: dict[str, list[tuple[int, str, float | None, float | None]]] = {}
+    by_code: dict[str, list[tuple[int, str, float | None, float | None, str]]] = {}
 
     def apts_of(lawd: str):
         if lawd not in by_code:
             codes = candidate_codes(lawd)  # 폐지 선행 코드로 남은 단지도 포함
             q = ",".join("?" * len(codes))
             by_code[lawd] = [
-                (r[0], normalize_name(r[1]), r[2], r[3])
+                (r[0], normalize_name(r[1]), r[2], r[3], r[1])
                 for r in conn.execute(
                     f"SELECT id, name, latitude, longitude FROM apartments WHERE lawd_cd IN ({q}) ORDER BY id", codes
                 )
@@ -255,6 +255,7 @@ def match_apartments(conn: sqlite3.Connection, zones: list[dict[str, Any]]) -> d
             continue
         ids = sorted(found)
         z["apt_ids"] = ids
+        z["apt_names"] = [next(a[4] for a in apts if a[0] == i) for i in ids]  # apt_ids 와 같은 순서
         z["match"] = "exact" if all(v == "exact" for v in found.values()) else "contains"
         stats[z["match"]] += 1
         pts = [(a[2], a[3]) for a in apts if a[0] in found and a[2] is not None and a[3] is not None]

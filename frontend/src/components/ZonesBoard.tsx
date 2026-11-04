@@ -136,7 +136,7 @@ export default function ZonesBoard({ zones }: { zones: Zone[] }) {
                       <p className="text-xs">
                         {z.apt_ids.map((id, i) => (
                           <Link key={id} href={`/apartment/${id}`} className="mr-2 text-blue-600 hover:underline">
-                            {z.apt_ids.length > 1 ? `단지 ${i + 1} ›` : "매칭 단지 ›"}
+                            {z.apt_names?.[i] ?? (z.apt_ids.length > 1 ? `단지 ${i + 1}` : "매칭 단지")} ›
                           </Link>
                         ))}
                       </p>

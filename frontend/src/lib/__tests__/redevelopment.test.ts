@@ -67,11 +67,16 @@ describe("요약·조회", () => {
 
 describe("readZoneFilters / zoneFilterPatch", () => {
   test("기본은 꺼짐·전체", () => {
-    expect(r.readZoneFilters(new URLSearchParams())).toEqual({ on: false, types: [], stages: [] });
+    expect(r.readZoneFilters(new URLSearchParams())).toEqual({ on: false, types: [], stages: [], hideApts: false });
   });
   test("zones=1, 쉼표 목록, 모르는 값은 버림", () => {
     const sp = new URLSearchParams({ zones: "1", zt: "재건축,재개발,엉뚱", zs: "착공,관리처분인가" });
-    expect(r.readZoneFilters(sp)).toEqual({ on: true, types: ["재건축", "재개발"], stages: ["관리처분인가", "착공"] });
+    expect(r.readZoneFilters(sp)).toEqual({ on: true, types: ["재건축", "재개발"], stages: ["관리처분인가", "착공"], hideApts: false });
+  });
+  test("apts=0 이면 아파트 시세 숨김", () => {
+    expect(r.readZoneFilters(new URLSearchParams("zones=1&apts=0")).hideApts).toBe(true);
+    expect(r.readZoneFilters(new URLSearchParams("zones=1&apts=1")).hideApts).toBe(false);
+    expect(r.ZONE_KEYS).toContain("apts");
   });
   test("toggleIn: 있으면 빼고 없으면 넣되 정해진 순서 유지", () => {
     expect(r.toggleIn(["재개발"], "재건축", r.TYPE_GROUPS)).toEqual(["재건축", "재개발"]);
@@ -81,7 +86,7 @@ describe("readZoneFilters / zoneFilterPatch", () => {
 
 describe("mapZones", () => {
   const bounds = { minLat: 37.4, minLng: 126.8, maxLat: 37.6, maxLng: 127.2 };
-  const all = { on: true, types: [], stages: [] };
+  const all = { on: true, types: [], stages: [], hideApts: false };
   test("좌표 없는 구역은 지도에서 제외, 범위 밖 제외", () => {
     const ids = r.mapZones(SAMPLE_ZONES, all, bounds).map((z) => z.zone_id);
     expect(ids).toEqual(expect.arrayContaining(["z001", "z002", "z003", "z004"]));
@@ -92,7 +97,7 @@ describe("mapZones", () => {
     expect(r.mapZones(SAMPLE_ZONES, all, null).map((z) => z.zone_id)).toContain("z006");
   });
   test("유형·단계 복수 선택(OR), 비어 있으면 전체", () => {
-    const f = (types: string[], stages: string[]) => r.mapZones(SAMPLE_ZONES, { on: true, types, stages }, null).map((z) => z.zone_id);
+    const f = (types: string[], stages: string[]) => r.mapZones(SAMPLE_ZONES, { on: true, types, stages, hideApts: false }, null).map((z) => z.zone_id);
     expect(f(["재건축"], [])).toEqual(["z001", "z002"]);
     expect(f(["재건축", "주거환경개선"], [])).toEqual(["z001", "z002", "z006"]);
     expect(f([], ["착공", "정비구역지정"])).toEqual(["z003", "z004"]);

@@ -52,6 +52,20 @@ const apts = (...items: MapApartment[]): MapData => ({ type: "apartments", items
 const texts = () => [...FakeOverlay.live].map((o) => o.content.textContent);
 const m = map as unknown as kakao.maps.Map;
 
+describe("MapMarkers avoid(정비사업 마커 자리)", () => {
+  test("avoid 영역과 겹치는 시세 라벨은 숨기고, 선택한 단지는 남긴다", () => {
+    // 단지1 은 x=1000, 단지2 는 x=2000 에 놓인다(경도 0.01도 = 1000px)
+    const avoid = [{ left: 950, right: 1050, top: -20, bottom: 20 }];
+    const data = apts(apt(1, 123000), apt(2, 90000));
+    const { unmount } = render(<MapMarkers map={m} data={data} mode="trade" avoid={avoid} />);
+    expect(texts()).toEqual(["단지2 · 25평9억"]);
+    unmount();
+    FakeOverlay.live.clear();
+    render(<MapMarkers map={m} data={data} mode="trade" avoid={avoid} selectedId={1} />);
+    expect(texts()).toHaveLength(2);
+  });
+});
+
 describe("MapMarkers", () => {
   test("단지 라벨은 윗줄 평수 + 아랫줄 억 한 자리, 클릭하면 onSelect(이동 없음)", () => {
     const onSelect = vi.fn();

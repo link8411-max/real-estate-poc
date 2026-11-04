@@ -69,7 +69,7 @@ export default function ZonePreviewCard({ zone: z, onClose, onHeight }: Props) {
       <div className="mt-3 flex flex-col gap-2">
         {z.apt_ids.map((id, i) => (
           <Link key={id} href={`/apartment/${id}`} className="block rounded-lg bg-blue-600 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700">
-            {z.apt_ids.length > 1 ? `단지 ${i + 1} 보기 ›` : "단지 보기 ›"}
+            {z.apt_names?.[i] ?? (z.apt_ids.length > 1 ? `단지 ${i + 1}` : "단지")} 보기 ›
           </Link>
         ))}
         <Link href={`/redevelopment#zone-${z.zone_id}`} className="block text-center text-sm text-blue-600 hover:underline">

@@ -67,3 +67,19 @@ describe("cullLabels", () => {
     expect(run(items)).toEqual([1]);
   });
 });
+
+describe("cullLabels occupied(다른 레이어가 차지한 자리)", () => {
+  const items = [{ id: "a", x: 100 }, { id: "b", x: 400 }];
+  const run = (weight: (i: { id: string }) => number) =>
+    cullLabels(items, (i) => ({ x: i.x, y: 0 }), {
+      label: () => "1억",
+      weight,
+      occupied: [labelBox({ x: 100, y: 0 }, "1억")],
+    }).map((i) => i.id);
+  test("차지한 자리와 겹치는 항목은 버린다", () => {
+    expect(run(() => 1)).toEqual(["b"]);
+  });
+  test("가중치 무한(선택한 항목)은 겹쳐도 남는다", () => {
+    expect(run((i) => (i.id === "a" ? Infinity : 1))).toEqual(["a", "b"]);
+  });
+});

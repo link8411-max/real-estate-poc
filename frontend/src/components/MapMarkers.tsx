@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAreaUnit, type AreaUnit } from "@/lib/areaUnit";
-import { cullLabels } from "@/lib/cullLabels";
+import { type Box, cullLabels } from "@/lib/cullLabels";
 import { areaGroup, areaToPyeong } from "@/lib/format";
 import { formatMapLabel, type MapBounds, type MapMode } from "@/lib/mapFilters";
 import type { MapApartment, MapData, MapRegion } from "@/lib/useMapData";
@@ -19,6 +19,8 @@ interface Props {
   selectedId?: number | null;
   /** 단지 마커 클릭. 이동 대신 미리보기 카드를 여는 데 쓴다. */
   onSelect?: (apartment: MapApartment) => void;
+  /** 정비사업 마커가 이미 차지한 화면 영역. 시세 라벨은 이 자리를 피한다(구역이 우선). */
+  avoid?: readonly Box[];
 }
 
 /** 마커 윗줄에 보이는 단지명의 최대 글자 수(넘으면 …) */
@@ -124,18 +126,19 @@ function raiseOnHover(overlay: kakao.maps.CustomOverlay, content: HTMLElement, b
 
 /** 단지 라벨/지역 원을 CustomOverlay로 그린다. 갱신 때는 key로 비교해 바뀐 것만 다시 만든다. */
 /** 화면에서 겹치는 단지 라벨을 거래 수 우선으로 거른다. */
-function visibleApartments(map: kakao.maps.Map, items: MapApartment[], mode: MapMode, unit: AreaUnit, selectedId: number | null): MapApartment[] {
+function visibleApartments(map: kakao.maps.Map, items: MapApartment[], mode: MapMode, unit: AreaUnit, selectedId: number | null, avoid?: readonly Box[]): MapApartment[] {
   const projection = map.getProjection();
   const priced = items.filter((a) => amountOf(a, mode) !== null);
   return cullLabels(priced, (a) => projection.containerPointFromCoords(new kakao.maps.LatLng(a.lat, a.lng)), {
     label: (a) => formatMapLabel(amountOf(a, mode)!),
     top: (a) => topLine(a, mode, unit),
+    occupied: avoid,
     // 선택한 마커는 겹쳐도 남긴다
     weight: (a) => (a.id === selectedId ? Infinity : (a.trade_count ?? 0)),
   });
 }
 
-export default function MapMarkers({ map, data, mode, bounds, interactive = true, selectedId = null, onSelect }: Props) {
+export default function MapMarkers({ map, data, mode, bounds, interactive = true, selectedId = null, onSelect, avoid }: Props) {
   const [unit] = useAreaUnit();
   const overlays = useRef(new Map<string, { overlay: kakao.maps.CustomOverlay; sig: string }>());
 
@@ -150,7 +153,7 @@ export default function MapMarkers({ map, data, mode, bounds, interactive = true
     const specs: Spec[] = !data
       ? []
       : data.type === "apartments"
-        ? visibleApartments(map, data.items, mode, unit, selectedId).flatMap((a) => apartmentSpec(a, mode, { unit, selected: a.id === selectedId, onSelect: select }) ?? [])
+        ? visibleApartments(map, data.items, mode, unit, selectedId, avoid).flatMap((a) => apartmentSpec(a, mode, { unit, selected: a.id === selectedId, onSelect: select }) ?? [])
         : data.items.map((r) => regionSpec(r, mode, zoom));
 
     const current = overlays.current;
@@ -181,7 +184,7 @@ export default function MapMarkers({ map, data, mode, bounds, interactive = true
       raiseOnHover(overlay, content, s.z);
       current.set(s.key, { overlay, sig: s.sig });
     }
-  }, [map, data, mode, bounds, interactive, unit, selectedId, onSelect]);
+  }, [map, data, mode, bounds, interactive, unit, selectedId, onSelect, avoid]);
 
   useEffect(() => {
     const current = overlays.current;
