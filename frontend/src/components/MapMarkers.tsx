@@ -124,12 +124,14 @@ function raiseOnHover(overlay: kakao.maps.CustomOverlay, content: HTMLElement, b
 
 /** 단지 라벨/지역 원을 CustomOverlay로 그린다. 갱신 때는 key로 비교해 바뀐 것만 다시 만든다. */
 /** 화면에서 겹치는 단지 라벨을 거래 수 우선으로 거른다. */
-function visibleApartments(map: kakao.maps.Map, items: MapApartment[], mode: MapMode): MapApartment[] {
+function visibleApartments(map: kakao.maps.Map, items: MapApartment[], mode: MapMode, unit: AreaUnit, selectedId: number | null): MapApartment[] {
   const projection = map.getProjection();
   const priced = items.filter((a) => amountOf(a, mode) !== null);
   return cullLabels(priced, (a) => projection.containerPointFromCoords(new kakao.maps.LatLng(a.lat, a.lng)), {
     label: (a) => formatMapLabel(amountOf(a, mode)!),
-    weight: (a) => a.trade_count ?? 0,
+    top: (a) => topLine(a, mode, unit),
+    // 선택한 마커는 겹쳐도 남긴다
+    weight: (a) => (a.id === selectedId ? Infinity : (a.trade_count ?? 0)),
   });
 }
 
@@ -148,7 +150,7 @@ export default function MapMarkers({ map, data, mode, bounds, interactive = true
     const specs: Spec[] = !data
       ? []
       : data.type === "apartments"
-        ? visibleApartments(map, data.items, mode).flatMap((a) => apartmentSpec(a, mode, { unit, selected: a.id === selectedId, onSelect: select }) ?? [])
+        ? visibleApartments(map, data.items, mode, unit, selectedId).flatMap((a) => apartmentSpec(a, mode, { unit, selected: a.id === selectedId, onSelect: select }) ?? [])
         : data.items.map((r) => regionSpec(r, mode, zoom));
 
     const current = overlays.current;

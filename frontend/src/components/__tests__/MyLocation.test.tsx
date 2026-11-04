@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import MapView from "../MapView";
+import MyLocationButton from "../MyLocationButton";
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock("@/components/FilterPanel", () => ({ default: () => null }));
@@ -135,5 +136,16 @@ describe("내 위치 버튼", () => {
     act(() => { vi.advanceTimersByTime(3000); });
     expect(screen.queryByRole("alert")).toBeNull();
     vi.useRealTimers();
+  });
+
+  test("liftPx가 있으면 버튼 하단 오프셋이 그 값을 따른다", () => {
+    const { rerender } = render(<MyLocationButton map={map as never} onNotice={() => {}} />);
+    const btn = () => screen.getByRole("button", { name: "내 위치" });
+    expect(btn().style.getPropertyValue("--lift")).toBe("");
+    rerender(<MyLocationButton map={map as never} onNotice={() => {}} liftPx={304} />);
+    expect(btn().style.getPropertyValue("--lift")).toBe("304px");
+    expect(btn().className).toContain("bottom-[var(--lift)]");
+    rerender(<MyLocationButton map={map as never} onNotice={() => {}} liftPx={180} />);
+    expect(btn().style.getPropertyValue("--lift")).toBe("180px");
   });
 });

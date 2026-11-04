@@ -11,6 +11,9 @@ import MyLocationButton from "@/components/MyLocationButton";
 import { type MapBounds, readInitialView, readMapFilters, toApiQuery } from "@/lib/mapFilters";
 import { useMapData, type MapApartment } from "@/lib/useMapData";
 
+/** 모바일 카드의 하단 여백(Tailwind bottom-14 = 56px) */
+const CARD_BOTTOM_PX = 56;
+
 function Toast({ children, tone = "info" }: { children: React.ReactNode; tone?: "info" | "error" }) {
   return (
     <div
@@ -51,6 +54,8 @@ export default function MapView() {
 
   // 미리보기 카드: 마커 선택 → 카드. 지도 빈 곳 클릭·Escape·닫기로 닫는다.
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // 카드 높이: 모바일에서 내 위치 버튼을 카드 바로 위(카드 bottom 56px + 간격 8px)로 올린다
+  const [cardHeight, setCardHeight] = useState(0);
   const closeCard = useCallback(() => setSelectedId(null), []);
   const selectApartment = useCallback((a: MapApartment) => setSelectedId(a.id), []);
   const selected = data?.type === "apartments" ? (data.items.find((a) => a.id === selectedId) ?? null) : null;
@@ -78,8 +83,8 @@ export default function MapView() {
         <KakaoMap center={initial.center} level={initial.level} onIdle={onIdle} onReady={setMap} />
       </div>
       {map && <MapMarkers map={map} data={data} mode={filters.mode} bounds={view?.bounds} selectedId={selected?.id ?? null} onSelect={selectApartment} />}
-      {map && <MyLocationButton map={map} onNotice={showNotice} raised={selected !== null} />}
-      {selected && <MapPreviewCard apartment={selected} onClose={closeCard} />}
+      {map && <MyLocationButton map={map} onNotice={showNotice} liftPx={selected && cardHeight > 0 ? CARD_BOTTOM_PX + cardHeight + 8 : undefined} />}
+      {selected && <MapPreviewCard apartment={selected} onClose={closeCard} onHeight={setCardHeight} />}
       <FilterPanel />
       {notice ? (
         <Toast tone={notice.tone}>{notice.text}</Toast>

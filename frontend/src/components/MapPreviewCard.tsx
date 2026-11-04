@@ -2,13 +2,15 @@
 
 import { X } from "lucide-react";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { areaGroup, areaToPyeong, formatDeal, formatPrice } from "@/lib/format";
 import type { MapApartment } from "@/lib/useMapData";
 
 interface Props {
   apartment: MapApartment;
   onClose: () => void;
+  /** 카드 높이(px)가 바뀔 때마다 알린다(내 위치 버튼을 카드 위로 올리는 데 쓴다) */
+  onHeight?: (height: number) => void;
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -22,7 +24,19 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 /** 마커를 눌렀을 때 뜨는 단지 미리보기 카드. Escape로도 닫힌다. */
-export default function MapPreviewCard({ apartment: a, onClose }: Props) {
+export default function MapPreviewCard({ apartment: a, onClose, onHeight }: Props) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || !onHeight) return;
+    const report = () => onHeight(node.getBoundingClientRect().height);
+    report();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(report);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [onHeight]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -42,6 +56,7 @@ export default function MapPreviewCard({ apartment: a, onClose }: Props) {
 
   return (
     <section
+      ref={ref}
       aria-label={`${a.name} 미리보기`}
       className="absolute inset-x-3 bottom-14 z-10 rounded-2xl bg-white p-4 shadow-xl md:inset-x-auto md:bottom-3 md:left-3 md:w-[360px]"
     >

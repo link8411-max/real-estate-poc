@@ -12,6 +12,25 @@ describe("labelBox", () => {
   });
 });
 
+describe("두 줄 알약", () => {
+  test("폭은 윗줄·아랫줄 중 긴 쪽, 높이는 32px", () => {
+    // 윗줄 "래미안 · 25평": 한글 6자(60) + 공백·점 2×5.5(11) + 숫자 2×5.5(11)... 긴 쪽이 윗줄
+    const b = labelBox({ x: 0, y: 0 }, "1억", "래미안 · 25평");
+    expect(b.bottom - b.top).toBe(32);
+    expect(b.right - b.left).toBeGreaterThan(5 * 7 + 16);
+  });
+
+  test("한 줄 추정으로는 안 겹치지만 두 줄 추정으로는 겹쳐 하나를 버린다", () => {
+    const items: Item[] = [
+      { id: 1, x: 0, y: 0, label: "9억", trade_count: 9 },
+      { id: 2, x: 70, y: 0, label: "8억", trade_count: 1 },
+    ];
+    expect(run(items)).toEqual([1, 2]); // 한 줄: 폭 30px씩 → 안 겹침
+    const two = cullLabels(items, project, { label: (i) => i.label, weight: (i) => i.trade_count ?? 0, top: () => "한양수자인 · 25평" });
+    expect(two.map((i) => i.id)).toEqual([1]);
+  });
+});
+
 describe("cullLabels", () => {
   test("겹치면 거래 수가 적은 라벨을 버린다", () => {
     const items: Item[] = [

@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("../FilterPanel", () => ({ default: () => null }));
 vi.mock("../MyLocationButton", () => ({
-  default: ({ raised }: { raised?: boolean }) => <button data-testid="loc" data-raised={String(raised)} />,
+  default: ({ liftPx }: { liftPx?: number }) => <button data-testid="loc" data-lift={String(liftPx)} />,
 }));
 
 let mapData: MapData | null = null;
@@ -52,6 +52,7 @@ const setData = (...items: MapApartment[]) => { mapData = { type: "apartments", 
 const clickMarker = (i = 0) => act(() => { [...FakeOverlay.live][i].content.click(); });
 
 beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 240 } as DOMRect);
   FakeOverlay.live.clear();
   clickHandlers.clear();
   push.mockReset();
@@ -69,6 +70,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("MapView 미리보기 카드", () => {
@@ -88,7 +90,8 @@ describe("MapView 미리보기 카드", () => {
     expect(screen.getByText("전세가율")).toBeTruthy();
     expect(screen.getByText("60%")).toBeTruthy();
     expect(screen.getByRole("link", { name: "상세 보기 ›" }).getAttribute("href")).toBe("/apartment/1");
-    expect(screen.getByTestId("loc").getAttribute("data-raised")).toBe("true");
+    // 카드 높이 240px 가정: 56 + 240 + 8
+    expect(screen.getByTestId("loc").getAttribute("data-lift")).toBe("304");
   });
 
   test("값이 없으면 -, 전세가율은 한쪽이라도 없으면 -", () => {
@@ -106,7 +109,7 @@ describe("MapView 미리보기 카드", () => {
     clickMarker();
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
     expect(screen.queryByRole("heading", { name: "래미안" })).toBeNull();
-    expect(screen.getByTestId("loc").getAttribute("data-raised")).toBe("false");
+    expect(screen.getByTestId("loc").getAttribute("data-lift")).toBe("undefined");
 
     clickMarker();
     fireEvent.keyDown(document, { key: "Escape" });
