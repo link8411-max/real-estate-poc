@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import ApartmentHeader from "@/components/ApartmentHeader";
+import CanceledAlert from "@/components/CanceledAlert";
+import CanceledDeals from "@/components/CanceledDeals";
 import ApartmentTrades from "@/components/ApartmentTrades";
 import AptViewTracker from "@/components/AptViewTracker";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -8,6 +10,7 @@ import InsightBadges from "@/components/InsightBadges";
 import JsonLd from "@/components/JsonLd";
 import RentSection from "@/components/RentSection";
 import ShareButton from "@/components/ShareButton";
+import { analyzeCanceled, countSince } from "@/lib/canceled";
 import { fetchAptRent, fetchAptTrade } from "@/lib/data";
 import { areaGroup, areaToPyeong, formatPrice } from "@/lib/format";
 import { kstToday, liveMetrics } from "@/lib/metrics";
@@ -36,6 +39,8 @@ export default async function ApartmentPage({ params }: Props) {
   const crumbs = aptCrumbs(apt);
   // 시간 창 지표는 오늘(KST) 기준. 서버에서 한 번 계산해 내려준다 — ISR 이 한 시간마다 갱신.
   const today = kstToday();
+  const { canceled, aboveMaxByArea } = analyzeCanceled(data.transactions);
+  const recent = countSince(canceled, new Date(Date.parse(today) - 365 * 86_400_000).toISOString().slice(0, 10));
   const metrics = liveMetrics(data, rentData, today);
   const share = {
     title: `${apt.name} 실거래가`,
@@ -63,12 +68,18 @@ export default async function ApartmentPage({ params }: Props) {
           </p>
         )}
         <InsightBadges metrics={metrics} />
+        <CanceledAlert total={recent.total} highs={recent.highs} />
       </section>
       <DealTabs
         empty={{ jeonse: !rent.rents.some((r) => r.monthly_rent === 0), wolse: !rent.rents.some((r) => r.monthly_rent > 0) }}
         panels={{
           trade: latest ? (
-            <ApartmentTrades stats={data.area_stats} transactions={data.transactions} />
+            <ApartmentTrades
+              stats={data.area_stats}
+              transactions={data.transactions}
+              canceledAbove={Object.fromEntries(aboveMaxByArea)}
+              beforeList={<CanceledDeals items={canceled} />}
+            />
           ) : (
             <p className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-sm text-gray-500">매매 거래가 없습니다</p>
           ),

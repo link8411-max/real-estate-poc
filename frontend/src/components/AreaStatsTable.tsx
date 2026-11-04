@@ -9,9 +9,11 @@ interface Props {
   stats: AreaStat[];
   selected: number | null;
   onSelect: (area: number | null) => void;
+  /** 평형 묶음 → 최고가보다 높았던 취소 거래 금액 */
+  canceledAbove?: Record<number, number>;
 }
 
-export default function AreaStatsTable({ stats, selected, onSelect }: Props) {
+export default function AreaStatsTable({ stats, selected, onSelect, canceledAbove }: Props) {
   const [unit] = useAreaUnit();
   const toggle = (area: number) => onSelect(selected === area ? null : area);
 
@@ -45,7 +47,11 @@ export default function AreaStatsTable({ stats, selected, onSelect }: Props) {
                   <span className="font-semibold text-gray-900">{formatManwon(s.latest_amount)}</span>
                   <span className="ml-1 text-xs text-gray-400">{formatDeal(s.latest_date)}</span>
                 </td>
-                <td className="py-3 pr-3 text-right text-gray-700">{formatManwon(s.max_amount)}</td>
+                <td className="py-3 pr-3 text-right text-gray-700">{formatManwon(s.max_amount)}
+                  {canceledAbove?.[s.area] != null && (
+                    <div className="text-xs text-red-600">취소된 더 높은 가격 {formatManwon(canceledAbove[s.area])}</div>
+                  )}
+                </td>
                 <td className="py-3 text-right text-gray-500">{s.count.toLocaleString("en-US")}건</td>
               </SelectableRow>
             );

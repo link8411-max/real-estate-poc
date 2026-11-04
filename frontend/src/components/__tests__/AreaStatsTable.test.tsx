@@ -70,3 +70,15 @@ describe("AreaStatsTable", () => {
     expect(onSelect).toHaveBeenCalledWith(122);
   });
 });
+
+describe("AreaStatsTable 취소된 더 높은 가격", () => {
+  test("해당 평형 행에만 표시", () => {
+    render(<AreaStatsTable stats={stats} selected={null} onSelect={() => {}} canceledAbove={{ 84: 120000 }} />);
+    expect(screen.getAllByText("취소된 더 높은 가격 12억")).toHaveLength(1);
+    expect(within(screen.getByRole("row", { name: /84㎡/ })).getByText("취소된 더 높은 가격 12억")).toBeInTheDocument();
+  });
+  test("없으면 문구 없음", () => {
+    render(<AreaStatsTable stats={stats} selected={null} onSelect={() => {}} />);
+    expect(screen.queryByText(/취소된 더 높은 가격/)).toBeNull();
+  });
+});

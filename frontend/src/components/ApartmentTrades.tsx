@@ -13,9 +13,13 @@ import type { AreaStat, Transaction } from "@/lib/types";
 export default function ApartmentTrades({
   stats,
   transactions,
+  beforeList,
+  canceledAbove,
 }: {
   stats: AreaStat[];
   transactions: Transaction[];
+  beforeList?: React.ReactNode;
+  canceledAbove?: Record<number, number>;
 }) {
   const [unit] = useAreaUnit();
   const [area, setArea] = useState<number | null>(null);
@@ -27,7 +31,7 @@ export default function ApartmentTrades({
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-1 font-bold text-gray-900">평형별 시세</h2>
         <p className="mb-3 text-xs text-gray-500">행을 누르면 그 평형만 봅니다</p>
-        <AreaStatsTable stats={stats} selected={area} onSelect={setArea} />
+        <AreaStatsTable stats={stats} selected={area} onSelect={setArea} canceledAbove={canceledAbove} />
       </section>
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-3 font-bold text-gray-900">
@@ -35,6 +39,7 @@ export default function ApartmentTrades({
         </h2>
         <PriceChart data={history} />
       </section>
+      {beforeList}
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-3 font-bold text-gray-900">
           실거래 내역 <span className="text-sm font-normal text-gray-500">{scope}</span>
