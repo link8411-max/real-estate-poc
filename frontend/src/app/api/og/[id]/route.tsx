@@ -1,4 +1,4 @@
-import { ImageResponse } from "@vercel/og";
+import { ImageResponse } from "next/og";
 import { fetchAptTrade } from "@/lib/data";
 import { areaGroup, formatPrice } from "@/lib/format";
 import { FONT_FAMILY, options } from "@/lib/ogFont";

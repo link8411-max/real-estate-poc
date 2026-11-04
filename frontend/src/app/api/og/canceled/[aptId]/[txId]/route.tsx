@@ -1,4 +1,4 @@
-import { ImageResponse } from "@vercel/og";
+import { ImageResponse } from "next/og";
 import { parseId, shareTx } from "@/lib/canceledShare";
 import { fetchAptTrade } from "@/lib/data";
 import { formatDeal, formatPrice } from "@/lib/format";

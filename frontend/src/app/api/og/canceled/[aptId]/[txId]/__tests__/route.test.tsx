@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const trees: unknown[] = [];
 const optsSeen: ({ headers?: Record<string, string> } | undefined)[] = [];
-vi.mock("@vercel/og", () => ({
+vi.mock("next/og", () => ({
   ImageResponse: class {
     constructor(el: unknown, opts?: { headers?: Record<string, string> }) {
       trees.push(el);

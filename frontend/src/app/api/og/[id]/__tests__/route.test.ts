@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const calls: { options: { fonts?: { data: unknown }[]; headers?: Record<string, string> } }[] = [];
-vi.mock("@vercel/og", () => ({
+vi.mock("next/og", () => ({
   ImageResponse: class {
     constructor(_el: unknown, options: { fonts?: { data: unknown }[]; headers?: Record<string, string> }) {
       calls.push({ options });
