@@ -53,3 +53,6 @@ summary_*.json
 changed_apts.json
 summary.json
 *.migration_state
+
+# 로컬 작업 공간(시안·SDD 장부)
+.superpowers/
