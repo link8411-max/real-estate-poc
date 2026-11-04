@@ -30,7 +30,7 @@ pipeline/            Python 파이프라인 (아래 CLI 표)
   redevelopment.py   국토부 정비구역 CSV -> v1/redevelopment/zones.json (재건축 단지 이름 매칭 + 카카오 지오코딩 캐시 data/redevelopment/geocode_cache.json; `--db X --geocode` 로 캐시 채움)
   migrate_coords.py  옛 로컬 DB 에서 좌표 이식 (1회성)
   supabase_sync.py   apartment_summary 동기화
-  merge_apartments.py 이름이 바뀌어 쪼개진 단지(apt_seq 없는 옛 단지↔새 단지) 1:1 쌍만 합침 (migrate 끝에서 자동, CLI 는 --report·--dry-run 보고서)
+  merge_apartments.py 이름이 바뀌어 쪼개진 단지(apt_seq 없는 옛 단지↔새 단지) 1:1 쌍만 합침 + 사람이 확인한 MANUAL_PAIRS 는 옛 단지→본 단지로 합침 (migrate 끝에서 자동, CLI 는 --report·--dry-run 보고서)
 r2_utils.py          정본 DB R2 download / upload / info
 scripts/             initial_migration.sh, sync_github_secrets.sh, serve_out.py, make_og_font.sh
 supabase/migrations/ 0001_init.sql

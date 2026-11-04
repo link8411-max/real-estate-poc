@@ -9,7 +9,9 @@ import pytest
 
 from pipeline.db import insert_trade, migrate, pop_changed, upsert_apartment
 from pipeline.export_json import export
-from pipeline.merge_apartments import find_rename_pairs, main, merge_pair, merge_renamed
+from pipeline.merge_apartments import (
+    MANUAL_PAIRS, find_rename_pairs, main, merge_manual, merge_pair, merge_renamed,
+)
 from pipeline.molit_client import TradeItem
 from pipeline.supabase_sync import delete_apartments, sync
 
@@ -364,3 +366,64 @@ def test_merge_renamed_continues_after_one_pair_fails(conn, monkeypatch, capsys)
     assert conn.execute("SELECT count(*) FROM transactions WHERE apt_id=?", (N1,)).fetchone()[0] == 1
     out = capsys.readouterr().out
     assert str(L1) in out and str(N1) in out and "boom" in out
+
+
+def _manual_world(c):
+    # n:1 — 강선마을 동 일부 이름 두 개(L) 와 본 단지(N)
+    L1 = _apt(c, "강선마을8단지럭키", "63", 1993, None, dong="주엽동", lawd_cd="41287")
+    L2 = _apt(c, "강선마을8단지롯데", "63", 1993, None, dong="주엽동", lawd_cd="41287")
+    N = _apt(c, "강선마을8단지(롯데,럭키)", "63", 1993, "41287-47", dong="주엽동", lawd_cd="41287")
+    c.execute("UPDATE apartments SET latitude=NULL, household_count=NULL WHERE id=?", (N,))
+    c.execute("UPDATE apartments SET latitude=37.6, longitude=126.7, household_count=1000 WHERE id=?", (L1,))
+    _trade(c, L1, 30000, "2010-01-01")
+    _trade(c, L1, 40000, "2015-03-01", cancel_date="2015-03-20")  # N 과 중복, L 에만 해제일
+    _trade(c, N, 40000, "2015-03-01")
+    _trade(c, N, 50000, "2020-01-01")
+    _trade(c, L2, 35000, "2011-01-01")
+    _rent(c, L1, 10000, 0, "2012-01-01")
+    return L1, L2, N
+
+
+def test_merge_manual_moves_legacy_into_new(conn):
+    L1, L2, N = _manual_world(conn)
+    conn.execute("INSERT INTO apartment_aliases(old_id, canonical_id) VALUES (999999, ?)", (L1,))
+    assert merge_manual(conn, ((L1, N), (L2, N))) == 2
+    rows = conn.execute(
+        "SELECT amount, cancel_date FROM transactions WHERE apt_id=? ORDER BY deal_date", (N,)
+    ).fetchall()
+    assert [r[0] for r in rows] == [30000, 35000, 40000, 50000]
+    assert rows[2][1] == "2015-03-20"  # 해제일이 N 행으로 옮겨짐
+    assert conn.execute("SELECT count(*) FROM transactions").fetchone()[0] == 4
+    assert conn.execute("SELECT count(*) FROM rents WHERE apt_id=?", (N,)).fetchone()[0] == 1
+    a = conn.execute("SELECT * FROM apartments WHERE id=?", (N,)).fetchone()
+    assert a["name"] == "강선마을8단지(롯데,럭키)" and a["apt_seq"] == "41287-47"
+    assert (a["latitude"], a["longitude"], a["household_count"]) == (37.6, 126.7, 1000)
+    assert conn.execute("SELECT count(*) FROM apartments WHERE id IN (?,?)", (L1, L2)).fetchone()[0] == 0
+    assert sorted(tuple(r) for r in conn.execute("SELECT old_id, canonical_id FROM apartment_aliases")) == \
+        sorted([(999999, N), (L1, N), (L2, N)])
+    assert pop_changed(conn) == sorted([L1, L2, N])
+    # 멱등: 이미 합친 쌍은 건너뛴다
+    assert merge_manual(conn, ((L1, N), (L2, N))) == 0
+    assert pop_changed(conn) == []
+
+
+def test_merge_manual_skips_mismatched_pair(conn):
+    L1, _, N = _manual_world(conn)
+    other = _apt(conn, "다른단지", "64", 1993, "41287-99", dong="주엽동", lawd_cd="41287")
+    # 지번이 다르거나, 방향이 반대(N 쪽에 apt_seq 없음)거나, 없는 id 면 아무것도 안 한다.
+    assert merge_manual(conn, ((L1, other), (N, L1), (L1, 424242))) == 0
+    assert conn.execute("SELECT count(*) FROM apartments").fetchone()[0] == 4
+
+
+def test_merge_renamed_runs_manual_before_auto(conn, monkeypatch):
+    L1, L2, N = _manual_world(conn)
+    import pipeline.merge_apartments as m
+    # 확인 목록이 먼저 돌아 L 이 모두 N 으로 합쳐지고, 자동 규칙(N -> L)은 반대로 합치지 않는다.
+    monkeypatch.setattr(m.merge_manual, "__defaults__", (((L1, N), (L2, N)),))
+    assert merge_renamed(conn) == 2
+    assert conn.execute("SELECT count(*) FROM apartments WHERE id=?", (N,)).fetchone()[0] == 1
+
+
+def test_manual_pairs_are_unique_legacy_ids():
+    legacy = [l for l, _ in MANUAL_PAIRS]
+    assert len(legacy) == len(set(legacy)) == 27

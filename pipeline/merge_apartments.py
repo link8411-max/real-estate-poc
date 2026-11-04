@@ -4,6 +4,9 @@ L = apt_seq 없는 옛 단지, N = apt_seq 있는 새 단지. 같은 (lawd_cd, d
 L 정확히 1개와 N 정확히 1개만 있고, 거래 이력이 이름 변경 모양일 때만 합친다
 (L 에 N 첫 거래 전 이력이 있고, 1년 넘게 끊기지 않았으며, N 첫 거래일 이후 L 거래는 모두 N 거래와 중복). 나머지는 사유와 함께 '애매'로 보고만 한다.
 남는 쪽은 L 의 id, 이름·apt_seq 는 N 의 것. 사라진 N 의 id 는 apartment_aliases 에 남긴다.
+
+자동 규칙이 '애매'로 남긴 것 중 사람이 확인한 쌍(MANUAL_PAIRS)은 반대로 L 을 N 으로 합친다:
+예전 시스템 1건짜리 중복, 같은 단지의 예전 표기(단지 일부 동 이름 등). 남는 쪽은 N(id·이름·apt_seq).
 """
 from __future__ import annotations
 
@@ -26,6 +29,41 @@ GROUP BY lawd_cd, dong, jibun, build_year
 HAVING SUM(apt_seq IS NULL) > 0 AND SUM(apt_seq IS NOT NULL) > 0
 ORDER BY lawd_cd, dong, jibun, build_year
 """
+
+
+# (L id, N id) — 2026-11-04 사용자 확인 (docs/handoff/2026-11-04-split-apartments-ambiguous.txt).
+# 재건축·다른 단지·애매한 것(한양3/한양2, 보람2단지, 휘경 주공, 골든맨숀, 우성2(대치), 중앙하이츠2, 방화 삼환 등)은 넣지 않는다.
+MANUAL_PAIRS: tuple[tuple[int, int], ...] = (
+    # 예전 시스템 1건짜리 중복
+    (1, 1554),            # 잠실 엘스 -> 잠실엘스
+    (2, 103),             # 반포 래미안 퍼스티지 -> 래미안퍼스티지
+    (3, 645),             # 판교 푸르지오 그랑블 -> 판교푸르지오그랑블
+    (4, 2338),            # 아크로 리버파크 -> 아크로리버파크
+    (898112, 901622),     # 반포동 피카소빌 A동 -> 반포동피카소빌
+    (69713, 13079),       # (204-11) -> 숭인상가
+    # 같은 단지의 예전 표기
+    (231074, 14797),      # 화성 -> 화성.두산아파트
+    (641080, 640160),     # 대아 -> 동신대아
+    (1008646, 1669),      # 거여2단지효성 -> 거여2단지효성아파트
+    (550147, 4150),       # 삼성(550-0) -> 삼성 (도화동)
+    (2012009, 46876),     # 강선마을1단지대우 -> 강선마을1단지(벽산,대우)
+    (2012036, 46933),     # 강선마을5단지동부 -> 강선마을5단지(동부,건영)
+    (2012166, 2012508),   # 강선마을6단지금호 -> 강선마을6단지(금호,한양)
+    (2012054, 46934),     # 강선마을7단지삼환 -> 강선마을7단지(삼환,유원)
+    (2011964, 46792),     # 강선마을8단지럭키 -> 강선마을8단지(롯데,럭키)
+    (2012043, 46802),     # 문촌마을5단지한일 -> 문촌마을5단지(한일,쌍용)
+    (5496727, 38002),     # 금호타운2차 -> 금호타운 (용현동)
+    (5477021, 37997),     # 용현금호타운2단지1차 -> 용현2단지금호타운
+    (3370818, 38814),     # 동아 -> 연수타운(금호,동아)
+    (3355095, 38655),     # 정광 -> 태산,대진.정광아파트
+    (3355168, 38655),     # 대진 -> 태산,대진.정광아파트
+    (3355467, 40473),     # 팬더 -> 한국1,동아,팬더
+    (3373038, 40473),     # 동아 -> 한국1,동아,팬더
+    (2499346, 40416),     # 부평1차 금호타운 -> 부평1,2차금호타운
+    (3380728, 31288),     # 동문1(11-7) -> 동문1차아파트101동
+    (3353744, 37118),     # 홍문현대102,104,105동 -> 홍문현대
+    (3353753, 37118),     # 홍문현대103동,106동 -> 홍문현대
+)
 
 
 def _ids(csv: str | None) -> list[int]:
@@ -147,12 +185,11 @@ def _match(conn: sqlite3.Connection, table: str, values: str, keep_id: int, drop
     return matched, len(drop_rows)
 
 
-def merge_pair(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dict[str, int]:
-    """drop_id(N) 를 keep_id(L) 로 합친다. 커밋은 호출자가 한다."""
-    from pipeline.db import mark_changed  # 순환 import 회피
-
-    # 매매: 중복이면 N 행을 남기고 L 행을 지운다(L 에만 해제일이 있으면 N 행에 옮긴다).
-    dups, n_trades = _match(conn, "transactions", "amount", keep_id, drop_id, ", cancel_date")
+def _move_rows(conn: sqlite3.Connection, legacy_id: int, new_id: int, target_id: int) -> dict[str, int]:
+    """L·N 의 매매·전월세를 target_id(L 또는 N) 아래로 모은다. 중복이면 N 행을 남기고 L 행을 지운다
+    (L 에만 해제일이 있으면 N 행에 옮긴다)."""
+    src_id = new_id if target_id == legacy_id else legacy_id
+    dups, n_trades = _match(conn, "transactions", "amount", legacy_id, new_id, ", cancel_date")
     for l_row, n_row in dups:
         if l_row[5] and not n_row[5]:
             conn.execute("UPDATE transactions SET cancel_date = ?, is_canceled = 1 WHERE id = ?",
@@ -160,12 +197,35 @@ def merge_pair(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dict[str
     gone = [(l_row[0],) for l_row, _ in dups]
     conn.executemany("DELETE FROM transaction_insights WHERE transaction_id = ?", gone)
     conn.executemany("DELETE FROM transactions WHERE id = ?", gone)
-    conn.execute("UPDATE transactions SET apt_id = ? WHERE apt_id = ?", (keep_id, drop_id))
+    moved_trades = conn.execute("SELECT COUNT(*) FROM transactions WHERE apt_id = ?", (src_id,)).fetchone()[0]
+    conn.execute("UPDATE transactions SET apt_id = ? WHERE apt_id = ?", (target_id, src_id))
 
-    rdups, n_rents = _match(conn, "rents", "deposit, monthly_rent", keep_id, drop_id)
+    rdups, n_rents = _match(conn, "rents", "deposit, monthly_rent", legacy_id, new_id)
     conn.executemany("DELETE FROM rents WHERE id = ?", [(l_row[0],) for l_row, _ in rdups])
-    conn.execute("UPDATE rents SET apt_id = ? WHERE apt_id = ?", (keep_id, drop_id))
+    moved_rents = conn.execute("SELECT COUNT(*) FROM rents WHERE apt_id = ?", (src_id,)).fetchone()[0]
+    conn.execute("UPDATE rents SET apt_id = ? WHERE apt_id = ?", (target_id, src_id))
+    if target_id == legacy_id:  # 기존 보고 형식: N 행 수
+        moved_trades, moved_rents = n_trades, n_rents
+    return {
+        "moved_trades": moved_trades, "dropped_dup_trades": len(dups),
+        "moved_rents": moved_rents, "dropped_dup_rents": len(rdups),
+    }
 
+
+def _repoint_aliases(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> None:
+    conn.execute("UPDATE apartment_aliases SET canonical_id = ? WHERE canonical_id = ?", (keep_id, drop_id))
+    conn.execute(
+        "INSERT INTO apartment_aliases(old_id, canonical_id) VALUES (?, ?) "
+        "ON CONFLICT(old_id) DO UPDATE SET canonical_id = excluded.canonical_id",
+        (drop_id, keep_id),
+    )
+
+
+def merge_pair(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dict[str, int]:
+    """drop_id(N) 를 keep_id(L) 로 합친다. 커밋은 호출자가 한다."""
+    from pipeline.db import mark_changed  # 순환 import 회피
+
+    counts = _move_rows(conn, keep_id, drop_id, keep_id)
     name, seq, lat, lng, quality, households = conn.execute(
         "SELECT name, apt_seq, latitude, longitude, geocode_quality, household_count "
         "FROM apartments WHERE id = ?", (drop_id,),
@@ -179,24 +239,61 @@ def merge_pair(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dict[str
         "latitude = COALESCE(latitude, ?), household_count = COALESCE(household_count, ?) WHERE id = ?",
         (name, seq, quality, lng, lat, households, keep_id),
     )
-    conn.execute("UPDATE apartment_aliases SET canonical_id = ? WHERE canonical_id = ?", (keep_id, drop_id))
-    conn.execute(
-        "INSERT INTO apartment_aliases(old_id, canonical_id) VALUES (?, ?) "
-        "ON CONFLICT(old_id) DO UPDATE SET canonical_id = excluded.canonical_id",
-        (drop_id, keep_id),
-    )
+    _repoint_aliases(conn, keep_id, drop_id)
     mark_changed(conn, [keep_id, drop_id])  # N 은 {"moved_to"} stub·Supabase 삭제 대상으로 나간다
-    return {
-        "moved_trades": n_trades, "dropped_dup_trades": len(dups),
-        "moved_rents": n_rents, "dropped_dup_rents": len(rdups),
-    }
+    return counts
+
+
+def _manual_ok(conn: sqlite3.Connection, legacy_id: int, new_id: int) -> bool:
+    """확인된 쌍이 아직 그대로인지: 둘 다 있고, L 은 apt_seq 없음·N 은 있음, 같은 (lawd_cd, dong, jibun, build_year)."""
+    sql = "SELECT apt_seq, lawd_cd, dong, jibun, build_year FROM apartments WHERE id = ?"
+    l, n = conn.execute(sql, (legacy_id,)).fetchone(), conn.execute(sql, (new_id,)).fetchone()
+    return bool(l and n and l[0] is None and n[0] is not None and tuple(l[1:]) == tuple(n[1:]))
+
+
+def merge_into_new(conn: sqlite3.Connection, legacy_id: int, new_id: int) -> dict[str, int]:
+    """L 을 N 으로 합친다(N 의 id·이름·apt_seq 가 남는다). 커밋은 호출자가 한다."""
+    from pipeline.db import mark_changed  # 순환 import 회피
+
+    counts = _move_rows(conn, legacy_id, new_id, new_id)
+    lat, lng, quality, households = conn.execute(
+        "SELECT latitude, longitude, geocode_quality, household_count FROM apartments WHERE id = ?", (legacy_id,),
+    ).fetchone()
+    conn.execute("DELETE FROM apartments WHERE id = ?", (legacy_id,))
+    conn.execute(
+        "UPDATE apartments SET "
+        "geocode_quality = CASE WHEN latitude IS NULL THEN ? ELSE geocode_quality END, "
+        "longitude = CASE WHEN latitude IS NULL THEN ? ELSE longitude END, "
+        "latitude = COALESCE(latitude, ?), household_count = COALESCE(household_count, ?) WHERE id = ?",
+        (quality, lng, lat, households, new_id),
+    )
+    _repoint_aliases(conn, new_id, legacy_id)
+    mark_changed(conn, [new_id, legacy_id])  # L 은 {"moved_to"} stub·Supabase 삭제 대상으로 나간다
+    return counts
+
+
+def merge_manual(conn: sqlite3.Connection, pairs: tuple[tuple[int, int], ...] = MANUAL_PAIRS) -> int:
+    """확인된 쌍을 L -> N 으로 합치고 합친 개수를 돌려준다. 이미 합쳤거나 모양이 바뀐 쌍은 건너뛴다."""
+    merged = 0
+    for legacy_id, new_id in pairs:
+        if not _manual_ok(conn, legacy_id, new_id):
+            continue
+        try:
+            with conn:
+                merge_into_new(conn, legacy_id, new_id)
+        except Exception as e:  # noqa: BLE001
+            print(f"경고: 단지 합치기 실패 legacy={legacy_id} new={new_id}: {e}")
+            continue
+        merged += 1
+    return merged
 
 
 def merge_renamed(conn: sqlite3.Connection) -> int:
     """1:1 쌍을 모두 합치고 합친 쌍 개수를 돌려준다. 쌍마다 한 트랜잭션.
 
-    한 쌍이 실패하면 그 쌍만 롤백하고 경고를 찍은 뒤 다음 쌍으로 넘어간다(migrate 를 막지 않는다)."""
-    merged = 0
+    한 쌍이 실패하면 그 쌍만 롤백하고 경고를 찍은 뒤 다음 쌍으로 넘어간다(migrate 를 막지 않는다).
+    확인된 L -> N 쌍(MANUAL_PAIRS)을 먼저 합친다 — n:1 묶음에서 L 하나만 남았을 때 자동 규칙이 반대로 합치지 않게."""
+    merged = merge_manual(conn)
     for keep_id, drop_id in _pairs(conn):
         try:
             with conn:
@@ -226,8 +323,19 @@ def main(argv: list[str] | None = None) -> int:
     # migrate 는 부르지 않는다: migrate 가 곧바로 합쳐 버려 dry-run 이 무의미해진다.
     conn = connect(a.db)
     try:
+        manual = []
+        for l_id, n_id in MANUAL_PAIRS:
+            ok = _manual_ok(conn, l_id, n_id)
+            row: dict[str, Any] = {"legacy_id": l_id, "new_id": n_id, "ok": ok}
+            if ok:
+                li, ni = _info(conn, l_id), _info(conn, n_id)
+                row.update(legacy_name=li[1], new_name=ni[1], legacy_trades=li[3], new_trades=ni[3])
+                if not a.dry_run:
+                    with conn:
+                        row.update(merge_into_new(conn, l_id, n_id))
+            manual.append(row)
         pairs, ambiguous = find_rename_pairs(conn)
-        report: dict[str, Any] = {"dry_run": a.dry_run, "pairs": [], "ambiguous": ambiguous}
+        report: dict[str, Any] = {"dry_run": a.dry_run, "manual": manual, "pairs": [], "ambiguous": ambiguous}
         for k, d in pairs:
             lk, ld = _info(conn, k), _info(conn, d)
             report["pairs"].append({
@@ -244,7 +352,8 @@ def main(argv: list[str] | None = None) -> int:
         conn.close()
     with open(a.report, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
-    print(f"쌍 {len(pairs)}개{' (dry-run, 바꾸지 않음)' if a.dry_run else ' 합침'}, 애매 {len(ambiguous)}개 -> {a.report}")
+    n_manual = sum(r["ok"] for r in manual)
+    print(f"확인된 L->N {n_manual}개{' 대상' if a.dry_run else ' 합침'}, 쌍 {len(pairs)}개{' (dry-run, 바꾸지 않음)' if a.dry_run else ' 합침'}, 애매 {len(ambiguous)}개 -> {a.report}")
     return 0
 
 
