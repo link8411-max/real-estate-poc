@@ -4,9 +4,9 @@
 name: Supply Fetch
 
 on:
-  # 스케줄은 Backfill(kind=trade, 최근 12개월)이 법정동 코드(umd_cd)를 채우고 사용자가 승인한 뒤에 켠다.
-  # schedule:
-  #   - cron: '0 16 * * *'   # KST 01:00 (다른 수집과 안 겹침)
+  # 2026-11-05 Backfill(trade 202512~202611)로 법정동 코드를 채운 뒤 사용자 승인으로 켰다.
+  schedule:
+    - cron: '0 16 * * *'   # KST 01:00 (다른 수집과 안 겹침)
   workflow_dispatch:
     inputs:
       budget:
