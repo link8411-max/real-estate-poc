@@ -82,3 +82,36 @@ def test_ignores_non_residential_units():
     ]
     assert is_apartment_unit(rows[0]) is False
     assert _units(rows) == {}
+
+
+def _row(pk, ho, gb, area, etc="계단실", main="아파트", dong=""):
+    return {"mgmBldrgstPk": pk, "dongNm": dong, "hoNm": ho,
+            "exposPubuseGbCd": gb, "mainPurpsCdNm": main,
+            "etcPurps": "아파트" if gb == "1" else etc, "area": area}
+
+
+def test_two_units_boundary_in_second():
+    acc = UnitAccumulator()
+    acc.add_rows([_row(1, "101호", "1", 80.0), _row(1, "101호", "2", 20.0),
+                  _row(2, "102호", "1", 60.0)])
+    done = acc.finished_units()
+    assert [v for v in done.values()] == [(80.0, 100.0)]
+    acc.add_rows([_row(2, "102호", "2", 10.0)])
+    acc.close()
+    assert sorted(acc.finished_units().values()) == [(60.0, 70.0), (80.0, 100.0)]
+
+
+def test_common_rows_reappear_after_other_unit():
+    acc = UnitAccumulator()
+    acc.add_rows([_row(1, "101호", "1", 80.0), _row(2, "102호", "1", 60.0),
+                  _row(1, "101호", "2", 20.0), _row(2, "102호", "2", 10.0)])
+    acc.close()
+    assert sorted(acc.finished_units().values()) == [(60.0, 70.0), (80.0, 100.0)]
+
+
+def test_blank_dong_same_ho_different_pk_kept():
+    acc = UnitAccumulator()
+    acc.add_rows([_row(1, "101호", "1", 80.0), _row(1, "101호", "2", 20.0),
+                  _row(2, "101호", "1", 60.0), _row(2, "101호", "2", 10.0)])
+    acc.close()
+    assert sorted(acc.finished_units().values()) == [(60.0, 70.0), (80.0, 100.0)]

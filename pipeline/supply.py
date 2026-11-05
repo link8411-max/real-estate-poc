@@ -40,55 +40,53 @@ def is_apartment_unit(row: dict) -> bool:
 
 
 class UnitAccumulator:
-    """페이지 단위로 들어오는 행을 (동,호)별로 합산한다.
+    """페이지 단위로 들어오는 행을 호(戶)별로 합산한다.
 
-    행은 호별로 붙어 있다고 가정한다. 마지막 호는 다음 페이지로 이어질 수
-    있어 close() 전까지 finished_units()에 나오지 않는다.
+    호 키는 mgmBldrgstPk(호마다 다름)가 있으면 (pk, "동 호"), 없으면 (동, 호).
+    행이 흩어져 나와도 같은 키는 모두 합산한다. 가장 마지막에 본 호는 다음
+    페이지로 이어질 수 있어 close() 전까지 finished_units()에서 제외한다.
     """
 
     def __init__(self) -> None:
-        self._done: dict[tuple[str, str], tuple[float, float]] = {}
-        self._seen: set[tuple[str, str]] = set()
-        self._key: tuple[str, str] | None = None
-        self._excl: float | None = None
-        self._common = 0.0
-        self._is_apt = False
+        # 키 -> [전유(없으면 None), 주거공용 합, 아파트 여부]
+        self._units: dict[tuple[str, str], list] = {}
+        self._last: tuple[str, str] | None = None
+        self._closed = False
 
-    def _flush(self) -> None:
-        key = self._key
-        if key is not None and self._is_apt and self._excl is not None:
-            self._done[key] = (self._excl, self._excl + self._common)
-        self._key = None
-        self._excl = None
-        self._common = 0.0
-        self._is_apt = False
+    @staticmethod
+    def _key(r: dict) -> tuple[str, str]:
+        dong = (r.get("dongNm") or "").strip()
+        ho = (r.get("hoNm") or "").strip()
+        pk = r.get("mgmBldrgstPk")
+        if pk:
+            return (str(pk), f"{dong} {ho}".strip())
+        return (dong, ho)
 
     def add_rows(self, rows: list[dict]) -> None:
         for r in rows:
-            key = ((r.get("dongNm") or "").strip(), (r.get("hoNm") or "").strip())
-            if key != self._key:
-                self._flush()
-                if key in self._seen:  # 떨어져 다시 나온 호는 무시
-                    continue
-                self._seen.add(key)
-                self._key = key
-            if self._key != key:
-                continue
+            key = self._key(r)
+            self._last = key
+            u = self._units.setdefault(key, [None, 0.0, False])
             area = float(r.get("area") or 0)
             if str(r.get("exposPubuseGbCd")) == "1":
-                if self._excl is None:
-                    self._excl = area
-                    self._is_apt = is_apartment_unit(r)
+                if u[0] is None:
+                    u[0] = area
+                    u[2] = is_apartment_unit(r)
             elif is_residential_common(r.get("etcPurps")):
-                self._common += area
+                u[1] += area
 
     def close(self) -> None:
         """더 들어올 행이 없을 때 보류 중인 마지막 호를 확정."""
-        self._flush()
+        self._closed = True
 
     def finished_units(self) -> dict[tuple[str, str], tuple[float, float]]:
-        """확정된 호 → (전유, 공급). 보류 중인 마지막 호는 제외."""
-        return dict(self._done)
+        """확정된 호 → (전유, 공급). 아파트 전유가 있는 호만, 보류 중인 마지막 호 제외."""
+        return {
+            k: (u[0], u[0] + u[1])
+            for k, u in self._units.items()
+            if u[2] and u[0] is not None
+            and (self._closed or k != self._last)
+        }
 
 
 class TypeEstimate(NamedTuple):
