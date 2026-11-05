@@ -17,6 +17,10 @@ describe("findType", () => {
     expect(findType(types, 84.84)).toEqual(types[0]);
     expect(findType(types, 84.9)).toBeNull();
   });
+  test("경계 ±0.05 포함(부동소수 오차 허용)", () => {
+    expect(findType(types, 84.85)).toEqual(types[0]);
+    expect(findType([{ excl: 84.85, supply: 1, approx: false }], 84.8)).not.toBeNull();
+  });
 });
 
 describe("exactLabel / groupLabel", () => {

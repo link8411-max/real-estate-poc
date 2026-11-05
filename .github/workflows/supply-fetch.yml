@@ -4,14 +4,15 @@
 name: Supply Fetch
 
 on:
-  schedule:
-    - cron: '0 16 * * *'   # KST 01:00 (다른 수집과 안 겹침)
+  # 스케줄은 Backfill(kind=trade, 최근 12개월)이 법정동 코드(umd_cd)를 채우고 사용자가 승인한 뒤에 켠다.
+  # schedule:
+  #   - cron: '0 16 * * *'   # KST 01:00 (다른 수집과 안 겹침)
   workflow_dispatch:
     inputs:
       budget:
         description: '이번 실행의 최대 API 호출 수'
         required: false
-        default: '9500'
+        default: '6000'
 
 permissions:
   contents: read
@@ -35,8 +36,7 @@ jobs:
       R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-      BUDGET: ${{ github.event.inputs.budget || '9500' }}
+      BUDGET: ${{ github.event.inputs.budget || '6000' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +51,7 @@ jobs:
         run: python r2_utils.py download
 
       - name: Fetch building register areas
-        run: python -m pipeline.supply_fetch --db real_estate.db --budget "$BUDGET" --changed-out fetched.json
+        run: python -m pipeline.supply_fetch --db real_estate.db --budget "$BUDGET" --max-minutes 35 --changed-out fetched.json
 
       - name: Resolve supply areas
         run: python -m pipeline.supply resolve --db real_estate.db --cheongyak-dir pipeline/data/cheongyak --changed-out changed_apts.json

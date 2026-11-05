@@ -204,8 +204,6 @@ def build_stats(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
         "ORDER BY t.deal_date DESC, t.id DESC LIMIT ?",
         (RECENT_LIMIT,),
     ).fetchall()
-    from pipeline.supply import load_area_types, supply_label
-
     types = load_area_types(conn, {r["apt_id"] for r in recent})
     since = (today - timedelta(days=30)).isoformat()
     return {

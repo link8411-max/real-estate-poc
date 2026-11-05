@@ -15,7 +15,7 @@ export const supplyPyeong = (m2: number): number => Math.floor(m2 / M2_PER_PYEON
 
 /** 전용면적(±0.05㎡)이 같은 주택형. 파이프라인 lookup의 정확 일치 규칙과 같다. */
 export function findType(types: AreaType[], m2: number): AreaType | null {
-  return types.find((t) => Math.abs(t.excl - m2) <= 0.05) ?? null;
+  return types.find((t) => Math.abs(t.excl - m2) <= 0.05 + 1e-9) ?? null;
 }
 
 const toLabel = (ts: AreaType[]): SupplyLabel | null => {
