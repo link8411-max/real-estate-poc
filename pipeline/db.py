@@ -81,6 +81,20 @@ CREATE TABLE IF NOT EXISTS changed_apartments (
     apt_id INTEGER PRIMARY KEY,
     changed_at TEXT
 );
+CREATE TABLE IF NOT EXISTS register_fetch (
+    apt_id INTEGER PRIMARY KEY,
+    status TEXT NOT NULL,
+    pages INT,
+    fetched_at TEXT
+);
+CREATE TABLE IF NOT EXISTS register_types (
+    apt_id INT,
+    excl_area REAL,
+    supply_area REAL,
+    sample_n INT,
+    agreement REAL,
+    PRIMARY KEY (apt_id, excl_area)
+);
 """
 
 
