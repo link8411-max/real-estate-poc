@@ -24,7 +24,7 @@ concurrency:
 jobs:
   supply:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90  # 첫 실행처럼 내보낼 단지가 많은 날도 DB 업로드까지 끝나게
     env:
       PYTHON_VERSION: "3.11"
       PYTHONUNBUFFERED: "1"
