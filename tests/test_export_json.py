@@ -62,6 +62,7 @@ def test_build_apt_trade_keeps_cancelled_in_list_but_not_in_stats(conn):
     assert d["apartment"] == {
         "id": 1, "name": "래미안", "dong": "역삼동", "lawd_cd": "11680", "region_name": "서울 강남구",
         "city": "서울", "jibun": "1", "build_year": 2000, "apt_seq": "A1", "lat": None, "lng": None,
+        "area_types": [],
     }
     assert [t["deal_date"] for t in d["transactions"]] == ["2026-10-01", "2026-09-01", "2025-05-01"]
     assert d["transactions"][0] == {
@@ -126,7 +127,8 @@ def test_build_region(conn):
     assert [a["id"] for a in d["apartments"]] == [2, 3]  # trade_count desc
     assert set(d["apartments"][0]) == {
         "id", "name", "dong", "build_year", "trade_count", "latest_trade_amount",
-        "latest_trade_date", "latest_jeonse_deposit", "lat", "lng"}
+        "latest_trade_date", "latest_jeonse_deposit", "lat", "lng",
+        "latest_supply_min", "latest_supply_max", "latest_supply_approx"}
 
 
 def test_region_latest_trade_groups_area_by_floor(conn):
@@ -265,3 +267,33 @@ def test_export_writes_highs_recent(conn, tmp_path):
         doc = json.load(f)
     assert doc["since"] == "2026-09-26"
     assert isinstance(doc["items"], list)
+
+
+def _area_type(conn, apt_id, excl, supply, approx=0):
+    conn.execute(
+        "INSERT INTO apartment_area_types(apt_id, excl_area, supply_area, source, approx, sample_n, updated_at)"
+        " VALUES (?,?,?,?,?,?,?)", (apt_id, excl, supply, "register", approx, 10, "x"))
+
+
+def test_apartment_block_has_area_types(conn):
+    _area_type(conn, 1, 84.8, 111.52)
+    _area_type(conn, 1, 59.9, 80.0, approx=1)
+    conn.commit()
+    d = build_apt_trade(conn, 1, TODAY)
+    assert d["apartment"]["area_types"] == [
+        {"excl": 59.9, "supply": 80.0, "approx": True},
+        {"excl": 84.8, "supply": 111.52, "approx": False},
+    ]
+    assert build_apt_rent(conn, 1, TODAY)["apartment"]["area_types"] == d["apartment"]["area_types"]
+
+
+def test_apartment_block_empty_area_types(conn):
+    assert build_apt_trade(conn, 1, TODAY)["apartment"]["area_types"] == []
+
+
+def test_region_entry_latest_supply(conn):
+    _trade(conn, 3, 41000, 84.0, "2026-10-20")
+    _area_type(conn, 3, 84.0, 111.52)
+    conn.commit()
+    apt = next(a for a in build_region(conn, "11440", TODAY)["apartments"] if a["id"] == 3)
+    assert (apt["latest_supply_min"], apt["latest_supply_max"], apt["latest_supply_approx"]) == (33, 33, False)

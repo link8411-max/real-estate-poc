@@ -69,7 +69,7 @@ def test_canceled_highs_definition(cconn):
     assert items[0]["area_group"] == 84 and items[0]["city"] == "서울"
     assert set(items[0]) == {
         "tx_id", "apt_id", "apt_name", "region_name", "city", "area", "area_group", "floor",
-        "amount", "prev_max", "jump", "deal_date", "cancel_date", "days_to_cancel",
+        "amount", "prev_max", "jump", "deal_date", "cancel_date", "days_to_cancel", "supply",
     }
 
 
@@ -102,3 +102,13 @@ def test_only_canceled_predecessor_is_not_a_high(tmp_path):
     _tx(c, 1, 120000, 84.9, "2026-02-01", "2026-02-20")
     c.commit()
     assert canceled_highs(c, since="2026-01-01") == []
+
+
+def test_canceled_entry_supply_null_when_unknown(cconn):
+    assert canceled_highs(cconn, since="2026-01-01")[0]["supply"] is None
+
+
+def test_canceled_entry_supply_known(cconn):
+    cconn.execute("INSERT INTO apartment_area_types VALUES (1,84.9,112.0,'register',1,5,'x')")
+    cconn.commit()
+    assert canceled_highs(cconn, since="2026-01-01")[0]["supply"] == {"min": 33, "max": 33, "approx": True}

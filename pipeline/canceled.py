@@ -66,6 +66,9 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
         sql += " AND t.cancel_date <= ?"
         args.append(until)
     rows = conn.execute(sql, args).fetchall()
+    from pipeline.supply import apt_area_types, supply_label
+
+    type_cache: dict[int, list[dict]] = {}
     region_cache: dict[str, str] = {}
     items: list[dict[str, Any]] = []
     for r in rows:
@@ -79,6 +82,8 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
         code = r["lawd_cd"]
         if code not in region_cache:
             region_cache[code] = _region_name(conn, code)
+        if r["apt_id"] not in type_cache:
+            type_cache[r["apt_id"]] = apt_area_types(conn, r["apt_id"])
         days = (date.fromisoformat(r["cancel_date"]) - date.fromisoformat(r["deal_date"])).days
         items.append({
             "tx_id": r["id"], "apt_id": r["apt_id"], "apt_name": r["name"],
@@ -86,6 +91,7 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
             "area": r["area"], "area_group": r["grp"], "floor": r["floor"],
             "amount": r["amount"], "prev_max": prev, "jump": r["amount"] - prev,
             "deal_date": r["deal_date"], "cancel_date": r["cancel_date"], "days_to_cancel": days,
+            "supply": supply_label(type_cache[r["apt_id"]], r["area"]),
         })
     items.sort(key=lambda i: (i["cancel_date"], i["jump"]), reverse=True)
     return items

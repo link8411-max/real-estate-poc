@@ -35,7 +35,7 @@ def test_record_highs_definition_and_keys(hconn):
     assert it["area_group"] == 84 and it["city"] == "서울" and it["lawd_cd"] == "11680" and it["dong"] == "역삼동"
     assert set(it) == {
         "tx_id", "apt_id", "apt_name", "region_name", "city", "lawd_cd", "dong", "area", "area_group",
-        "floor", "amount", "prev_max", "jump", "jump_pct", "deal_date",
+        "floor", "amount", "prev_max", "jump", "jump_pct", "deal_date", "supply",
     }
 
 
@@ -94,3 +94,19 @@ def test_build_highs_recent(hconn):
     assert doc["since"] == "2026-10-05"
     assert [i["amount"] for i in doc["items"]] == [120000]
     assert "generated_at" in doc
+
+
+def test_highs_entry_supply_range(hconn):
+    _tx(hconn, 1, 130000, 84.5, "2026-10-20")
+    for excl, sup in ((84.8, 111.52), (84.88, 112.9)):
+        hconn.execute("INSERT INTO apartment_area_types VALUES (1,?,?,'register',0,5,'x')", (excl, sup))
+    hconn.commit()
+    items = record_highs(hconn, since="2026-10-15")
+    assert items[0]["supply"] == {"min": 33, "max": 34, "approx": False}
+    hconn.execute("UPDATE apartment_area_types SET approx=1 WHERE excl_area=84.88")
+    hconn.commit()
+    assert record_highs(hconn, since="2026-10-15")[0]["supply"]["approx"] is True
+
+
+def test_highs_entry_supply_null_when_unknown(hconn):
+    assert record_highs(hconn, since="2026-10-01")[0]["supply"] is None

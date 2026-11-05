@@ -26,6 +26,9 @@ def record_highs(conn: sqlite3.Connection, since: str) -> list[dict[str, Any]]:
     by_apt: dict[int, list[sqlite3.Row]] = {}
     for r in rows:
         by_apt.setdefault(r["apt_id"], []).append(r)
+    from pipeline.supply import load_area_types, supply_label
+
+    types = load_area_types(conn, set(by_apt))
     region_cache: dict[str, str] = {}
     items: list[dict[str, Any]] = []
     for apt_id in sorted(by_apt):  # apt_id 순: 인덱스·페이지를 순서대로 읽어 디스크 임의 접근을 피한다
@@ -59,6 +62,7 @@ def record_highs(conn: sqlite3.Connection, since: str) -> list[dict[str, Any]]:
                 "area": r["area"], "area_group": r["grp"], "floor": r["floor"],
                 "amount": r["amount"], "prev_max": prev, "jump": r["amount"] - prev,
                 "jump_pct": round((r["amount"] - prev) / prev * 100, 1), "deal_date": r["deal_date"],
+                "supply": supply_label(types.get(apt_id, []), r["area"]),
             })
     items.sort(key=lambda i: (i["deal_date"], i["jump"]), reverse=True)
     return items

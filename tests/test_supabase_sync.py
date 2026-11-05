@@ -185,3 +185,35 @@ def test_cli_ok(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "k")
     assert ss.main(["--db", db, "--all"]) == 0
     assert "3" in capsys.readouterr().out
+
+
+def _sync_rows(conn, a):
+    got = []
+    sync(conn, [a], TODAY, upsert_apts=lambda rows: got.extend(rows) or len(rows),
+         upsert_regs=lambda rows: len(rows))
+    return got
+
+
+def _supply_setup(conn):
+    a = _apt(conn, "A", "11440", "1", 37.0, 127.0)
+    conn.execute(
+        "INSERT INTO transactions(apt_id, amount, area, floor, deal_date, unique_hash) VALUES (?,?,?,?,?,?)",
+        (a, 100000, 59.96, 5, "2026-09-01", "s1"))
+    conn.execute("INSERT INTO apartment_area_types VALUES (?,?,?,'register',0,5,'x')", (a, 59.96, 84.75))
+    conn.commit()
+    return a
+
+
+def test_supabase_row_has_latest_supply(conn, monkeypatch):
+    monkeypatch.setenv("SUPABASE_SUPPLY_COLUMNS", "1")
+    a = _supply_setup(conn)
+    row = _sync_rows(conn, a)[0]
+    assert row["latest_supply_min"] == row["latest_supply_max"] == 25
+    assert row["latest_supply_approx"] is False
+
+
+def test_supabase_row_omits_supply_without_flag(conn, monkeypatch):
+    monkeypatch.delenv("SUPABASE_SUPPLY_COLUMNS", raising=False)
+    a = _supply_setup(conn)
+    row = _sync_rows(conn, a)[0]
+    assert not any(k.startswith("latest_supply") for k in row)

@@ -139,6 +139,43 @@ def lookup(types: list[dict], area: float) -> dict | None:
     return best
 
 
+def supply_label(types: list[dict], area: float) -> dict | None:
+    """그 거래 전용면적의 공급평 표시값 {"min","max","approx"} (내보내기 세 곳 공통).
+
+    lookup 이 맞으면 min=max, 아니면 같은 정수 묶음(전용 소수점 버림)의 주택형 범위, 없으면 None.
+    """
+    hit = lookup(types, area)
+    if hit is not None:
+        p = supply_pyeong(hit["supply"])
+        return {"min": p, "max": p, "approx": bool(hit["approx"])}
+    group = [t for t in types if int(t["excl"]) == int(area)]
+    if not group:
+        return None
+    pyeongs = [supply_pyeong(t["supply"]) for t in group]
+    return {"min": min(pyeongs), "max": max(pyeongs), "approx": any(bool(t["approx"]) for t in group)}
+
+
+def load_area_types(conn: sqlite3.Connection, apt_ids: set[int] | None = None) -> dict[int, list[dict]]:
+    """apartment_area_types → apt_id: [{"excl","supply","approx"}] (전용 오름차순)."""
+    out: dict[int, list[dict]] = {}
+    for apt_id, excl, supply, approx in conn.execute(
+        "SELECT apt_id, excl_area, supply_area, approx FROM apartment_area_types ORDER BY apt_id, excl_area"
+    ):
+        if apt_ids is None or apt_id in apt_ids:
+            out.setdefault(apt_id, []).append({"excl": excl, "supply": supply, "approx": bool(approx)})
+    return out
+
+
+def apt_area_types(conn: sqlite3.Connection, apt_id: int) -> list[dict]:
+    """한 단지의 주택형 목록 (전용 오름차순, 없으면 [])."""
+    return [
+        {"excl": e, "supply": s, "approx": bool(a)}
+        for e, s, a in conn.execute(
+            "SELECT excl_area, supply_area, approx FROM apartment_area_types WHERE apt_id=? "
+            "ORDER BY excl_area", (apt_id,))
+    ]
+
+
 def _nearest(items: list, key, area: float):
     """items 중 key(item)이 area에 ±0.05 안에서 가장 가까운 것."""
     best, gap = None, TOLERANCE + 1e-9

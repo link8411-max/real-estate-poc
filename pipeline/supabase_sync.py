@@ -14,6 +14,7 @@ from pipeline.db import connect
 from pipeline.export_json import build_stats
 from pipeline.regions import REGIONS, SUCCEEDED_BY, city_of
 from pipeline.summary import apartment_summary
+from pipeline.supply import apt_area_types, supply_label
 
 
 class SupabaseError(Exception):
@@ -114,6 +115,30 @@ def region_rows(conn: sqlite3.Connection, today: date) -> list[dict[str, Any]]:
     return out
 
 
+def _with_supply(conn: sqlite3.Connection, s: dict[str, Any]) -> dict[str, Any]:
+    """환경변수 SUPABASE_SUPPLY_COLUMNS=1 일 때만 최신 거래의 공급평 열을 싣는다.
+
+    운영 Supabase 에 0002 마이그레이션으로 열이 생기기 전에는 키가 없어야 upsert 가 깨지지 않는다.
+    """
+    if os.environ.get("SUPABASE_SUPPLY_COLUMNS") != "1":
+        return s
+    sup = None
+    if s["latest_trade_date"] is not None:
+        row = conn.execute(  # 최신 거래의 실제 전용면적 (summary 의 area 는 정수 묶음)
+            "SELECT area FROM transactions WHERE apt_id=? AND cancel_date IS NULL AND deal_date=? "
+            "AND CAST(area AS INTEGER)=? ORDER BY id DESC LIMIT 1",
+            (s["id"], s["latest_trade_date"], s["latest_trade_area"]),
+        ).fetchone()
+        if row:
+            sup = supply_label(apt_area_types(conn, s["id"]), row[0])
+    return {
+        **s,
+        "latest_supply_min": sup["min"] if sup else None,
+        "latest_supply_max": sup["max"] if sup else None,
+        "latest_supply_approx": sup["approx"] if sup else None,
+    }
+
+
 def sync(
     conn: sqlite3.Connection, apt_ids: list[int] | None, today: date, *,
     upsert_apts: Callable[[list[dict[str, Any]]], int] = upsert_apartments,
@@ -134,7 +159,7 @@ def sync(
         }
     sent = 0
     for i in range(0, len(ids), 500):
-        sent += upsert_apts([apartment_summary(conn, a, today) for a in ids[i:i + 500]])
+        sent += upsert_apts([_with_supply(conn, apartment_summary(conn, a, today)) for a in ids[i:i + 500]])
     if gone:
         delete_apts(gone)
     regs = [r for r in region_rows(conn, today) if affected is None or r["code"] in affected]

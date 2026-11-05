@@ -16,6 +16,7 @@ from pipeline.collect import kst_today
 from pipeline.db import connect
 from pipeline.regions import REGIONS, city_of
 from pipeline.summary import apartment_summary
+from pipeline.supply import apt_area_types, load_area_types, supply_label
 
 PREFIX = "v1"
 RECENT_LIMIT = 6
@@ -39,6 +40,7 @@ def _apartment_block(conn: sqlite3.Connection, s: dict[str, Any]) -> dict[str, A
         "id": s["id"], "name": s["name"], "dong": s["dong"], "lawd_cd": s["lawd_cd"],
         "region_name": _region_name(conn, s["lawd_cd"]), "city": s["city"], "jibun": s["jibun"],
         "build_year": s["build_year"], "apt_seq": s["apt_seq"], "lat": s["lat"], "lng": s["lng"],
+        "area_types": apt_area_types(conn, s["id"]),
     }
 
 
@@ -85,6 +87,7 @@ def build_apt_rent(
 _LIST_FIELDS = (
     "id", "name", "dong", "build_year", "trade_count", "latest_trade_amount",
     "latest_trade_date", "latest_jeonse_deposit", "lat", "lng",
+    "latest_supply_min", "latest_supply_max", "latest_supply_approx",
 )
 
 
@@ -110,10 +113,10 @@ def _slim_all(conn: sqlite3.Connection, codes: set[str] | None = None) -> dict[s
         ) if codes is None or r["lawd_cd"] in codes
     }
     count: dict[int, int] = {}
-    best: dict[int, tuple[str, int, int]] = {}  # apt -> (최신일, 평형, 금액)
+    best: dict[int, tuple[str, int, int, float]] = {}  # apt -> (최신일, 평형, 금액, 전용)
     seen: set[tuple[int, int]] = set()
-    for apt_id, grp, amount, deal_date in conn.execute(
-        "SELECT apt_id, CAST(area AS INTEGER), amount, deal_date FROM transactions "
+    for apt_id, grp, amount, deal_date, area in conn.execute(
+        "SELECT apt_id, CAST(area AS INTEGER), amount, deal_date, area FROM transactions "
         "WHERE cancel_date IS NULL ORDER BY deal_date DESC, id DESC"
     ):
         if apt_id not in apts:
@@ -125,16 +128,18 @@ def _slim_all(conn: sqlite3.Connection, codes: set[str] | None = None) -> dict[s
         cur = best.get(apt_id)
         # summary 는 평형 오름차순 max() 라 최신일 동률이면 작은 평형이 이긴다
         if cur is None or deal_date > cur[0] or (deal_date == cur[0] and grp < cur[1]):
-            best[apt_id] = (deal_date, grp, amount)
+            best[apt_id] = (deal_date, grp, amount, area)
     jeonse: dict[int, int] = {}
     for apt_id, deposit in conn.execute(
         "SELECT apt_id, deposit FROM rents WHERE monthly_rent = 0 ORDER BY deal_date DESC, id DESC"
     ):
         if apt_id in apts and apt_id not in jeonse:
             jeonse[apt_id] = deposit
+    types = load_area_types(conn, set(apts))
     out: dict[str, list[dict[str, Any]]] = {}
     for apt_id, a in apts.items():
         b = best.get(apt_id)
+        sup = supply_label(types.get(apt_id, []), b[3]) if b else None
         out.setdefault(a["lawd_cd"], []).append({
             "id": apt_id, "name": a["name"], "dong": a["dong"], "build_year": a["build_year"],
             "trade_count": count.get(apt_id, 0),
@@ -142,6 +147,9 @@ def _slim_all(conn: sqlite3.Connection, codes: set[str] | None = None) -> dict[s
             "latest_trade_date": b[0] if b else None,
             "latest_jeonse_deposit": jeonse.get(apt_id),
             "lat": a["latitude"], "lng": a["longitude"],
+            "latest_supply_min": sup["min"] if sup else None,
+            "latest_supply_max": sup["max"] if sup else None,
+            "latest_supply_approx": sup["approx"] if sup else None,
         })
     return out
 
