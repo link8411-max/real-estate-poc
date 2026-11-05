@@ -95,6 +95,16 @@ CREATE TABLE IF NOT EXISTS register_types (
     agreement REAL,
     PRIMARY KEY (apt_id, excl_area)
 );
+CREATE TABLE IF NOT EXISTS apartment_area_types (
+    apt_id INT,
+    excl_area REAL,
+    supply_area REAL,
+    source TEXT,
+    approx INT,
+    sample_n INT,
+    updated_at TEXT,
+    PRIMARY KEY (apt_id, excl_area)
+);
 """
 
 
