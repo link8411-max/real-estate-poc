@@ -14,7 +14,8 @@ import ShareButton from "@/components/ShareButton";
 import { ZoneBadge } from "@/components/ZoneChips";
 import { analyzeCanceled, countSince } from "@/lib/canceled";
 import { fetchAptRent, fetchAptTrade } from "@/lib/data";
-import { areaGroup, areaToPyeong, formatPrice } from "@/lib/format";
+import { areaGroup, areaToPyeong, formatArea, formatPrice } from "@/lib/format";
+import { exactLabel, SUPPLY_ENABLED } from "@/lib/supply";
 import { kstToday, liveMetrics } from "@/lib/metrics";
 import { fetchZoneItems, zonesForApartment } from "@/lib/redevelopment";
 import { isMoved } from "@/lib/types";
@@ -71,7 +72,10 @@ export default async function ApartmentPage({ params }: Props) {
           <p className="text-sm text-gray-700">
             최근 매매 <strong className="text-gray-900">{formatPrice(latest.amount)}</strong>{" "}
             <span className="text-gray-500">
-              (전용 {areaGroup(latest.area)}㎡·{areaToPyeong(areaGroup(latest.area))}평, {latest.deal_date})
+              ({SUPPLY_ENABLED
+                ? formatArea(latest.area, "pyeong", exactLabel(apt.area_types, latest.area))
+                : `전용 ${areaGroup(latest.area)}㎡·${areaToPyeong(areaGroup(latest.area))}평`}
+              , {latest.deal_date})
             </span>
           </p>
         )}
@@ -108,12 +112,13 @@ export default async function ApartmentPage({ params }: Props) {
               stats={data.area_stats}
               transactions={data.transactions}
               canceledAbove={Object.fromEntries(aboveMaxByArea)}
-              beforeList={<CanceledDeals key="canceled" items={canceled} />}
+              areaTypes={apt.area_types}
+              beforeList={<CanceledDeals key="canceled" items={canceled} areaTypes={apt.area_types} />}
             />
           ) : (
             <div className="space-y-4">
               <p key="empty" className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-sm text-gray-500">매매 거래가 없습니다</p>
-              <CanceledDeals key="canceled" items={canceled} />
+              <CanceledDeals key="canceled" items={canceled} areaTypes={apt.area_types} />
             </div>
           ),
           jeonse: <RentSection rent={rent} tab="jeonse" today={today} />,

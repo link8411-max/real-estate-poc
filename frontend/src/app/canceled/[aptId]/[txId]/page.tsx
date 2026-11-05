@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { permanentRedirect, redirect } from "next/navigation";
 import ShareButton from "@/components/ShareButton";
-import { parseId, type ShareTx, shareTx } from "@/lib/canceledShare";
+import { parseId, shareArea, type ShareTx, shareTx } from "@/lib/canceledShare";
 import { fetchAptTrade } from "@/lib/data";
-import { formatDeal, formatPrice } from "@/lib/format";
+import { formatArea, formatDeal, formatPrice } from "@/lib/format";
+import { SUPPLY_ENABLED } from "@/lib/supply";
 import { isMoved } from "@/lib/types";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
@@ -18,7 +19,7 @@ export function generateStaticParams() {
 type Props = { params: Promise<{ aptId: string; txId: string }> };
 
 const shareTitle = (name: string, tx: ShareTx) =>
-  `${name} ${tx.pyeong}평 ${formatPrice(tx.amount)}${tx.canceled ? " 신고 후 취소" : ""}`;
+  `${name} ${shareArea(tx)} ${formatPrice(tx.amount)}${tx.canceled ? " 신고 후 취소" : ""}`;
 
 const shareDescription = (tx: ShareTx) =>
   tx.canceled
@@ -79,7 +80,7 @@ export default async function CanceledSharePage({ params }: Props) {
     <div className="mx-auto max-w-xl space-y-4 p-4">
       <section className="space-y-2 rounded-2xl border border-gray-100 bg-white p-5">
         <p className="text-sm text-gray-500">
-          {apt.name} 전용 {tx.pyeong}평
+          {SUPPLY_ENABLED ? `${apt.name} ${formatArea(tx.m2, "pyeong", tx.supply)}` : `${apt.name} 전용 ${tx.pyeong}평`}
         </p>
         <p className="text-3xl font-bold text-gray-900">{formatPrice(tx.amount)}</p>
         <p className="text-sm text-gray-700">{formatDeal(tx.dealDate)} 계약</p>

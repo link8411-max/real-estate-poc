@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type AreaUnit, useAreaUnit } from "@/lib/areaUnit";
 import { formatArea, formatManwon } from "@/lib/format";
 import { liveMetrics, recentWindow } from "@/lib/metrics";
+import { groupLabel } from "@/lib/supply";
 import type { AptRent, AptTrade, AreaStat, Metrics } from "@/lib/types";
 
 const DASH = "—";
@@ -25,7 +26,7 @@ interface Ctx {
 const ROWS: [string, (d: AptTrade, c: Ctx) => string][] = [
   ["지역", (d) => `${d.apartment.region_name} ${d.apartment.dong}`],
   ["준공", (d) => (d.apartment.build_year == null ? DASH : `${d.apartment.build_year}년`)],
-  ["대표 평형", (_, { s, unit }) => (s ? formatArea(s.area, unit) : DASH)],
+  ["대표 평형", (d, { s, unit }) => (s ? formatArea(s.area, unit, groupLabel(d.apartment.area_types, s.area)) : DASH)],
   ["최근 실거래", (_, { s }) => won(s?.latest_amount)],
   ["최고가", (_, { s }) => won(s?.max_amount)],
   ["최근 3개월 평균", (_, { recentAvg }) => won(recentAvg)],

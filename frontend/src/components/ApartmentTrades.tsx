@@ -7,7 +7,8 @@ import PriceChart from "@/components/PriceChart";
 import { useAreaUnit } from "@/lib/areaUnit";
 import { formatArea } from "@/lib/format";
 import { monthlyHistory } from "@/lib/history";
-import type { AreaStat, Transaction } from "@/lib/types";
+import { groupLabel } from "@/lib/supply";
+import type { AreaStat, AreaType, Transaction } from "@/lib/types";
 
 /** 상세 페이지의 평형 선택 → 차트·거래목록 연동 */
 export default function ApartmentTrades({
@@ -15,23 +16,26 @@ export default function ApartmentTrades({
   transactions,
   beforeList,
   canceledAbove,
+  areaTypes,
 }: {
   stats: AreaStat[];
   transactions: Transaction[];
   beforeList?: React.ReactNode;
   canceledAbove?: Record<number, number>;
+  /** 단지 주택형(공급면적). 공급평 표기에 쓴다. */
+  areaTypes?: AreaType[];
 }) {
   const [unit] = useAreaUnit();
   const [area, setArea] = useState<number | null>(null);
   const history = useMemo(() => monthlyHistory(transactions, { area, valueKey: "amount" }), [transactions, area]);
-  const scope = area == null ? "전체 평형" : formatArea(area, unit);
+  const scope = area == null ? "전체 평형" : formatArea(area, unit, groupLabel(areaTypes, area));
 
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-1 font-bold text-gray-900">평형별 시세</h2>
         <p className="mb-3 text-xs text-gray-500">행을 누르면 그 평형만 봅니다</p>
-        <AreaStatsTable stats={stats} selected={area} onSelect={setArea} canceledAbove={canceledAbove} />
+        <AreaStatsTable stats={stats} selected={area} onSelect={setArea} canceledAbove={canceledAbove} areaTypes={areaTypes} />
       </section>
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-3 font-bold text-gray-900">
@@ -45,7 +49,7 @@ export default function ApartmentTrades({
         <h2 className="mb-3 font-bold text-gray-900">
           실거래 내역 <span className="text-sm font-normal text-gray-500">{scope}</span>
         </h2>
-        <DealList transactions={transactions} area={area} />
+        <DealList transactions={transactions} area={area} areaTypes={areaTypes} />
       </section>
     </div>
   );

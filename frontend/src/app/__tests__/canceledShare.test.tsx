@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { setSupplyEnabledForTest } from "@/lib/supply";
 import type { AptTrade } from "@/lib/types";
 
 const fetchAptTrade = vi.fn();
@@ -131,5 +132,30 @@ describe("공유 설명·OG 메타", () => {
   test("openGraph: url·siteName·locale", async () => {
     const m = await page.generateMetadata(props("1554", "2"));
     expect(m.openGraph).toMatchObject({ url: "/canceled/1554/2", siteName: "집시세", locale: "ko_KR" });
+  });
+});
+
+describe("공급평 플래그 on", () => {
+  afterEach(() => setSupplyEnabledForTest(false));
+  const withTypes = { ...trade, apartment: { ...apartment, area_types: [{ excl: 84.9, supply: 112.9, approx: false }] } };
+
+  test("제목: 단지명 34평 금액 (플래그 off면 25평 그대로)", async () => {
+    fetchAptTrade.mockResolvedValue(withTypes);
+    const off = await page.generateMetadata(props("1554", "1"));
+    expect((off.title as { absolute: string }).absolute).toBe("래미안 25평 20억원");
+    setSupplyEnabledForTest(true);
+    const on = await page.generateMetadata(props("1554", "1"));
+    expect((on.title as { absolute: string }).absolute).toBe("래미안 34평 20억원");
+  });
+  test("공급 정보 없으면 ㎡만", async () => {
+    setSupplyEnabledForTest(true);
+    const m = await page.generateMetadata(props("1554", "1"));
+    expect((m.title as { absolute: string }).absolute).toBe("래미안 84㎡ 20억원");
+  });
+  test("본문 첫 줄", async () => {
+    fetchAptTrade.mockResolvedValue(withTypes);
+    setSupplyEnabledForTest(true);
+    render(await page.default(props("1554", "1")));
+    expect(screen.getByText("래미안 34평 · 전용 84㎡")).toBeTruthy();
   });
 });

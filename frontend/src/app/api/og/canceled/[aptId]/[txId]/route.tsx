@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { parseId, shareTx } from "@/lib/canceledShare";
+import { parseId, shareArea, shareTx } from "@/lib/canceledShare";
 import { fetchAptTrade } from "@/lib/data";
 import { formatDeal, formatPrice } from "@/lib/format";
 import { isMoved } from "@/lib/types";
@@ -56,7 +56,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ aptId: 
       >
         <div style={{ display: "flex", fontSize: 28, color: "#9CA3AF" }}>{`zipsise.com · ${header}`}</div>
         <div style={{ display: "flex", marginTop: 30, fontSize: 56, fontWeight: 700 }}>
-          {data.apartment.name} {tx.pyeong}평
+          {data.apartment.name} {shareArea(tx)}
         </div>
         <div style={{ display: "flex", flexDirection: "column", marginTop: 36 }}>
           <span style={{ fontSize: 26, color: "#9CA3AF" }}>{tx.canceled ? "신고된 가격" : "거래 가격"}</span>

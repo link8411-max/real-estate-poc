@@ -4,15 +4,17 @@ import { useMemo } from "react";
 import { LoadMoreButton, useLoadMore } from "@/components/LoadMore";
 import { useAreaUnit } from "@/lib/areaUnit";
 import { areaGroup, formatDeal, formatExactArea, formatManwon } from "@/lib/format";
-import type { Transaction } from "@/lib/types";
+import { exactLabel } from "@/lib/supply";
+import type { AreaType, Transaction } from "@/lib/types";
 
 interface Props {
   transactions: Transaction[];
   /** 평형 그룹(버림 면적). null이면 전체. */
   area: number | null;
+  areaTypes?: AreaType[];
 }
 
-export default function DealList({ transactions, area }: Props) {
+export default function DealList({ transactions, area, areaTypes }: Props) {
   const [unit] = useAreaUnit();
   const filtered = useMemo(
     () => (area == null ? transactions : transactions.filter((t) => areaGroup(t.area) === area)),
@@ -37,7 +39,7 @@ export default function DealList({ transactions, area }: Props) {
             <li key={t.id} className="flex items-center justify-between border-b border-gray-100 py-3 last:border-b-0">
               <div className="flex items-center gap-3 text-sm">
                 <span className="w-16 text-gray-500">{formatDeal(t.deal_date)}</span>
-                <span className="text-gray-700">{formatExactArea(t.area, unit)}</span>
+                <span className="text-gray-700">{formatExactArea(t.area, unit, exactLabel(areaTypes, t.area))}</span>
                 {t.floor != null && <span className="text-gray-400">{t.floor}층</span>}
               </div>
               <div className="flex items-center gap-2">

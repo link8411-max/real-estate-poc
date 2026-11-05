@@ -3,7 +3,8 @@
 import SelectableRow from "@/components/SelectableRow";
 import { useAreaUnit } from "@/lib/areaUnit";
 import { formatArea, formatDeal, formatManwon } from "@/lib/format";
-import type { AreaStat } from "@/lib/types";
+import { groupLabel } from "@/lib/supply";
+import type { AreaStat, AreaType } from "@/lib/types";
 
 interface Props {
   stats: AreaStat[];
@@ -11,9 +12,10 @@ interface Props {
   onSelect: (area: number | null) => void;
   /** 평형 묶음 → 최고가보다 높았던 취소 거래 금액 */
   canceledAbove?: Record<number, number>;
+  areaTypes?: AreaType[];
 }
 
-export default function AreaStatsTable({ stats, selected, onSelect, canceledAbove }: Props) {
+export default function AreaStatsTable({ stats, selected, onSelect, canceledAbove, areaTypes }: Props) {
   const [unit] = useAreaUnit();
   const toggle = (area: number) => onSelect(selected === area ? null : area);
 
@@ -41,7 +43,7 @@ export default function AreaStatsTable({ stats, selected, onSelect, canceledAbov
             return (
               <SelectableRow key={s.area} selected={isSelected} onSelect={() => toggle(s.area)}>
                 <td className={`py-3 pr-3 font-semibold ${isSelected ? "text-blue-700" : "text-gray-900"}`}>
-                  {formatArea(s.area, unit)}
+                  {formatArea(s.area, unit, groupLabel(areaTypes, s.area))}
                 </td>
                 <td className="py-3 pr-3 text-right">
                   <span className="font-semibold text-gray-900">{formatManwon(s.latest_amount)}</span>

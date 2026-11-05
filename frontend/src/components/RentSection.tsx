@@ -8,7 +8,8 @@ import { useAreaUnit } from "@/lib/areaUnit";
 import { areaGroup, formatArea, formatDeal, formatExactArea, formatManwon } from "@/lib/format";
 import { monthlyHistory } from "@/lib/history";
 import { recentWindow } from "@/lib/metrics";
-import type { AptRent, Rent } from "@/lib/types";
+import { exactLabel, groupLabel } from "@/lib/supply";
+import type { AptRent, AreaType, Rent } from "@/lib/types";
 
 type Tab = "jeonse" | "wolse";
 
@@ -18,7 +19,8 @@ const priceLabel = (deposit: number, monthly: number) =>
 
 const badge = "rounded-full px-2 py-0.5 text-xs font-medium";
 
-function AreaTable({ rows, avg, tab, selected, onSelect }: {
+function AreaTable({ rows, avg, tab, selected, onSelect, areaTypes }: {
+  areaTypes?: AreaType[];
   rows: Rent[];
   avg: Map<number, number | null>;
   tab: Tab;
@@ -52,7 +54,7 @@ function AreaTable({ rows, avg, tab, selected, onSelect }: {
             const a = avg.get(area);
             return (
               <SelectableRow key={area} selected={isSelected} onSelect={toggle}>
-                <td className={`py-3 pr-3 font-semibold ${isSelected ? "text-blue-700" : "text-gray-900"}`}>{formatArea(area, unit)}</td>
+                <td className={`py-3 pr-3 font-semibold ${isSelected ? "text-blue-700" : "text-gray-900"}`}>{formatArea(area, unit, groupLabel(areaTypes, area))}</td>
                 <td className="py-3 pr-3 text-right">
                   <span className="font-semibold text-gray-900">{priceLabel(latest.deposit, latest.monthly_rent)}</span>
                   <span className="ml-1 text-xs text-gray-400">{formatDeal(latest.deal_date)}</span>
@@ -70,7 +72,7 @@ function AreaTable({ rows, avg, tab, selected, onSelect }: {
   );
 }
 
-function RentList({ rows, resetKey }: { rows: Rent[]; resetKey: string }) {
+function RentList({ rows, resetKey, areaTypes }: { rows: Rent[]; resetKey: string; areaTypes?: AreaType[] }) {
   const [unit] = useAreaUnit();
   const { count, hasMore, showMore, buttonRef } = useLoadMore(rows.length, resetKey);
   if (rows.length === 0) return <p className="py-8 text-center text-sm text-gray-500">거래 내역이 없습니다</p>;
@@ -83,7 +85,7 @@ function RentList({ rows, resetKey }: { rows: Rent[]; resetKey: string }) {
           <li key={r.id} className="flex items-center justify-between gap-2 border-b border-gray-100 py-3 last:border-b-0">
             <div className="flex items-center gap-3 text-sm">
               <span className="w-16 text-gray-500">{formatDeal(r.deal_date)}</span>
-              <span className="text-gray-700">{formatExactArea(r.area, unit)}</span>
+              <span className="text-gray-700">{formatExactArea(r.area, unit, exactLabel(areaTypes, r.area))}</span>
               {r.floor != null && <span className="text-gray-400">{r.floor}층</span>}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -128,7 +130,8 @@ export default function RentSection({
   }, [rows, today]);
   const history = useMemo(() => monthlyHistory(rows, { area, valueKey: "deposit" }), [rows, area]);
   const shown = useMemo(() => (area == null ? rows : rows.filter((r) => areaGroup(r.area) === area)), [rows, area]);
-  const scope = area == null ? "전체 평형" : formatArea(area, unit);
+  const areaTypes = rent.apartment.area_types;
+  const scope = area == null ? "전체 평형" : formatArea(area, unit, groupLabel(areaTypes, area));
   const label = tab === "jeonse" ? "전세" : "월세";
 
   return (
@@ -136,7 +139,7 @@ export default function RentSection({
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-1 font-bold text-gray-900">평형별 {label} 시세</h2>
         <p className="mb-3 text-xs text-gray-500">행을 누르면 그 평형만 봅니다</p>
-        <AreaTable rows={rows} avg={avg} tab={tab} selected={area} onSelect={(a) => setSel({ tab, area: a })} />
+        <AreaTable areaTypes={areaTypes} rows={rows} avg={avg} tab={tab} selected={area} onSelect={(a) => setSel({ tab, area: a })} />
       </section>
       <section className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="mb-3 font-bold text-gray-900">
@@ -148,7 +151,7 @@ export default function RentSection({
         <h2 className="mb-3 font-bold text-gray-900">
           {label} 거래 내역 <span className="text-sm font-normal text-gray-500">{scope}</span>
         </h2>
-        <RentList rows={shown} resetKey={`${tab}:${area}`} />
+        <RentList areaTypes={areaTypes} rows={shown} resetKey={`${tab}:${area}`} />
       </section>
     </div>
   );
