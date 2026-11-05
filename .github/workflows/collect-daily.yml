@@ -61,6 +61,10 @@ jobs:
       - name: Publish to R2
         run: python -m pipeline.r2_publish --out out --keys out/keys.json
 
+      - name: Notify IndexNow
+        continue-on-error: true
+        run: python -m pipeline.indexnow --changed changed_apts.json
+
       - name: Sync to Supabase
         run: python -m pipeline.supabase_sync --db real_estate.db --changed changed_apts.json
 
