@@ -13,7 +13,14 @@ import { browseHref, CITIES } from "@/lib/regions";
 import { HOME_TITLE, websiteJsonLd } from "@/lib/seo";
 import JsonLd from "@/components/JsonLd";
 
-export const metadata: Metadata = { title: { absolute: HOME_TITLE }, alternates: { canonical: "/" } };
+export const metadata: Metadata = {
+  title: { absolute: HOME_TITLE },
+  alternates: {
+    canonical: "/",
+    // 페이지가 alternates 를 직접 정하면 레이아웃 값이 합쳐지지 않아 홈에도 RSS 주소를 둔다.
+    types: { "application/rss+xml": [{ url: "/rss.xml", title: "집시세 신고가·취소 소식" }] },
+  },
+};
 
 const KEYWORDS = ["잠실", "반포", "래미안", "판교", "ㄹㅁㅇ"];
 

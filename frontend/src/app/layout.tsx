@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   openGraph: { type: "website", locale: "ko_KR", siteName: SITE_NAME, description: DESCRIPTION },
   twitter: { card: "summary_large_image" },
+  alternates: { types: { "application/rss+xml": [{ url: "/rss.xml", title: "집시세 신고가·취소 소식" }] } },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
