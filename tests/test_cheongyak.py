@@ -75,3 +75,27 @@ def test_no_match_when_built_before_notice(conn):
     a = add_apt(conn, "올림픽파크포레온", "11740", [29.97, 59.99, 84.98])
     conn.execute("UPDATE apartments SET build_year=1990 WHERE id=?", (a,))
     assert match_notices(conn, load_notices(FIX)) == {}
+
+
+def test_unique_best_dissimilar_name_not_linked(conn):
+    add_apt(conn, "래미안원페를라", "11740", [50.0, 60.0])
+    n = Notice("1", "디에이치 방배", "서울특별시 강동구 1", "2025-01-01", [(50.0, 70.0), (60.0, 80.0)])
+    assert match_notices(conn, [n]) == {}
+
+
+def test_unique_best_similar_name_linked(conn):
+    a = add_apt(conn, "디에이치방배", "11740", [50.0, 60.0])
+    n = Notice("1", "디에이치 방배", "서울특별시 강동구 1", "2025-01-01", [(50.0, 70.0), (60.0, 80.0)])
+    assert list(match_notices(conn, [n])) == [a]
+
+
+def test_many_overlaps_relax_but_project_name_does_not(conn):
+    from pipeline.cheongyak import _similarity
+    add_apt(conn, "가나다라마바", "11740", [50.0, 60.0, 70.0])
+    types = [(50.0, 60.0), (60.0, 70.0), (70.0, 80.0)]
+    nm = "가나사아자차카타"
+    assert 0.15 <= _similarity(nm, "가나다라마바") < 0.3
+    assert len(match_notices(conn, [Notice("1", nm, "서울특별시 강동구 1", "2025-01-01", types)])) == 1
+    nm2 = nm + "블록"
+    assert 0.15 <= _similarity(nm2, "가나다라마바") < 0.3
+    assert match_notices(conn, [Notice("2", nm2, "서울특별시 강동구 1", "2025-01-01", types)]) == {}

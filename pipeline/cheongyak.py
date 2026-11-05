@@ -20,6 +20,11 @@ from pipeline.regions import REGION_FULLNAME, RETIRED_FULLNAME, SUCCEEDED_BY, ca
 TOLERANCE = 0.05
 NAME_MARGIN = 0.15  # 이름 유사도로 동점을 깰 때 1등이 2등보다 이만큼 앞서야 한다
 NAME_MIN = 0.5
+UNIQUE_SIM_MIN = 0.3  # 단독 최대 겹침 단지도 이름이 이만큼은 닮아야 연결
+UNIQUE_SIM_MIN_OVERLAP = 0.15  # 겹침이 OVERLAP_MANY 개 이상이면 완화
+OVERLAP_MANY = 3
+# 단지명이 아니라 사업·블록명인 공고는 겹침 개수와 무관하게 UNIQUE_SIM_MIN 을 넘어야 한다
+PROJECT_WORDS = ("블록", "행복주택", "공공임대", "신혼희망타운", "지구")
 
 _SIDO = {"서울특별시": "서울", "경기도": "경기", "인천광역시": "인천"}
 _TYPE = re.compile(r"^\s*(\d+(?:\.\d+)?)")
@@ -138,7 +143,11 @@ def _pick(conn, notice: Notice, cache: dict) -> int | None:
     best = max(s[0] for s in scored)
     top = [s for s in scored if s[0] == best]
     if len(top) == 1:
-        return top[0][1]
+        sim = _similarity(notice.name, top[0][2])
+        floor = UNIQUE_SIM_MIN
+        if best >= OVERLAP_MANY and not any(w in notice.name for w in PROJECT_WORDS):
+            floor = UNIQUE_SIM_MIN_OVERLAP
+        return top[0][1] if sim >= floor else None
     sims = sorted(((_similarity(notice.name, n), i) for _, i, n in top), reverse=True)
     if sims[0][0] >= NAME_MIN and sims[0][0] - sims[1][0] >= NAME_MARGIN:
         return sims[0][1]
