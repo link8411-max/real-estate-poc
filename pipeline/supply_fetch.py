@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import sqlite3
+import sys
 import time
 from datetime import datetime, timezone
 
@@ -211,16 +212,59 @@ def run(conn: sqlite3.Connection, session, *, budget: int) -> list[int]:
     return done
 
 
+def coverage(conn: sqlite3.Connection) -> dict:
+    """전환 기준: 최근 3년 매매 누적 80%를 덮는 상위 단지(top_n) 중 수집이 끝난 단지 비율."""
+    rows = conn.execute(
+        """
+        SELECT a.id, COUNT(*) AS n FROM apartments a
+        JOIN transactions t ON t.apt_id = a.id
+        WHERE t.cancel_date IS NULL AND t.deal_date >= date('now', '-3 years')
+        GROUP BY a.id ORDER BY n DESC, a.id ASC
+        """
+    ).fetchall()
+    total = sum(n for _, n in rows)
+    top: list[int] = []
+    cum = 0
+    for apt_id, n in rows:
+        top.append(apt_id)
+        cum += n
+        if cum >= 0.8 * total:
+            break
+    done = 0
+    for apt_id in top:
+        ok = conn.execute(
+            "SELECT 1 FROM register_fetch WHERE apt_id=? AND status IN ('done','partial','no_key','empty')"
+            " UNION ALL SELECT 1 FROM apartment_area_types WHERE apt_id=? AND source='cheongyak' LIMIT 1",
+            (apt_id, apt_id),
+        ).fetchone()
+        done += 1 if ok else 0
+    n_top = len(top)
+    return {"top_n": n_top, "done": done, "ratio": round(done / n_top, 3) if n_top else 0.0,
+            "ready": done >= n_top}
+
+
 def _make_session():
     return requests.Session()
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="건축물대장 전유공용면적 수집")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    cmd = "fetch"
+    if argv and argv[0] == "coverage":
+        cmd = argv.pop(0)
+    ap = argparse.ArgumentParser(description="건축물대장 전유공용면적 수집 (coverage: 전환 기준 확인)")
     ap.add_argument("--db", default="real_estate.db")
     ap.add_argument("--budget", type=int, default=9500, help="이번 실행에서 쓸 최대 호출 수")
     ap.add_argument("--changed-out", default="changed_apts.json")
     a = ap.parse_args(argv)
+    if cmd == "coverage":
+        conn = connect(a.db)
+        try:
+            migrate(conn)
+            print(json.dumps(coverage(conn)))
+        finally:
+            conn.close()
+        return 0
     conn = connect(a.db)
     try:
         migrate(conn)

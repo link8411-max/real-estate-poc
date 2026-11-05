@@ -1,0 +1,72 @@
+# 건축물대장 공급면적 수집. 스케줄을 켜기 전에 기존 Backfill 워크플로(kind=trade, 최근 12개월)를
+# 한 번 돌려 upsert 가 법정동 코드(umd_cd)를 채우게 한다. 기존 단지는 다시 수집되기 전까지 umd_cd 가 없다.
+# SUPABASE_SUPPLY_COLUMNS 는 일부러 넣지 않는다(사용자 승인 후 따로 켠다).
+name: Supply Fetch
+
+on:
+  schedule:
+    - cron: '0 16 * * *'   # KST 01:00 (다른 수집과 안 겹침)
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: '이번 실행의 최대 API 호출 수'
+        required: false
+        default: '9500'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  supply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHON_VERSION: "3.11"
+      PYTHONUNBUFFERED: "1"
+      MOLIT_API_KEY: ${{ secrets.MOLIT_API_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+      BUDGET: ${{ github.event.inputs.budget || '9500' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Download database from R2
+        run: python r2_utils.py download
+
+      - name: Fetch building register areas
+        run: python -m pipeline.supply_fetch --db real_estate.db --budget "$BUDGET" --changed-out fetched.json
+
+      - name: Resolve supply areas
+        run: python -m pipeline.supply resolve --db real_estate.db --cheongyak-dir pipeline/data/cheongyak --changed-out changed_apts.json
+
+      - name: Export changed apartments
+        run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out
+
+      - name: Publish to R2
+        run: python -m pipeline.r2_publish --out out --keys out/keys.json
+
+      - name: Sync to Supabase
+        run: python -m pipeline.supabase_sync --db real_estate.db --changed changed_apts.json
+
+      - name: Upload database to R2
+        run: python r2_utils.py upload
+
+      - name: Coverage
+        run: python -m pipeline.supply_fetch coverage --db real_estate.db

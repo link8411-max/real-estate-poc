@@ -205,3 +205,40 @@ def test_cli_writes_changed(tmp_path, monkeypatch):
     out = tmp_path / "ch.json"
     assert main(["--db", str(db), "--budget", "10", "--changed-out", str(out)]) == 0
     assert json.loads(out.read_text()) == [a]
+
+
+def _coverage_db(conn):
+    apts = [add_apt(conn, f"C{i}", jibun=str(i + 1), n_trades=n, date="2026-01-10")
+            for i, n in enumerate([50, 30, 10, 5, 5])]
+    return apts
+
+
+def test_coverage_top80(conn):
+    from pipeline.supply_fetch import coverage
+    apts = _coverage_db(conn)
+    conn.execute("INSERT INTO register_fetch VALUES (?, 'done', 1, 'x')", (apts[0],))
+    conn.execute("INSERT INTO register_fetch VALUES (?, 'error', 1, 'x')", (apts[1],))
+    r = coverage(conn)
+    assert r == {"top_n": 2, "done": 1, "ratio": 0.5, "ready": False}
+
+
+def test_coverage_ready_with_cheongyak(conn):
+    from pipeline.supply_fetch import coverage
+    apts = _coverage_db(conn)
+    conn.execute("INSERT INTO register_fetch VALUES (?, 'no_key', 0, 'x')", (apts[0],))
+    conn.execute(
+        "INSERT INTO apartment_area_types VALUES (?, 84.8, 110.0, 'cheongyak', 0, 1, 'x')", (apts[1],))
+    r = coverage(conn)
+    assert r == {"top_n": 2, "done": 2, "ratio": 1.0, "ready": True}
+
+
+def test_coverage_cli(tmp_path, capsys):
+    db = tmp_path / "c.db"
+    c = sqlite3.connect(db)
+    migrate(c)
+    _coverage_db(c)
+    c.commit()
+    c.close()
+    assert main(["coverage", "--db", str(db)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["top_n"] == 2 and out["ready"] is False
