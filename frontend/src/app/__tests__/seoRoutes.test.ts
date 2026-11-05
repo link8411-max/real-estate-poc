@@ -69,3 +69,12 @@ describe("robots", () => {
     expect(r.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
   });
 });
+
+describe("manifest", () => {
+  test("집시세 이름과 192·512 아이콘", async () => {
+    const { default: manifest } = await import("../manifest");
+    const m = manifest();
+    expect(m.short_name).toBe("집시세");
+    expect(m.icons?.map((i) => i.sizes)).toEqual(["192x192", "512x512"]);
+  });
+});
