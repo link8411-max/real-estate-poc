@@ -14,6 +14,10 @@ export interface MapApartment {
   build_year: number | null;
   latest_trade_area: number | null;
   latest_trade_date: string | null;
+  /** 공급평(플래그 on일 때만 API가 내려준다) */
+  latest_supply_min?: number | null;
+  latest_supply_max?: number | null;
+  latest_supply_approx?: boolean | null;
 }
 
 export interface MapRegion {

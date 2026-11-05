@@ -1,3 +1,5 @@
+import { SUPPLY_ENABLED } from "./supply";
+
 export const PAGE_SIZE = 50;
 
 export const SORTS = ["latest", "price_desc", "price_asc", "count_desc", "yoy_desc"] as const;
@@ -12,6 +14,9 @@ export interface ApartmentFilters {
   maxPrice?: number;
   minArea?: number;
   maxArea?: number;
+  /** 공급평 정수 범위 (latest_supply_min 기준). 플래그 on일 때만 파싱·적용한다. */
+  minPy?: number;
+  maxPy?: number;
   builtFrom?: number;
   builtTo?: number;
   activeMonths?: number;
@@ -55,9 +60,11 @@ export function parseApartmentFilters(sp: URLSearchParams): ApartmentFilters {
     minArea: [0, 1000], maxArea: [0, 1000],
     builtFrom: [1900, 2100], builtTo: [1900, 2100],
     activeMonths: [1, 240],
+    minPy: [0, 1000], maxPy: [0, 1000],
   } as const;
   for (const k of Object.keys(bounded) as (keyof typeof bounded)[]) {
     const n = num(sp, k);
+    if (!SUPPLY_ENABLED && (k === "minPy" || k === "maxPy")) continue;
     const [lo, hi] = bounded[k];
     if (n !== undefined && Number.isInteger(n) && n >= lo && n <= hi) f[k] = n;
   }
@@ -105,6 +112,20 @@ export function applyFilters<Q extends FilterableQuery>(query: Q, f: ApartmentFi
   } else {
     if (f.minArea !== undefined) q = q.gte("latest_trade_area", f.minArea);
     if (f.maxArea !== undefined) q = q.lte("latest_trade_area", f.maxArea);
+  }
+  if (SUPPLY_ENABLED) {
+    if (f.mode === "rent") {
+      // 전월세만 있는 단지는 공급평이 null — 조건으로 빠지지 않게 null 도 남긴다(정수만 문자열에 넣는다).
+      const py = [
+        f.minPy !== undefined ? `latest_supply_min.gte.${intOnly(f.minPy)}` : null,
+        f.maxPy !== undefined ? `latest_supply_min.lte.${intOnly(f.maxPy)}` : null,
+      ].filter((b): b is string => b != null);
+      if (py.length === 1) q = q.or(`latest_supply_min.is.null,${py[0]}`);
+      if (py.length === 2) q = q.or(`latest_supply_min.is.null,and(${py.join(",")})`);
+    } else {
+      if (f.minPy !== undefined) q = q.gte("latest_supply_min", f.minPy);
+      if (f.maxPy !== undefined) q = q.lte("latest_supply_min", f.maxPy);
+    }
   }
   if (f.builtFrom !== undefined) q = q.gte("build_year", f.builtFrom);
   if (f.builtTo !== undefined) q = q.lte("build_year", f.builtTo);

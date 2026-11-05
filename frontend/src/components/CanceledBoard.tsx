@@ -68,7 +68,7 @@ export default function CanceledBoard({ items, today }: { items: CanceledHigh[];
               className="block rounded-2xl border border-rose-100 bg-rose-50 p-5 transition hover:border-rose-300 hover:shadow-md"
             >
               <p className="text-sm font-semibold text-gray-900">
-                {i.apt_name} {formatArea(i.area, unit)}
+                {i.apt_name} {formatArea(i.area, unit, i.supply)}
               </p>
               <p className="my-2 text-3xl font-extrabold text-rose-600">+{formatPrice(i.jump)}</p>
               <p className="text-sm text-gray-600">{i.days_to_cancel}일 만에 취소</p>
@@ -85,7 +85,7 @@ export default function CanceledBoard({ items, today }: { items: CanceledHigh[];
                 <Link href={href(i)} className="block rounded-xl border border-gray-100 p-3 hover:bg-gray-50">
                   <p className="font-semibold text-gray-900">{i.apt_name}</p>
                   <p className="text-xs text-gray-500">
-                    {i.region_name} · {formatArea(i.area, unit)}
+                    {i.region_name} · {formatArea(i.area, unit, i.supply)}
                   </p>
                   <p className="mt-1 text-sm">
                     <span className="font-bold text-rose-600">{formatPrice(i.amount)}</span>
@@ -117,7 +117,7 @@ export default function CanceledBoard({ items, today }: { items: CanceledHigh[];
                       {i.region_name}
                     </span>
                   </td>
-                  <td className="py-2 text-gray-700">{formatArea(i.area, unit)}</td>
+                  <td className="py-2 text-gray-700">{formatArea(i.area, unit, i.supply)}</td>
                   <td className="py-2 text-right font-bold text-rose-600">{formatPrice(i.amount)}</td>
                   <td className="py-2 text-right text-gray-700">{formatPrice(i.prev_max)}</td>
                   <td className="py-2 text-right text-gray-500">{formatDeal(toIsoDate(i.cancel_date))}</td>

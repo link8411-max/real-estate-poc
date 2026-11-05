@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { useAreaUnit, type AreaUnit } from "@/lib/areaUnit";
 import { type Box, cullLabels } from "@/lib/cullLabels";
 import { areaGroup, areaToPyeong } from "@/lib/format";
+import { mapSupply } from "@/lib/mapSupply";
+import { SUPPLY_ENABLED, supplyText } from "@/lib/supply";
 import { formatMapLabel, type MapBounds, type MapMode } from "@/lib/mapFilters";
 import type { MapApartment, MapData, MapRegion } from "@/lib/useMapData";
 
@@ -54,6 +56,10 @@ function topLine(a: MapApartment, mode: MapMode, unit: AreaUnit): string {
   if (mode === "rent") return `${name} · 전세`;
   if (a.latest_trade_area === null) return name;
   const g = areaGroup(a.latest_trade_area);
+  if (SUPPLY_ENABLED) {
+    const sp = mapSupply(a);
+    return `${name} · ${unit === "m2" || !sp ? `${g}㎡` : supplyText(sp)}`;
+  }
   return `${name} · ${unit === "m2" ? `${g}㎡` : `${areaToPyeong(g)}평`}`;
 }
 

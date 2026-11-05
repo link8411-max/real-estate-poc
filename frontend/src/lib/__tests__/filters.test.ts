@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { setSupplyEnabledForTest } from "@/lib/supply";
 import {
   parseApartmentFilters,
   applyFilters,
@@ -174,5 +175,33 @@ describe("helpers", () => {
     expect(parseBbox(sp("minLat=1&minLng=2&maxLat=3")).ok).toBe(false);
     expect(parseBbox(sp("minLat=a&minLng=2&maxLat=3&maxLng=4")).ok).toBe(false);
     expect(parseBbox(sp("minLat=5&minLng=2&maxLat=3&maxLng=4")).ok).toBe(false);
+  });
+});
+
+describe("공급평 필터 (latest_supply_min)", () => {
+  afterEach(() => setSupplyEnabledForTest(false));
+  it("flag on: minPy/maxPy 를 gte/lte 로", () => {
+    setSupplyEnabledForTest(true);
+    const f = parseApartmentFilters(sp("minPy=30&maxPy=39"));
+    expect(f).toMatchObject({ minPy: 30, maxPy: 39 });
+    const { q, calls } = recorder();
+    applyFilters(q, f);
+    expect(calls.slice(0, 2)).toEqual([
+      ["gte", "latest_supply_min", 30],
+      ["lte", "latest_supply_min", 39],
+    ]);
+  });
+  it("flag on rent: null 허용 or()", () => {
+    setSupplyEnabledForTest(true);
+    const { q, calls } = recorder();
+    applyFilters(q, { mode: "rent", minPy: 30, maxPy: 39, sort: "latest", page: 1 });
+    expect(calls[0]).toEqual(["or", "latest_supply_min.is.null,and(latest_supply_min.gte.30,latest_supply_min.lte.39)"]);
+  });
+  it("flag off: 파싱도 적용도 하지 않는다", () => {
+    const f = parseApartmentFilters(sp("minPy=30&maxPy=39"));
+    expect(f.minPy).toBeUndefined();
+    const { q, calls } = recorder();
+    applyFilters(q, { minPy: 30, maxPy: 39, sort: "latest", page: 1 });
+    expect(calls.some(([, c]) => c === "latest_supply_min")).toBe(false);
   });
 });

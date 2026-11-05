@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useAreaUnit } from "@/lib/areaUnit";
 import {
-  AREA_PRESETS,
+  areaPresets,
   areaPresetLabel,
   BUILT_PRESETS,
   builtFromYears,
@@ -213,14 +213,20 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
 
         <Section title="평형">
           <div className="flex flex-wrap gap-2">
-            {AREA_PRESETS.map((p) => {
-              const on = f.minArea === p.minArea && f.maxArea === p.maxArea;
+            {areaPresets().map((p) => {
+              const on = f.minArea === p.minArea && f.maxArea === p.maxArea && f.minPy === p.minPy && f.maxPy === p.maxPy;
               return (
                 <button
                   key={p.pyeong}
                   type="button"
                   aria-pressed={on}
-                  onClick={() => update(on ? { minArea: undefined, maxArea: undefined } : { minArea: p.minArea, maxArea: p.maxArea })}
+                  onClick={() =>
+                    update(
+                      on
+                        ? { minArea: undefined, maxArea: undefined, minPy: undefined, maxPy: undefined }
+                        : { minArea: p.minArea, maxArea: p.maxArea, minPy: p.minPy, maxPy: p.maxPy },
+                    )
+                  }
                   className={chip(on)}
                 >
                   {areaPresetLabel(p, unit)}

@@ -1,6 +1,9 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { setSupplyEnabledForTest } from "@/lib/supply";
 import {
   AREA_PRESETS,
+  areaPresets,
+  SUPPLY_AREA_PRESETS,
   areaPresetLabel,
   BUILT_PRESETS,
   builtFromYears,
@@ -100,5 +103,33 @@ describe("isDegenerateBounds", () => {
     expect(isDegenerateBounds({ minLat: 37.5, minLng: 127, maxLat: 37.5, maxLng: 127 })).toBe(true);
     expect(isDegenerateBounds({ minLat: 37.5, minLng: 127, maxLat: 37.6, maxLng: 127 + 5e-7 })).toBe(true);
     expect(isDegenerateBounds({ minLat: 37.5, minLng: 127, maxLat: 37.6, maxLng: 127.1 })).toBe(false);
+  });
+});
+
+describe("공급평 필터", () => {
+  afterEach(() => setSupplyEnabledForTest(false));
+  test("SUPPLY_AREA_PRESETS 라벨·구간", () => {
+    expect(SUPPLY_AREA_PRESETS.map((p) => areaPresetLabel(p, "pyeong"))).toEqual(["~19평", "20평대", "30평대", "40평+"]);
+    expect(SUPPLY_AREA_PRESETS.map((p) => [p.minPy, p.maxPy])).toEqual([
+      [undefined, 19],
+      [20, 29],
+      [30, 39],
+      [40, undefined],
+    ]);
+  });
+  test("플래그에 따라 areaPresets 선택", () => {
+    expect(areaPresets()).toBe(AREA_PRESETS);
+    setSupplyEnabledForTest(true);
+    expect(areaPresets()).toBe(SUPPLY_AREA_PRESETS);
+  });
+  test("flag on: minPy/maxPy 를 읽고 보낸다", () => {
+    setSupplyEnabledForTest(true);
+    const f = readMapFilters(new URLSearchParams("minPy=30&maxPy=39"));
+    expect(f).toEqual({ mode: "trade", minPy: 30, maxPy: 39 });
+    expect(toApiQuery(f)).toEqual({ minPy: "30", maxPy: "39" });
+    expect(countActiveFilters(f)).toBe(1);
+  });
+  test("flag off: minPy/maxPy 는 무시", () => {
+    expect(readMapFilters(new URLSearchParams("minPy=30&maxPy=39"))).toEqual({ mode: "trade" });
   });
 });

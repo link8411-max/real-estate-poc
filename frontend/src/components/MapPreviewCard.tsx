@@ -4,6 +4,8 @@ import { X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { areaGroup, areaToPyeong, formatDeal, formatManwon, formatPrice } from "@/lib/format";
+import { SUPPLY_ENABLED, supplyText } from "@/lib/supply";
+import { mapSupply } from "@/lib/mapSupply";
 import type { MapApartment } from "@/lib/useMapData";
 
 interface Props {
@@ -51,7 +53,13 @@ export default function MapPreviewCard({ apartment: a, onClose, onHeight }: Prop
   const subtitle = [a.build_year !== null && `${a.build_year}년`, a.trade_count !== null && `거래 ${a.trade_count}건`]
     .filter(Boolean)
     .join(" · ");
-  const tradeLabel = a.latest_trade_area === null ? "최근 매매" : `최근 매매 (${areaToPyeong(areaGroup(a.latest_trade_area))}평)`;
+  const sp = SUPPLY_ENABLED ? mapSupply(a) : null;
+  const tradeLabel =
+    a.latest_trade_area === null
+      ? "최근 매매"
+      : SUPPLY_ENABLED
+        ? `최근 매매 (${sp ? supplyText(sp) : `${areaGroup(a.latest_trade_area)}㎡`})`
+        : `최근 매매 (${areaToPyeong(areaGroup(a.latest_trade_area))}평)`;
   const ratio =
     a.latest_trade_amount && a.latest_jeonse_deposit !== null
       ? `${Math.round((a.latest_jeonse_deposit / a.latest_trade_amount) * 100)}%`

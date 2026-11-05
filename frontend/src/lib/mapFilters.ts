@@ -1,4 +1,5 @@
 import type { AreaUnit } from "./areaUnit";
+import { SUPPLY_ENABLED } from "./supply";
 
 export type MapMode = "trade" | "rent";
 
@@ -9,10 +10,14 @@ export interface MapFilters {
   maxPrice?: number;
   minArea?: number;
   maxArea?: number;
+  /** 공급평 필터(플래그 on일 때만 읽고 보낸다) */
+  minPy?: number;
+  maxPy?: number;
   builtFrom?: number;
 }
 
-export const FILTER_KEYS = ["minPrice", "maxPrice", "minArea", "maxArea", "builtFrom"] as const;
+export const FILTER_KEYS = ["minPrice", "maxPrice", "minArea", "maxArea", "minPy", "maxPy", "builtFrom"] as const;
+const SUPPLY_KEYS: readonly string[] = ["minPy", "maxPy"];
 type FilterKey = (typeof FILTER_KEYS)[number];
 
 /** 가격대 선택지(억). 값은 만원으로 보낸다. */
@@ -21,6 +26,8 @@ export const PRICE_STEPS_EOK = [3, 5, 7, 10, 15, 20, 30] as const;
 export interface AreaPreset {
   minArea?: number;
   maxArea?: number;
+  minPy?: number;
+  maxPy?: number;
   pyeong: string;
 }
 
@@ -32,7 +39,19 @@ export const AREA_PRESETS: readonly AreaPreset[] = [
   { minArea: 132, pyeong: "40평+" },
 ];
 
+/** 공급평 구간(플래그 on). 경계는 공급평 정수(latest_supply_min의 gte/lte 기준). 라벨은 단위와 상관없이 평. */
+export const SUPPLY_AREA_PRESETS: readonly AreaPreset[] = [
+  { maxPy: 19, pyeong: "~19평" },
+  { minPy: 20, maxPy: 29, pyeong: "20평대" },
+  { minPy: 30, maxPy: 39, pyeong: "30평대" },
+  { minPy: 40, pyeong: "40평+" },
+];
+
+/** 지금 화면이 쓰는 평형 구간: 플래그 on이면 공급평, off면 기존 전용㎡ */
+export const areaPresets = (): readonly AreaPreset[] => (SUPPLY_ENABLED ? SUPPLY_AREA_PRESETS : AREA_PRESETS);
+
 export function areaPresetLabel(p: AreaPreset, unit: AreaUnit): string {
+  if (p.minPy !== undefined || p.maxPy !== undefined) return p.pyeong;
   if (unit === "pyeong") return p.pyeong;
   if (p.minArea === undefined) return `~${p.maxArea}㎡`;
   if (p.maxArea === undefined) return `${p.minArea}㎡+`;
@@ -46,6 +65,7 @@ export const builtFromYears = (years: number, now: Date = new Date()): number =>
 export function readMapFilters(sp: URLSearchParams): MapFilters {
   const f: MapFilters = { mode: sp.get("mode") === "rent" ? "rent" : "trade" };
   for (const k of FILTER_KEYS) {
+    if (!SUPPLY_ENABLED && SUPPLY_KEYS.includes(k)) continue;
     const raw = sp.get(k);
     if (raw === null || raw.trim() === "") continue;
     const n = Number(raw);
@@ -64,7 +84,7 @@ export function toApiQuery(f: MapFilters): Record<string, string> {
 /** 모바일 시트 바에 보여줄 활성 필터 수: 가격대·평형·준공 각각 1 */
 export function countActiveFilters(f: MapFilters): number {
   const has = (...ks: FilterKey[]) => ks.some((k) => f[k] !== undefined);
-  return [has("minPrice", "maxPrice"), has("minArea", "maxArea"), has("builtFrom")].filter(Boolean).length;
+  return [has("minPrice", "maxPrice"), has("minArea", "maxArea", "minPy", "maxPy"), has("builtFrom")].filter(Boolean).length;
 }
 
 /** 지도 라벨용 금액: 123000 → "12.3억", 9500 → "9,500" */

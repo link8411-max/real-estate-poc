@@ -174,6 +174,8 @@ export interface CanceledHigh {
   deal_date: string;
   cancel_date: string;
   days_to_cancel: number;
+  /** 공급평(없으면 null, 구버전 JSON에는 키가 없다) */
+  supply?: SupplyLabel | null;
 }
 
 export interface CanceledRecentFile {
@@ -198,6 +200,7 @@ export interface RecordHigh {
   jump: number;
   jump_pct: number;
   deal_date: string;
+  supply?: SupplyLabel | null;
 }
 
 export interface HighsRecentFile {

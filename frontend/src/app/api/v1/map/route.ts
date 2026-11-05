@@ -1,9 +1,13 @@
 import { applyFilters, parseApartmentFilters, parseBbox, parseNumber, type FilterableQuery } from "@/lib/filters";
 import { supabaseServer } from "@/lib/supabase/server";
 import { fail, guard, ok, upstreamError } from "@/lib/apiResponse";
+import { SUPPLY_ENABLED } from "@/lib/supply";
 
 export const MAP_COLUMNS =
   "id,name,lat,lng,latest_trade_amount,latest_jeonse_deposit,trade_count,build_year,latest_trade_area,latest_trade_date";
+/** 공급평 열은 운영 DB에 마이그레이션이 적용된 뒤 플래그를 켤 때만 고른다(없는 열을 고르면 요청이 실패한다). */
+export const mapColumns = (): string =>
+  SUPPLY_ENABLED ? `${MAP_COLUMNS},latest_supply_min,latest_supply_max,latest_supply_approx` : MAP_COLUMNS;
 const MAX_SPAN_DEG = 1.5;
 const MAX_ROWS = 500;
 
@@ -45,7 +49,7 @@ async function handle(req: Request) {
 
   const base = db
     .from("apartments")
-    .select(MAP_COLUMNS)
+    .select(mapColumns())
     .gte("lat", minLat).lte("lat", maxLat)
     .gte("lng", minLng).lte("lng", maxLng);
   // Cast: the generated builder type is too deep for generic chaining (TS2589).
