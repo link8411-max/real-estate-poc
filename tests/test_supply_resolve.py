@@ -140,7 +140,7 @@ def test_changed_only_when_value_changes(conn):
     assert resolve_all(conn, {}) == [a]
     assert resolve_all(conn, {}) == []
     assert conn.execute("SELECT COUNT(*) FROM changed_apartments WHERE apt_id=?", (a,)).fetchone()[0] == 1
-    conn.execute("UPDATE register_types SET supply_area=112.0 WHERE apt_id=?", (a,))
+    conn.execute("UPDATE register_types SET supply_area=115.0 WHERE apt_id=?", (a,))
     assert resolve_all(conn, {}) == [a]
 
 
@@ -156,3 +156,11 @@ def test_cli_resolve(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     rc = supply.main(["resolve", "--db", str(db), "--cheongyak-dir", str(tmp_path), "--changed-out", str(out)])
     assert rc == 0 and json.loads(out.read_text()) == [a]
+
+
+def test_tiny_ratio_drift_is_not_a_change(conn):
+    a = add_apt(conn)
+    reg(conn, a, 84.8, 111.52)
+    resolve_all(conn, {})
+    conn.execute("UPDATE register_types SET supply_area=111.53 WHERE apt_id=?", (a,))
+    assert resolve_all(conn, {}) == []

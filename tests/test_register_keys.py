@@ -37,3 +37,17 @@ def test_register_keys_odd_jibun(conn, jibun):
     a = add(conn, "A", "x")
     conn.execute("UPDATE apartments SET jibun=? WHERE id=?", (jibun, a))
     assert register_keys(conn, a) is None
+
+
+def test_register_keys_dong_ambiguous_codes(conn):
+    add(conn, "B", "1", umd_cd="10700", bonbun="0001", bubun="0000")
+    add(conn, "C", "2", umd_cd="10800", bonbun="0002", bubun="0000")
+    a = add(conn, "A", "95-1")
+    assert register_keys(conn, a) is None
+
+
+def test_register_keys_dong_same_code_twice_ok(conn):
+    add(conn, "B", "1", umd_cd="10700", bonbun="0001", bubun="0000")
+    add(conn, "C", "2", umd_cd="10700", bonbun="0002", bubun="0000")
+    a = add(conn, "A", "95-1")
+    assert register_keys(conn, a).bjdong_cd == "10700"

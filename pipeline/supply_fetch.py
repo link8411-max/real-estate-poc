@@ -17,7 +17,7 @@ import requests
 
 from pipeline import molit_client
 from pipeline.db import connect, migrate
-from pipeline.register_keys import register_keys
+from pipeline.register_keys import _JIBUN, register_keys
 from pipeline.supply import UnitAccumulator, types_from_units
 
 URL = "https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo"
@@ -25,6 +25,7 @@ PAGE_SIZE = 100
 MAX_PAGES = 30
 CALL_GAP = 0.1  # 호출 사이 대기(초)
 TOLERANCE = 0.05
+MAX_CONSECUTIVE_ERRORS = 20  # 연속 이만큼 오류로 끝나면 중단(키 오류·서비스 장애 추정)
 
 
 class RegisterError(Exception):
@@ -42,7 +43,10 @@ def _parse(data: dict) -> tuple[list[dict], int]:
         body = data["response"]["body"]
     except (KeyError, TypeError) as e:
         raise RegisterError("malformed response") from e
-    if str(header.get("resultCode")) != "00":
+    code = str(header.get("resultCode"))
+    if code == "03":  # NODATA: 결과 없음은 오류가 아니라 빈 응답
+        return [], 0
+    if code != "00":
         raise RegisterError(f"resultCode {header.get('resultCode')}")
     items = body.get("items")
     item = items.get("item") if isinstance(items, dict) else None
@@ -105,7 +109,7 @@ def _now() -> str:
 
 
 def _record(conn: sqlite3.Connection, apt_id: int, status: str, pages: int, types=()) -> None:
-    if status != "error":  # 오류면 이전 결과를 그대로 둔다
+    if types is not None and status not in ("error", "empty"):  # 오류·빈 응답이면 이전 결과를 그대로 둔다
         conn.execute("DELETE FROM register_types WHERE apt_id=?", (apt_id,))
         conn.executemany(
             "INSERT INTO register_types(apt_id, excl_area, supply_area, sample_n, agreement)"
@@ -130,9 +134,15 @@ def fetch_apartment(
     """
     key = register_keys(conn, apt_id)
     if key is None:
-        _record(conn, apt_id, "no_key", 0)
+        row = conn.execute("SELECT jibun FROM apartments WHERE id=?", (apt_id,)).fetchone()
+        if not row or not _JIBUN.match(row[0] or ""):
+            _record(conn, apt_id, "no_key", 0)  # 지번 자체를 쓸 수 없음: 영구
+        # 지번은 정상인데 법정동 코드를 아직 모르면 기록하지 않고 큐에 둔다(Backfill 후 채워짐)
         return 0
     wanted = wanted_areas(conn, apt_id)
+    if not wanted:  # 거래·전월세가 없으면 가져올 면적이 없다
+        _record(conn, apt_id, "done", 0, None)
+        return 0
     acc = UnitAccumulator()
     counter = [0]
     pages = 0
@@ -187,28 +197,47 @@ def fetch_queue(conn: sqlite3.Connection) -> list[int]:
                    AND t.deal_date >= date('now', '-3 years')) AS n
         FROM apartments a
         LEFT JOIN register_fetch f ON f.apt_id = a.id
-        WHERE f.apt_id IS NULL OR f.status = 'error'
+        WHERE (f.apt_id IS NULL OR f.status = 'error')
+          AND a.id NOT IN (SELECT old_id FROM apartment_aliases)
         ORDER BY n DESC, a.id ASC
         """
     ).fetchall()
     return [r[0] for r in rows]
 
 
-def run(conn: sqlite3.Connection, session, *, budget: int) -> list[int]:
-    """예산 안에서 큐를 처리하고 처리(저장)한 단지 id 목록을 돌려준다."""
+def run(conn: sqlite3.Connection, session, *, budget: int, max_minutes: float | None = None,
+        clock=time.monotonic) -> list[int]:
+    """예산·시간 안에서 큐를 처리하고 처리(저장)한 단지 id 목록을 돌려준다."""
     left = budget
+    deadline = None if max_minutes is None else clock() + max_minutes * 60
     done: list[int] = []
+    errors = 0
     for apt_id in fetch_queue(conn):
         if left <= 0:
             break
-        used = fetch_apartment(conn, apt_id, session, budget=left)
+        if deadline is not None and clock() >= deadline:
+            print("시간 한도 도달: 진행분을 저장하고 멈춥니다")
+            break
+        try:
+            used = fetch_apartment(conn, apt_id, session, budget=left)
+        except Exception as e:  # 한 단지의 이상 데이터가 전체를 멈추지 않게
+            print(f"단지 {apt_id} 처리 실패: {type(e).__name__}: {e}", file=sys.stderr)
+            _record(conn, apt_id, "error", 0)
+            used = 0
         left -= used
         row = conn.execute("SELECT status FROM register_fetch WHERE apt_id=?", (apt_id,)).fetchone()
-        if row and row[0] != "error":
+        if row and row[0] == "error":
+            errors += 1
+            if errors >= MAX_CONSECUTIVE_ERRORS:
+                print(f"연속 오류 {errors}건: 중단합니다", file=sys.stderr)
+                break
+        elif row:
+            errors = 0
             done.append(apt_id)
-        elif row is None:  # 예산 소진으로 저장 못 함
+        elif used > 0:  # 예산 소진으로 저장 못 함
             break
-        time.sleep(CALL_GAP)
+        if used > 0:
+            time.sleep(CALL_GAP)
     return done
 
 
@@ -255,6 +284,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="건축물대장 전유공용면적 수집 (coverage: 전환 기준 확인)")
     ap.add_argument("--db", default="real_estate.db")
     ap.add_argument("--budget", type=int, default=9500, help="이번 실행에서 쓸 최대 호출 수")
+    ap.add_argument("--max-minutes", type=float, default=None, help="이 시간(분)이 지나면 깔끔히 멈춤")
     ap.add_argument("--changed-out", default="changed_apts.json")
     a = ap.parse_args(argv)
     if cmd == "coverage":
@@ -268,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     conn = connect(a.db)
     try:
         migrate(conn)
-        changed = run(conn, _make_session(), budget=a.budget)
+        changed = run(conn, _make_session(), budget=a.budget, max_minutes=a.max_minutes)
     finally:
         conn.close()
     with open(a.changed_out, "w", encoding="utf-8") as f:

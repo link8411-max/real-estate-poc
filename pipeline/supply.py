@@ -69,10 +69,13 @@ class UnitAccumulator:
 
     def add_rows(self, rows: list[dict]) -> None:
         for r in rows:
+            try:
+                area = float(r.get("area") or 0)
+            except (TypeError, ValueError):  # 숫자가 아닌 면적 행은 건너뛴다
+                continue
             key = self._key(r)
             self._last = key
             u = self._units.setdefault(key, [None, 0.0, False])
-            area = float(r.get("area") or 0)
             if str(r.get("exposPubuseGbCd")) == "1":
                 if u[0] is None:
                     u[0] = area
@@ -310,6 +313,11 @@ def _desired(
     return out
 
 
+def _comparable(d: dict) -> dict:
+    """변경 판정용: 0.01㎡ 값이 아니라 표시되는 (공급평, source, approx)만 비교."""
+    return {k: (supply_pyeong(v[0]), v[1], int(v[2])) for k, v in d.items()}
+
+
 def resolve_all(conn: sqlite3.Connection, cheongyak: dict[int, list[tuple[float, float]]]) -> list[int]:
     """모든 단지의 (거래된 전용면적별) 공급면적을 확정해 apartment_area_types 에 쓴다.
 
@@ -336,7 +344,7 @@ def resolve_all(conn: sqlite3.Connection, cheongyak: dict[int, list[tuple[float,
             lawd, year = meta[apt_id]
             new = _desired(conn, apt_id, traded[apt_id], lawd, year, cheongyak.get(apt_id, []), peers)
         cur = old.get(apt_id, {})
-        if {k: v[:3] for k, v in new.items()} == cur:
+        if _comparable(new) == _comparable(cur):
             continue
         conn.execute("DELETE FROM apartment_area_types WHERE apt_id=?", (apt_id,))
         conn.executemany(

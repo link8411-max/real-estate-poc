@@ -105,7 +105,7 @@ def test_stops_when_all_wanted_found(conn):
 
 def test_partial_after_max_pages(conn):
     a = add_apt(conn, "A", n_trades=2, areas=(84.8, 59.96))
-    pages = {p: body(unit(p * 10 + k, 84.8, 20.0, pk=f"p{p}{k}"), 1000) for p in (1, 2, 3) for k in (0,)}
+    pages = {p: body(unit(p * 10, 84.8, 20.0, pk=f"p{p}"), 1000) for p in (1, 2, 3)}
     s = FakeSession(pages)
     assert fetch_apartment(conn, a, s, max_pages=3) == 3
     assert status_of(conn, a) == "partial"
@@ -113,7 +113,7 @@ def test_partial_after_max_pages(conn):
     assert n == 1
 
 
-def test_last_page_ends_done(conn):
+def test_last_page_without_wanted_area_is_partial(conn):
     a = add_apt(conn, "A", areas=(59.96,))
     s = FakeSession({1: body(unit(1, 84.8, 20.0), 100)})
     fetch_apartment(conn, a, s)
@@ -225,7 +225,9 @@ def test_coverage_top80(conn):
 def test_coverage_ready_with_cheongyak(conn):
     from pipeline.supply_fetch import coverage
     apts = _coverage_db(conn)
-    conn.execute("INSERT INTO register_fetch VALUES (?, 'no_key', 0, 'x')", (apts[0],))
+    conn.execute("UPDATE apartments SET jibun='산1', umd_cd=NULL, bonbun=NULL, bubun=NULL WHERE id=?", (apts[0],))
+    fetch_apartment(conn, apts[0], FakeSession())  # 영구 no_key
+    assert status_of(conn, apts[0]) == "no_key"
     conn.execute(
         "INSERT INTO apartment_area_types VALUES (?, 84.8, 110.0, 'cheongyak', 0, 1, 'x')", (apts[1],))
     r = coverage(conn)
@@ -242,3 +244,120 @@ def test_coverage_cli(tmp_path, capsys):
     assert main(["coverage", "--db", str(db)]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["top_n"] == 2 and out["ready"] is False
+
+
+def _keyless(conn, name="K", jibun="19", n_trades=1):
+    a = add_apt(conn, name, jibun=jibun, n_trades=n_trades)
+    conn.execute("UPDATE apartments SET umd_cd=NULL, bonbun=NULL, bubun=NULL WHERE id=?", (a,))
+    return a
+
+
+def test_valid_jibun_without_umd_not_recorded(conn):
+    a = _keyless(conn)
+    s = FakeSession()
+    assert fetch_apartment(conn, a, s) == 0
+    assert s.calls == [] and status_of(conn, a) is None
+    assert fetch_queue(conn) == [a]
+
+
+def test_coverage_keyless_valid_jibun_not_done(conn):
+    from pipeline.supply_fetch import coverage
+    apts = _coverage_db(conn)
+    for a in apts:
+        conn.execute("UPDATE apartments SET umd_cd=NULL, bonbun=NULL, bubun=NULL WHERE id=?", (a,))
+    supply_fetch.run(conn, FakeSession(), budget=10)
+    r = coverage(conn)
+    assert r["done"] == 0 and r["ready"] is False
+    assert set(fetch_queue(conn)) == set(apts)
+
+
+def test_run_continues_past_zero_call_apartments(conn, monkeypatch):
+    k = _keyless(conn, "K", "7", n_trades=9)
+    a = add_apt(conn, "A", jibun="1", n_trades=1)
+    conn.execute("UPDATE apartments SET dong='다른동' WHERE id=?", (a,))  # K 가 이웃 코드를 빌리지 못하게
+    s = FakeSession({1: body(unit(1, 84.8, 20.0), 1)})
+    sleeps = []
+    monkeypatch.setattr(supply_fetch.time, "sleep", lambda x: sleeps.append(x))
+    assert supply_fetch.run(conn, s, budget=5) == [a]
+    assert status_of(conn, k) is None
+    assert len(sleeps) == 1  # 0호출 단지 뒤엔 대기하지 않는다
+
+
+def test_run_deadline(conn):
+    ids = [add_apt(conn, n, jibun=j, n_trades=3 - i) for i, (n, j) in enumerate([("A", "1"), ("B", "2"), ("C", "3")])]
+    s = FakeSession({1: body(unit(1, 84.8, 20.0), 1)})
+    t = iter([0.0, 10.0, 130.0, 500.0, 900.0])  # 시작, 1번째 검사 통과, 2번째부터 2분 초과
+    out = supply_fetch.run(conn, s, budget=100, max_minutes=2, clock=lambda: next(t))
+    assert out == ids[:1]
+    assert fetch_queue(conn) == ids[1:]
+
+
+def test_malformed_area_row_skipped():
+    from pipeline.supply import UnitAccumulator
+    acc = UnitAccumulator()
+    bad = {"dongNm": "1동", "hoNm": "1호", "mgmBldrgstPk": "x", "mainPurpsCdNm": "아파트",
+           "exposPubuseGbCd": "1", "area": "N/A"}
+    acc.add_rows([bad] + unit(2, 84.8, 20.0))
+    acc.close()
+    assert list(acc.finished_units().values()) == [(84.8, 104.8)]
+
+
+def test_run_survives_unexpected_exception(conn):
+    a = add_apt(conn, "A", jibun="1", n_trades=2)
+    b = add_apt(conn, "B", jibun="2", n_trades=1)
+
+    class S(FakeSession):
+        def get(self, url, params=None, timeout=None):
+            if params["bun"] == "0001":
+                raise ValueError("boom")
+            return super().get(url, params, timeout)
+
+    out = supply_fetch.run(conn, S({1: body(unit(1, 84.8, 20.0), 1)}), budget=50)
+    assert status_of(conn, a) == "error" and status_of(conn, b) == "done"
+    assert out == [b]
+
+
+def test_circuit_breaker(conn):
+    ids = [add_apt(conn, f"E{i}", jibun=str(i + 1)) for i in range(25)]
+    supply_fetch.run(conn, FakeSession(status=500), budget=100000)
+    errs = conn.execute("SELECT COUNT(*) FROM register_fetch WHERE status='error'").fetchone()[0]
+    assert errs == supply_fetch.MAX_CONSECUTIVE_ERRORS < len(ids)
+
+
+def test_nodata_result_code_is_empty(conn):
+    a = add_apt(conn, "A")
+    nodata = {"response": {"header": {"resultCode": "03", "resultMsg": "NODATA_ERROR"}, "body": {}}}
+    fetch_apartment(conn, a, FakeSession({1: nodata}))
+    assert status_of(conn, a) == "empty"
+
+
+def test_no_wanted_marks_done_without_fetch(conn):
+    a = add_apt(conn, "A", n_trades=0)
+    s = FakeSession()
+    assert fetch_apartment(conn, a, s) == 0
+    assert s.calls == [] and status_of(conn, a) == "done"
+
+
+def test_queue_excludes_alias_old_id(conn):
+    a = add_apt(conn, "A", jibun="1")
+    b = add_apt(conn, "B", jibun="2")
+    conn.execute("INSERT INTO apartment_aliases(old_id, canonical_id) VALUES (?,?)", (a, b))
+    assert fetch_queue(conn) == [b]
+
+
+def test_empty_keeps_previous_types(conn):
+    a = add_apt(conn, "A")
+    conn.execute("INSERT INTO register_types VALUES (?, 50.0, 60.0, 1, 1.0)", (a,))
+    fetch_apartment(conn, a, FakeSession({1: body([], 0)}))
+    assert status_of(conn, a) == "empty"
+    assert conn.execute("SELECT COUNT(*) FROM register_types WHERE apt_id=?", (a,)).fetchone()[0] == 1
+
+
+def test_cli_max_minutes_arg(tmp_path, monkeypatch):
+    db = tmp_path / "t.db"
+    c = sqlite3.connect(db)
+    migrate(c)
+    c.commit()
+    c.close()
+    monkeypatch.setattr(supply_fetch, "_make_session", lambda: FakeSession())
+    assert main(["--db", str(db), "--max-minutes", "1", "--changed-out", str(tmp_path / "o.json")]) == 0

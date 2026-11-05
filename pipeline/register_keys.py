@@ -32,11 +32,11 @@ def register_keys(conn: sqlite3.Connection, apt_id: int) -> RegisterKey | None:
     if not m:  # 산·외·복수 부번 등은 대장 키로 만들 수 없다
         return None
     if not umd:
-        r = conn.execute(
-            "SELECT umd_cd FROM apartments WHERE lawd_cd=? AND dong=? AND umd_cd IS NOT NULL LIMIT 1",
+        cands = conn.execute(
+            "SELECT DISTINCT umd_cd FROM apartments WHERE lawd_cd=? AND dong=? AND umd_cd IS NOT NULL",
             (lawd, dong),
-        ).fetchone()
-        if not r:
+        ).fetchall()
+        if len(cands) != 1:  # 없거나 같은 동에 코드가 둘 이상이면 추측하지 않는다
             return None
-        umd = r[0]
+        umd = cands[0][0]
     return RegisterKey(lawd, umd, m.group(1).zfill(4), (m.group(2) or "0").zfill(4))
