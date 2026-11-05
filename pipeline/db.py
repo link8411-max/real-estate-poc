@@ -113,6 +113,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     _add_column(conn, "transactions", "created_at", "TIMESTAMP")  # ALTER 는 CURRENT_TIMESTAMP 기본값 불가
     _add_column(conn, "apartments", "apt_seq", "TEXT")
     _add_column(conn, "apartments", "household_count", "INT")
+    _add_column(conn, "apartments", "umd_cd", "TEXT")
+    _add_column(conn, "apartments", "bonbun", "TEXT")
+    _add_column(conn, "apartments", "bubun", "TEXT")
     _add_column(conn, "regions", "succeeded_by", "TEXT")
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_apt_seq ON apartments(apt_seq) WHERE apt_seq IS NOT NULL"
@@ -145,6 +148,22 @@ def migrate(conn: sqlite3.Connection) -> None:
 
 
 def upsert_apartment(
+    conn: sqlite3.Connection, *, name: str, lawd_cd: str, dong: str, jibun: str,
+    build_year: int | None, apt_seq: str | None,
+    umd_cd: str | None = None, bonbun: str | None = None, bubun: str | None = None,
+) -> int:
+    apt_id = _upsert_apartment(
+        conn, name=name, lawd_cd=lawd_cd, dong=dong, jibun=jibun, build_year=build_year, apt_seq=apt_seq)
+    if umd_cd or bonbun or bubun:  # 빈 칸만 채우고 이미 있는 값은 덮어쓰지 않는다
+        conn.execute(
+            "UPDATE apartments SET umd_cd=COALESCE(umd_cd, ?), bonbun=COALESCE(bonbun, ?), "
+            "bubun=COALESCE(bubun, ?) WHERE id=?",
+            (umd_cd, bonbun, bubun, apt_id),
+        )
+    return apt_id
+
+
+def _upsert_apartment(
     conn: sqlite3.Connection, *, name: str, lawd_cd: str, dong: str, jibun: str,
     build_year: int | None, apt_seq: str | None,
 ) -> int:

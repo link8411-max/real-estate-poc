@@ -172,3 +172,14 @@ def test_fetch_all_sums_skipped_across_pages(monkeypatch):
     monkeypatch.setattr(requests, "get", lambda url, params=None, timeout=None: FakeResponse(200, page))
     items = fetch_trades("11680", "202610")
     assert len(items) == 6 and items.skipped == 6
+
+
+def test_parse_trade_keeps_location_codes():
+    xml = read("trade_sample.xml").replace(
+        "<umdNm>개포동</umdNm>",
+        "<umdCd>10700</umdCd><bonbun>0095</bonbun><bubun>0001</bubun><umdNm>개포동</umdNm>",
+    )
+    items = parse_trade_xml(xml, "11680")
+    assert (items[0].umd_cd, items[0].bonbun, items[0].bubun) == ("10700", "0095", "0001")
+    # 태그가 없는 항목(대치동)은 셋 다 None
+    assert (items[2].umd_cd, items[2].bonbun, items[2].bubun) == (None, None, None)

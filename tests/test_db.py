@@ -209,3 +209,16 @@ def test_migrate_corrects_existing_region_names(conn):
     migrate(conn)
     got = dict(conn.execute("SELECT code, district_name FROM regions WHERE code IN ('41115','41117')").fetchall())
     assert got == {"41115": "수원팔달", "41117": "수원영통"}
+
+
+def test_upsert_fills_location_codes_once(conn):
+    kw = dict(name="래미안", lawd_cd="11680", dong="역삼동", jibun="1", build_year=2000, apt_seq="11680-1")
+    a = upsert_apartment(conn, **kw)
+    assert conn.execute("SELECT umd_cd, bonbun, bubun FROM apartments WHERE id=?", (a,)).fetchone() == (None,) * 3
+    assert upsert_apartment(conn, **kw, umd_cd="10100", bonbun="0001", bubun="0000") == a
+    assert conn.execute("SELECT umd_cd, bonbun, bubun FROM apartments WHERE id=?", (a,)).fetchone() == (
+        "10100", "0001", "0000")
+    # 이미 있는 코드는 덮어쓰지 않는다
+    upsert_apartment(conn, **kw, umd_cd="99999", bonbun="0002", bubun="0003")
+    assert conn.execute("SELECT umd_cd, bonbun, bubun FROM apartments WHERE id=?", (a,)).fetchone() == (
+        "10100", "0001", "0000")

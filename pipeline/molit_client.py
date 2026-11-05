@@ -44,6 +44,9 @@ class TradeItem:
     area: float
     floor: int
     cancel_date: str | None
+    umd_cd: str | None = None  # 법정동코드 5자리 (건축물대장 bjdongCd)
+    bonbun: str | None = None  # 지번 본번 4자리
+    bubun: str | None = None  # 지번 부번 4자리
 
 
 @dataclass
@@ -131,6 +134,9 @@ def parse_trade_xml(xml: str, lawd_cd: str) -> ParseResult:
         area=float(_text(i, "excluUseAr")),
         floor=_opt_int(i, "floor") or 0,
         cancel_date=_cancel_date(i),
+        umd_cd=_opt_str(i, "umdCd"),
+        bonbun=_opt_str(i, "bonbun"),
+        bubun=_opt_str(i, "bubun"),
     ))
 
 

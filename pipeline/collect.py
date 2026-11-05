@@ -67,6 +67,7 @@ def _save(conn: sqlite3.Connection, kind: str, items: list) -> int:
         apt_id = upsert_apartment(
             conn, name=it.apt_name, lawd_cd=it.lawd_cd, dong=it.dong, jibun=it.jibun,
             build_year=it.build_year, apt_seq=it.apt_seq,
+            **({"umd_cd": it.umd_cd, "bonbun": it.bonbun, "bubun": it.bubun} if kind == "trade" else {}),
         )
         if insert(conn, apt_id, it):
             saved += 1
