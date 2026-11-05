@@ -1,3 +1,9 @@
+/** 단지 주택형: 전용·공급면적(㎡). approx는 추정값 여부. */
+export type AreaType = { excl: number; supply: number; approx: boolean };
+
+/** 화면에 쓰는 공급평 (평 단위 정수 범위). */
+export type SupplyLabel = { min: number; max: number; approx: boolean };
+
 export interface Apartment {
   id: number;
   name: string;
@@ -10,6 +16,7 @@ export interface Apartment {
   apt_seq: string | null;
   lat: number | null;
   lng: number | null;
+  area_types?: AreaType[];
 }
 
 export interface AreaStat {

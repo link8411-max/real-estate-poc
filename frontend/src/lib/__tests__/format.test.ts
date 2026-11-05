@@ -1,4 +1,5 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { setSupplyEnabledForTest } from "@/lib/supply";
 import { areaToPyeong, formatArea, formatExactArea, formatDeal, formatManwon, formatPrice } from "@/lib/format";
 
 describe("formatManwon", () => {
@@ -57,5 +58,41 @@ describe("formatPrice", () => {
     expect(formatPrice(245000)).toBe("24억 5,000만원");
     expect(formatPrice(100000)).toBe("10억원");
     expect(formatPrice(9500)).toBe("9,500만원");
+  });
+});
+
+describe("공급평 플래그", () => {
+  const exact = { min: 33, max: 33, approx: false };
+  afterEach(() => setSupplyEnabledForTest(false));
+
+  test("flag off keeps legacy labels", () => {
+    expect(formatArea(84.88, "pyeong", exact)).toBe("전용 25평 (84㎡)");
+    expect(formatArea(84.88, "m2", exact)).toBe("84㎡ (전용 25평)");
+    expect(formatExactArea(80.87, "pyeong", exact)).toBe("전용 24.5평");
+  });
+  test("flag on exact", () => {
+    setSupplyEnabledForTest(true);
+    expect(formatArea(84.88, "pyeong", exact)).toBe("33평 · 전용 84㎡");
+    expect(formatArea(84.88, "m2", exact)).toBe("84㎡ (33평)");
+    expect(formatExactArea(80.87, "pyeong", exact)).toBe("33평 · 전용 80.87㎡");
+    expect(formatExactArea(80.87, "m2", exact)).toBe("80.87㎡ (33평)");
+  });
+  test("flag on approx", () => {
+    setSupplyEnabledForTest(true);
+    const a = { min: 34, max: 34, approx: true };
+    expect(formatArea(84.88, "pyeong", a)).toBe("약 34평 · 전용 84㎡");
+    expect(formatArea(84.88, "m2", a)).toBe("84㎡ (약 34평)");
+  });
+  test("flag on range", () => {
+    setSupplyEnabledForTest(true);
+    const r = { min: 33, max: 34, approx: false };
+    expect(formatArea(84.88, "pyeong", r)).toBe("33~34평 · 전용 84㎡");
+    expect(formatExactArea(80.87, "pyeong", r)).toBe("33~34평 · 전용 80.87㎡");
+  });
+  test("flag on missing never shows 전용평", () => {
+    setSupplyEnabledForTest(true);
+    expect(formatArea(84.88, "pyeong", null)).toBe("84㎡");
+    expect(formatArea(84.88, "m2")).toBe("84㎡");
+    expect(formatExactArea(80.87, "pyeong", null)).toBe("80.87㎡");
   });
 });
