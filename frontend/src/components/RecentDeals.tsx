@@ -17,7 +17,7 @@ export default function RecentDeals({ deals }: { deals: RecentTrade[] }) {
             <div className="min-w-0">
               <p className="truncate font-semibold text-gray-900">{d.name}</p>
               <p className="mt-0.5 text-xs text-gray-500">
-                {d.region_name} · <AreaLabel m2={d.area} /> · {formatDeal(d.deal_date)}
+                {d.region_name} · <AreaLabel m2={d.area} sp={d.supply} /> · {formatDeal(d.deal_date)}
               </p>
             </div>
             <div className="ml-3 flex shrink-0 items-center gap-1">

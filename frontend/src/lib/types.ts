@@ -130,6 +130,7 @@ export interface RecentTrade {
   amount: number;
   area: number;
   deal_date: string;
+  supply?: SupplyLabel | null;
 }
 
 export interface DataRange {

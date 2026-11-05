@@ -148,7 +148,7 @@ def test_build_stats_recent_and_region_yoy(conn):
     assert s["data_range"] == {"min_date": "2025-05-01", "max_date": "2026-10-10"}
     assert [r["apt_id"] for r in s["recent"]] == [2, 1, 1]
     assert s["recent"][0] == {"apt_id": 2, "name": "마포자이", "region_name": "서울 마포구",
-                              "amount": 50000, "area": 59.0, "deal_date": "2026-10-10"}
+                              "amount": 50000, "area": 59.0, "deal_date": "2026-10-10", "supply": None}
     assert len(s["regions"]) == 83
     gn = next(r for r in s["regions"] if r["code"] == "11680")
     assert gn["name"] == "강남구" and gn["city"] == "서울"
@@ -297,3 +297,11 @@ def test_region_entry_latest_supply(conn):
     conn.commit()
     apt = next(a for a in build_region(conn, "11440", TODAY)["apartments"] if a["id"] == 3)
     assert (apt["latest_supply_min"], apt["latest_supply_max"], apt["latest_supply_approx"]) == (33, 33, False)
+
+
+def test_build_stats_recent_has_supply(conn):
+    _area_type(conn, 2, 59.0, 80.0, approx=1)
+    conn.commit()
+    s = build_stats(conn, TODAY)
+    assert s["recent"][0]["supply"] == {"min": 24, "max": 24, "approx": True}
+    assert s["recent"][1]["supply"] is None

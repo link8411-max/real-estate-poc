@@ -204,6 +204,9 @@ def build_stats(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
         "ORDER BY t.deal_date DESC, t.id DESC LIMIT ?",
         (RECENT_LIMIT,),
     ).fetchall()
+    from pipeline.supply import load_area_types, supply_label
+
+    types = load_area_types(conn, {r["apt_id"] for r in recent})
     since = (today - timedelta(days=30)).isoformat()
     return {
         "data_updated_at": datetime.now(timezone.utc).isoformat(),
@@ -214,7 +217,8 @@ def build_stats(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
         ).fetchone()[0],
         "recent": [
             {"apt_id": r["apt_id"], "name": r["name"], "region_name": _region_name(conn, r["lawd_cd"]),
-             "amount": r["amount"], "area": r["area"], "deal_date": r["deal_date"]}
+             "amount": r["amount"], "area": r["area"], "deal_date": r["deal_date"],
+             "supply": supply_label(types.get(r["apt_id"], []), r["area"])}
             for r in recent
         ],
         "regions": regions,
