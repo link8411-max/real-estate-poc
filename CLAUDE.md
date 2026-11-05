@@ -26,6 +26,7 @@ pipeline/            Python 파이프라인 (아래 CLI 표)
   summary.py         단지 요약 지표 계산 (시간 창 지표는 프론트 lib/metrics.ts 가 오늘 기준으로 다시 계산)
   export_json.py     단지/지역/통계/검색 인덱스 JSON 내보내기
   r2_publish.py      out/ → R2 public 버킷 업로드(변경분만)
+  indexnow.py        바뀐 단지·허브 주소를 IndexNow(네이버·공용)에 알림. 실패해도 종료 코드 0
   geocode.py         카카오 지오코딩으로 빈 좌표 채우기
   redevelopment.py   국토부 정비구역 CSV -> v1/redevelopment/zones.json (재건축 단지 이름 매칭 + 카카오 지오코딩 캐시 data/redevelopment/geocode_cache.json; `--db X --geocode` 로 캐시 채움)
   migrate_coords.py  옛 로컬 DB 에서 좌표 이식 (1회성)
@@ -67,6 +68,7 @@ cp frontend/.env.example frontend/.env.local
 | `collect` | `--db`(기본 real_estate.db) `--kind trade\|rent\|both` ; 기간 택1: `--months YYYYMM,..` / `--from YYYYMM [--to YYYYMM]` / `--daily`(이번 달+지난 달) / `--retry-failed SUMMARY` ; `--regions 코드,..` `--changed-out`(기본 changed_apts.json) `--summary-out FILE` `--delay`(기본 0.5) |
 | `export_json` | `--db`(필수) `--out`(필수) ; 택1: `--changed FILE` / `--all` ; `--today YYYY-MM-DD` |
 | `r2_publish` | `--out`(필수) `--keys`(필수, out/keys.json) `--bucket` `--workers`(기본 8) |
+| `indexnow` | 택1: `--changed FILE`(단지 URL+허브 4개) / `--sitemap URL`(`<loc>` 전부) ; `--site`(기본 https://zipsise.com) `--key`(기본 env INDEXNOW_KEY, 없으면 공개 키 상수) `--endpoints`(기본 네이버,공용) `--dry-run` |
 | `supabase_sync` | `--db`(필수) ; 택1: `--changed FILE` / `--all` ; `--today YYYY-MM-DD` |
 | `geocode` | `--db`(필수) `--retry-failed` `--limit`(기본 20000) `--delay`(기본 0.05) |
 | `merge_apartments` | `--db`(필수) `--report FILE`(필수, 쌍·애매 목록 JSON) `--dry-run`(DB 안 바꿈) |
@@ -103,7 +105,7 @@ gh workflow enable "Daily Collection" -R link8411-max/real-estate-poc    # uploa
 
 Next.js 16 (App Router) + Tailwind, 데이터는 `NEXT_PUBLIC_DATA_URL` 의 정적 JSON(ISR 10분)과 Supabase.
 
-- 페이지: `/` `/search` `/browse` `/region/[code]` `/stats` `/compare` `/apartment/[id]`(매매/전세/월세 탭) `/map`(카카오 지도 + 필터), `robots.ts`, `sitemap.ts`, OG 이미지 `/api/og/[id]`
+- 페이지: `/` `/search` `/browse` `/region/[code]` `/stats` `/compare` `/apartment/[id]`(매매/전세/월세 탭) `/map`(카카오 지도 + 필터), `robots.ts`, `sitemap.ts`, `/rss.xml`(최근 신고가·취소 피드, lib/rss.ts; 서치어드바이저 RSS 제출용), IndexNow 키 파일 `public/<키>.txt`, OG 이미지 `/api/og/[id]`
 - 주요 컴포넌트(`src/components`): MapView / KakaoMap / MapMarkers / FilterPanel (지도), DealTabs / ApartmentTrades / RentSection / PriceChart / InsightBadges (상세), SearchBox / SearchPanel, RegionBrowser / RegionStatsTable, CompareTable, AreaUnitToggle·AreaLabel (평/㎡ 전환)
 - `src/lib`: data.ts(JSON fetch), types.ts, useMapData.ts, mapFilters.ts·filters.ts, seo.ts, supabase/, areaUnit.ts
 - 명령: `npm run dev` / `npm run build` / `npm test`(vitest) / `npx tsc --noEmit` / `npm run lint`
