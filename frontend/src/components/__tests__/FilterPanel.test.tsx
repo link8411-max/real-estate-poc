@@ -84,11 +84,11 @@ describe("FilterPanel", () => {
     expect(lastQuery()).not.toHaveProperty("minPrice");
   });
 
-  test("평 단위: 30평대 → minArea=99&maxArea=131, ~20평 → maxArea=65만", async () => {
+  test("전용㎡ 구간: 99~131㎡ → minArea=99&maxArea=131, ~65㎡ → maxArea=65만", async () => {
     render(<FilterPanel />);
-    await userEvent.click(screen.getByRole("button", { name: "30평대" }));
+    await userEvent.click(screen.getByRole("button", { name: "99~131㎡" }));
     expect(lastQuery()).toMatchObject({ minArea: "99", maxArea: "131" });
-    await userEvent.click(screen.getByRole("button", { name: "~20평" }));
+    await userEvent.click(screen.getByRole("button", { name: "~65㎡" }));
     const q = lastQuery();
     expect(q.maxArea).toBe("65");
     expect(q).not.toHaveProperty("minArea");
@@ -106,7 +106,7 @@ describe("FilterPanel", () => {
   test("선택된 평형 프리셋을 다시 누르면 해제", async () => {
     search = new URLSearchParams("minArea=66&maxArea=98");
     render(<FilterPanel />);
-    const btn = screen.getByRole("button", { name: "20평대" });
+    const btn = screen.getByRole("button", { name: "66~98㎡" });
     expect(btn).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(btn);
     const q = lastQuery();

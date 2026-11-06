@@ -54,6 +54,6 @@ export const parseId = (s: string): number | null => {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 };
 
-/** 공유 제목·OG용 짧은 면적. 플래그 off: "25평", on: "33평" / 공급 정보 없으면 "84㎡" (전용평 금지) */
+/** 공유 제목·OG용 짧은 면적. 플래그 off: "84㎡"(전용평을 공급평으로 오해하지 않게), on: "33평" / 공급 정보 없으면 "84㎡" */
 export const shareArea = (tx: ShareTx): string =>
-  !SUPPLY_ENABLED ? `${tx.pyeong}평` : tx.supply ? supplyText(tx.supply) : `${tx.m2}㎡`;
+  SUPPLY_ENABLED && tx.supply ? supplyText(tx.supply) : `${tx.m2}㎡`;

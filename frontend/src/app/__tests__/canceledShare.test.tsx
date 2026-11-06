@@ -75,7 +75,7 @@ describe("취소된 신고가 공유 페이지", () => {
   test("취소 아닌 거래 메타: '신고 후 취소' 없음", async () => {
     const m = await page.generateMetadata(props("1554", "1"));
     const t = (m.title as { absolute: string }).absolute;
-    expect(t).toBe("래미안 25평 20억원");
+    expect(t).toBe("래미안 84㎡ 20억원");
     expect(t).not.toContain("신고 후 취소");
   });
   test("취소됐지만 신고가 아님: 제목에 신고 후 취소", async () => {
@@ -139,10 +139,10 @@ describe("공급평 플래그 on", () => {
   afterEach(() => setSupplyEnabledForTest(false));
   const withTypes = { ...trade, apartment: { ...apartment, area_types: [{ excl: 84.9, supply: 112.9, approx: false }] } };
 
-  test("제목: 단지명 34평 금액 (플래그 off면 25평 그대로)", async () => {
+  test("제목: 단지명 34평 금액 (플래그 off면 84㎡)", async () => {
     fetchAptTrade.mockResolvedValue(withTypes);
     const off = await page.generateMetadata(props("1554", "1"));
-    expect((off.title as { absolute: string }).absolute).toBe("래미안 25평 20억원");
+    expect((off.title as { absolute: string }).absolute).toBe("래미안 84㎡ 20억원");
     setSupplyEnabledForTest(true);
     const on = await page.generateMetadata(props("1554", "1"));
     expect((on.title as { absolute: string }).absolute).toBe("래미안 34평 20억원");

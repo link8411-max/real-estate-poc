@@ -37,11 +37,8 @@ describe("AREA_PRESETS", () => {
       [132, undefined],
     ]);
   });
-  test("평 단위 라벨", () => {
-    expect(AREA_PRESETS.map((p) => areaPresetLabel(p, "pyeong"))).toEqual(["~20평", "20평대", "30평대", "40평+"]);
-  });
-  test("㎡ 단위 라벨", () => {
-    expect(AREA_PRESETS.map((p) => areaPresetLabel(p, "m2"))).toEqual(["~65㎡", "66~98㎡", "99~131㎡", "132㎡+"]);
+  test("전용㎡ 구간 라벨은 단위 설정과 상관없이 ㎡(전용평을 공급평으로 오해하지 않게)", () => {
+    expect(AREA_PRESETS.map((p) => areaPresetLabel(p))).toEqual(["~65㎡", "66~98㎡", "99~131㎡", "132㎡+"]);
   });
 });
 
@@ -109,7 +106,7 @@ describe("isDegenerateBounds", () => {
 describe("공급평 필터", () => {
   afterEach(() => setSupplyEnabledForTest(false));
   test("SUPPLY_AREA_PRESETS 라벨·구간", () => {
-    expect(SUPPLY_AREA_PRESETS.map((p) => areaPresetLabel(p, "pyeong"))).toEqual(["~19평", "20평대", "30평대", "40평+"]);
+    expect(SUPPLY_AREA_PRESETS.map((p) => areaPresetLabel(p))).toEqual(["~19평", "20평대", "30평대", "40평+"]);
     expect(SUPPLY_AREA_PRESETS.map((p) => [p.minPy, p.maxPy])).toEqual([
       [undefined, 19],
       [20, 29],

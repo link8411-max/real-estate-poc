@@ -3,7 +3,6 @@
 import { ChevronUp, SlidersHorizontal } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { useAreaUnit } from "@/lib/areaUnit";
 import {
   areaPresets,
   areaPresetLabel,
@@ -84,7 +83,6 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
-  const [unit] = useAreaUnit();
   const [open, setOpen] = useState(false);
   const f = readMapFilters(new URLSearchParams(search.toString()));
   const zf = readZoneFilters(new URLSearchParams(search.toString()));
@@ -229,7 +227,7 @@ export default function FilterPanel({ onOpen }: { onOpen?: () => void }) {
                   }
                   className={chip(on)}
                 >
-                  {areaPresetLabel(p, unit)}
+                  {areaPresetLabel(p)}
                 </button>
               );
             })}

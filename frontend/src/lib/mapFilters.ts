@@ -1,4 +1,3 @@
-import type { AreaUnit } from "./areaUnit";
 import { SUPPLY_ENABLED } from "./supply";
 
 export type MapMode = "trade" | "rent";
@@ -50,9 +49,9 @@ export const SUPPLY_AREA_PRESETS: readonly AreaPreset[] = [
 /** 지금 화면이 쓰는 평형 구간: 플래그 on이면 공급평, off면 기존 전용㎡ */
 export const areaPresets = (): readonly AreaPreset[] => (SUPPLY_ENABLED ? SUPPLY_AREA_PRESETS : AREA_PRESETS);
 
-export function areaPresetLabel(p: AreaPreset, unit: AreaUnit): string {
+/** 공급평 구간은 평, 전용㎡ 구간은 단위 설정과 상관없이 ㎡(전용평 "20평대"를 공급평으로 오해하지 않게). */
+export function areaPresetLabel(p: AreaPreset): string {
   if (p.minPy !== undefined || p.maxPy !== undefined) return p.pyeong;
-  if (unit === "pyeong") return p.pyeong;
   if (p.minArea === undefined) return `~${p.maxArea}㎡`;
   if (p.maxArea === undefined) return `${p.minArea}㎡+`;
   return `${p.minArea}~${p.maxArea}㎡`;
