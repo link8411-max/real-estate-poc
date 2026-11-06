@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import os
 import zipfile
 
 import pytest
@@ -124,14 +125,19 @@ def test_apartment_without_key_untouched(conn, tmp_path):
     assert status(conn, x) is None
 
 
-def row_html(gubun, name, ym, fid):
-    return (f'<tr><td>1</td><td>{gubun}</td><td>{name} ({ym})</td>'
-            f'<td><button onclick="fnDownloadPop(\'03\',\'0306\',\'{fid}\')">다운로드</button></td></tr>')
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "hub_list_snippet.html")
 
 
-LIST_HTML = ("<table>" + row_html("폐쇄말소대장", "전유공용면적", "2026년 10월", "CLOSED")
-             + row_html("건축물대장", "전유공용면적", "2026년 09월", "OPN09")
-             + row_html("건축물대장", "전유공용면적", "2026년 08월", "OPN08") + "</table>")
+def li(code, svc, ym, fid, tag):
+    return (f'<li><div class="block"><p class="tagset achieve">{tag}</p></div>'
+            f'<div class="block flex-1"><p class="tit">전유공용면적 ({ym})</p></div>'
+            f'<button onclick="fnDownloadPop(\'{code}\',\'{svc}\',\'{fid}\')">전체</button></li>')
+
+
+# 실제 페이지 조각(2026-09 건축물대장) + 같은 이름의 폐쇄말소대장·이전 월 행
+LIST_HTML = ("<ul>" + li("04", "0406", "2026년 10월", "CLOSED", "폐쇄말소대장")
+             + open(FIXTURE, encoding="utf-8").read()
+             + li("03", "0306", "2026년 08월", "OPN08", "건축물대장") + "</ul>")
 
 
 class Resp:
@@ -160,13 +166,13 @@ class FakeSession:
 
 def test_find_latest_picks_geonchuk_latest(monkeypatch):
     s = FakeSession()
-    assert find_latest_file_id(s) == ("OPN09", "2026-09")
+    assert find_latest_file_id(s) == ("OPN202610201234269800", "2026-09")
     assert [c[2]["params"]["pageIndex"] for c in s.calls] == [1, 2, 3, 4]
 
 
 def test_find_latest_not_found():
     s = FakeSession()
-    s.get = lambda url, **kw: Resp("<table></table>")
+    s.get = lambda url, **kw: Resp("<ul></ul>")
     with pytest.raises(BulkError):
         find_latest_file_id(s)
 
@@ -176,12 +182,12 @@ def test_download_three_steps(tmp_path):
     data = open(src, "rb").read()
     s = FakeSession(chunks=[data[:10], data[10:]])
     dest = tmp_path / "d.zip"
-    assert download(s, "OPN09", str(dest)) == len(data)
+    assert download(s, "OPN202610201234269800", str(dest)) == len(data)
     kinds = [(c[0], c[1].rsplit("/", 1)[1]) for c in s.calls]
     assert kinds == [("GET", "idx-lgcpt-pvsn-srvc-list.do"), ("POST", "idx-srvc-hstry-insert.do"),
                      ("POST", "fileOpnDown.do")]
     assert s.calls[1][2]["data"] == {"opnLgcptTaskSeCd": "03", "opnTaskCd": "0306", "opnPrcusePrpsCd": "1"}
-    assert s.calls[2][2]["data"] == {"srvrFileNm": "OPN09"}
+    assert s.calls[2][2]["data"] == {"srvrFileNm": "OPN202610201234269800"}
 
 
 def test_download_empty_or_not_zip_raises(tmp_path):

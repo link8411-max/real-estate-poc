@@ -47,31 +47,32 @@ _USED_IDX = tuple((n, _IDX[n]) for n in _USED)
 _I_SIGUNGU, _I_BJDONG, _I_PLAT, _I_BUN, _I_JI, _I_AREA = (
     _IDX[n] for n in ("sigunguCd", "bjdongCd", "platGbCd", "bun", "ji", "area"))
 
-_ROW = re.compile(r"<tr\b.*?</tr>", re.S)
-_CELL = re.compile(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", re.S)
-_TAGS = re.compile(r"<[^>]+>")
-_ONCLICK = re.compile(r"fnDownloadPop\(\s*'[^']*'\s*,\s*'[^']*'\s*,\s*'([^']+)'\s*\)")
+_ITEM = re.compile(r"<li\b.*?</li>", re.S)
+# 구분(03=건축물대장)·서비스(0306=전유공용면적)가 버튼 인자에 있어 이것으로 고른다
+_ONCLICK = re.compile(r"fnDownloadPop\(\s*'03'\s*,\s*'0306'\s*,\s*'([^']+)'\s*\)")
 _YM = re.compile(r"전유공용면적\s*\(\s*(\d{4})년\s*(\d{1,2})월\s*\)")
+
+
+def new_session() -> requests.Session:
+    s = requests.Session()
+    s.headers["User-Agent"] = "Mozilla/5.0"
+    return s
 
 
 class BulkError(Exception):
     pass
 
 
-def _text(html: str) -> str:
-    return re.sub(r"\s+", " ", _TAGS.sub(" ", html)).strip()
-
-
 def parse_list(html: str) -> list[tuple[str, str]]:
-    """목록 HTML → [(파일 id, "YYYY-MM")]. 구분이 '건축물대장'인 전유공용면적 행만."""
+    """목록 HTML → [(파일 id, "YYYY-MM")]. 건축물대장 전유공용면적(03/0306) 항목만.
+
+    폐쇄말소대장('04')·주택인허가·건축인허가의 같은 이름 항목은 인자가 달라 제외된다.
+    """
     out: list[tuple[str, str]] = []
-    for row in _ROW.findall(html):
-        cells = [_text(c) for c in _CELL.findall(row)]
-        if "건축물대장" not in cells:  # 폐쇄말소대장·주택인허가·건축인허가 같은 이름 행 제외
-            continue
-        m = _YM.search(_text(row))
-        f = _ONCLICK.search(row)
-        if m and f:
+    for item in _ITEM.findall(html):
+        f = _ONCLICK.search(item)
+        m = _YM.search(item)
+        if f and m:
             out.append((f.group(1), f"{m.group(1)}-{int(m.group(2)):02d}"))
     return out
 
@@ -199,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     path = a.zip
     ym = None
     if a.download_to:
-        session = requests.Session()
+        session = new_session()
         file_id, ym = find_latest_file_id(session)
         size = download(session, file_id, a.download_to)
         print(f"받음: {ym} {size} bytes", file=sys.stderr)
