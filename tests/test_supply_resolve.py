@@ -74,7 +74,20 @@ def test_register_out_of_range_falls_to_estimate(conn):
     resolve_all(conn, {})
     r = rows(conn, a)[84.43]
     assert r[1:] == ("estimate", 1)
-    assert 1.2 <= r[0] / 84.43 <= 1.45
+    assert 1.15 <= r[0] / 84.43 <= 1.50
+
+
+def test_register_small_unit_high_ratio_accepted(conn):
+    a = add_apt(conn, areas=(39.1,))
+    reg(conn, a, 39.1, 61.37)  # 비율 1.57: 소형은 정상
+    resolve_all(conn, {})
+    assert rows(conn, a)[39.1] == (61.37, "register", 0)
+
+
+def test_ratio_range_by_band():
+    assert supply.ratio_range(39.1)[1] >= 1.57
+    assert supply.ratio_range(84.43)[1] < 161.0 / 84.43
+    assert supply.ratio_range(120)[1] < supply.ratio_range(39.1)[1]
 
 
 def test_estimate_prefers_same_apartment(conn):

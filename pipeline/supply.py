@@ -22,7 +22,9 @@ OTHER_COMMON_WORDS: tuple[str, ...] = (
     "작업장", "GX", "키즈", "멀티미디어", "커뮤니티", "체육", "수영",
     "사우나", "부대", "복리", "판매",
 )
-RATIO_RANGE = (1.20, 1.45)  # 공급/전용 정상 범위
+# 공급/전용 정상 범위: 전용 면적대별. 작은 평형일수록 공용 비중이 커 비율이 높다.
+# 2026-09 대용량 파일 register_types 분포(p99, 소형은 p95)를 0.05 단위로 올림. 하한 1.15 는 공용 누락(=1.0) 배제용(도곡렉슬 대형 1.19 같은 실제 값 허용).
+RATIO_BANDS = ((50.0, (1.15, 1.80)), (70.0, (1.15, 1.55)), (float("inf"), (1.15, 1.50)))
 OLD_BUILD_YEAR = 1995  # 이 연도 이전 준공이면 "약"
 MIN_AGREEMENT = 0.6  # 최빈값 비중이 이보다 낮으면 "약"
 
@@ -189,8 +191,19 @@ def _nearest(items: list, key, area: float):
     return best
 
 
+def ratio_range(excl: float) -> tuple[float, float]:
+    """그 전용면적에서 믿을 만한 공급/전용 범위."""
+    for upper, rng in RATIO_BANDS:
+        if excl < upper:
+            return rng
+    return RATIO_BANDS[-1][1]
+
+
 def _ratio_ok(excl: float, supply: float) -> bool:
-    return excl > 0 and RATIO_RANGE[0] <= supply / excl <= RATIO_RANGE[1]
+    if excl <= 0:
+        return False
+    lo, hi = ratio_range(excl)
+    return lo <= supply / excl <= hi
 
 
 def _is_sure(build_year: int | None, agreement: float) -> bool:
