@@ -101,6 +101,31 @@ def test_insert_trade_dedup_and_cancel_marks_changed(conn):
     assert insert_trade(conn, a, trade(cancel_date="2026-09-20")) is False
 
 
+def test_취소된_행에_정상_줄이_오면_복구되고_해제일이_신고일로_남는다(conn):
+    a = apt(conn)
+    insert_trade(conn, a, trade(cancel_date="2026-09-20"))
+    pop_changed(conn)
+    assert insert_trade(conn, a, trade(rgst_date="2026-10-30")) is True
+    assert pop_changed(conn) == [a]
+    row = conn.execute(
+        "select cancel_date, is_canceled, cancel_reported, rgst_date from transactions"
+    ).fetchone()
+    assert tuple(row) == (None, 0, "2026-09-20", "2026-10-30")
+    assert conn.execute("select count(*) from transactions").fetchone()[0] == 1
+    assert insert_trade(conn, a, trade(rgst_date="2026-10-30")) is False
+
+
+def test_rgst_date_갱신이_changed로_잡힌다(conn):
+    a = apt(conn)
+    insert_trade(conn, a, trade())
+    pop_changed(conn)
+    assert insert_trade(conn, a, trade(rgst_date="2026-10-30", dealing_gbn="중개거래")) is True
+    assert pop_changed(conn) == [a]
+    row = conn.execute("select rgst_date, dealing_gbn from transactions").fetchone()
+    assert tuple(row) == ("2026-10-30", "중개거래")
+    assert insert_trade(conn, a, trade(rgst_date="2026-10-30", dealing_gbn="중개거래")) is False
+
+
 def test_insert_rent_dedup(conn):
     a = apt(conn)
     assert insert_rent(conn, a, rent()) is True

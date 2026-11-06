@@ -27,6 +27,41 @@ def trade(lawd="11680"):
     )
 
 
+def _count_rows(conn):
+    return conn.execute("select count(*) from transactions").fetchone()[0]
+
+
+def test_save_정상_줄과_해제_줄_쌍둥이는_한_행으로_합쳐진다(conn):
+    live = trade()
+    live.rgst_date = "2026-10-30"
+    twin = trade()
+    twin.cancel_date = "2026-10-20"
+    assert collect_mod._save(conn, "trade", [twin, live]) == 1
+    assert _count_rows(conn) == 1
+    row = conn.execute(
+        "select cancel_date, is_canceled, cancel_reported, rgst_date from transactions"
+    ).fetchone()
+    assert tuple(row) == (None, 0, "2026-10-20", "2026-10-30")
+
+
+def test_save_해제_줄만_오면_취소로_저장된다(conn):
+    only = trade()
+    only.cancel_date = "2026-10-20"
+    assert collect_mod._save(conn, "trade", [only]) == 1
+    row = conn.execute("select cancel_date, is_canceled, cancel_reported from transactions").fetchone()
+    assert tuple(row) == ("2026-10-20", 1, None)
+
+
+def test_save_자연키_면적은_소수_둘째자리로_묶는다(conn):
+    live = trade()
+    twin = trade()
+    twin.area = 84.9000001
+    twin.cancel_date = "2026-10-20"
+    collect_mod._save(conn, "trade", [live, twin])
+    assert _count_rows(conn) == 1
+    assert conn.execute("select cancel_reported from transactions").fetchone()[0] == "2026-10-20"
+
+
 def rent(lawd="11680"):
     return RentItem(
         apt_name="래미안", apt_seq="11680-1", lawd_cd=lawd, dong="개포동", jibun="1",

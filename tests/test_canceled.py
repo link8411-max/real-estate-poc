@@ -69,7 +69,7 @@ def test_canceled_highs_definition(cconn):
     assert items[0]["area_group"] == 84 and items[0]["city"] == "서울"
     assert set(items[0]) == {
         "tx_id", "apt_id", "apt_name", "region_name", "city", "area", "area_group", "floor",
-        "amount", "prev_max", "jump", "deal_date", "cancel_date", "days_to_cancel", "supply",
+        "amount", "prev_max", "jump", "deal_date", "cancel_date", "days_to_cancel", "supply", "dealing_gbn",
     }
 
 
@@ -112,3 +112,22 @@ def test_canceled_entry_supply_known(cconn):
     cconn.execute("INSERT INTO apartment_area_types VALUES (1,84.9,112.0,'register',1,5,'x')")
     cconn.commit()
     assert canceled_highs(cconn, since="2026-01-01")[0]["supply"] == {"min": 33, "max": 33, "approx": True}
+
+
+def test_재신고가_해제일_30일_안이면_목록에서_빠진다(cconn):
+    _tx(cconn, 1, 120000, 84.9, "2026-02-25")  # 해제일(2-20) 뒤 같은 금액 정상 재신고
+    cconn.commit()
+    assert canceled_highs(cconn, since="2026-01-01") == []
+
+
+def test_재신고가_해제일_31일_뒤면_남는다(cconn):
+    _tx(cconn, 1, 120000, 84.9, "2026-03-23")  # 2-20 + 31일
+    cconn.commit()
+    assert [i["amount"] for i in canceled_highs(cconn, since="2026-01-01")] == [120000]
+
+
+def test_dealing_gbn이_항목에_실린다(cconn):
+    assert canceled_highs(cconn, since="2026-01-01")[0]["dealing_gbn"] is None
+    cconn.execute("UPDATE transactions SET dealing_gbn='직거래' WHERE amount=120000")
+    cconn.commit()
+    assert canceled_highs(cconn, since="2026-01-01")[0]["dealing_gbn"] == "직거래"

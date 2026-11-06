@@ -50,6 +50,7 @@ def normalize_cancel_dates(conn: sqlite3.Connection) -> int:
 
 def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = None) -> list[dict[str, Any]]:
     """해제일이 [since, until] 인 취소 거래 중, 같은 단지·평형의 이전(계약일 엄격히 앞선) 정상 거래 최고가를 넘는 것.
+    해제일 +30일 안에 같은 금액이 재신고된 건은 뺀다.
 
     is_canceled 는 믿지 않고 cancel_date 로 판단한다. 해제일 내림차순, 동률은 jump 큰 순.
     """
@@ -58,7 +59,7 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
 
     sql = (
         "SELECT t.id, t.apt_id, a.name, a.lawd_cd, t.area, CAST(t.area AS INTEGER) AS grp, t.floor, "
-        "t.amount, t.deal_date, t.cancel_date FROM transactions t JOIN apartments a ON a.id = t.apt_id "
+        "t.amount, t.deal_date, t.cancel_date, t.dealing_gbn FROM transactions t JOIN apartments a ON a.id = t.apt_id "
         "WHERE t.cancel_date >= ?"
     )
     args: list[Any] = [since]
@@ -79,6 +80,15 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
         ).fetchone()[0]
         if prev is None or r["amount"] <= prev:
             continue
+        # 재신고: 해제일 +30일 안에 같은 단지·면적군·층·금액의 정상 거래가 뒤 계약일로 다시 올라왔으면 제외
+        refiled = conn.execute(
+            "SELECT 1 FROM transactions WHERE apt_id = ? AND CAST(area AS INTEGER) = ? AND floor IS ? "
+            "AND amount = ? AND cancel_date IS NULL AND deal_date > ? "
+            "AND deal_date <= date(?, '+30 days') LIMIT 1",
+            (r["apt_id"], r["grp"], r["floor"], r["amount"], r["deal_date"], r["cancel_date"]),
+        ).fetchone()
+        if refiled:
+            continue
         code = r["lawd_cd"]
         if code not in region_cache:
             region_cache[code] = _region_name(conn, code)
@@ -92,6 +102,7 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
             "amount": r["amount"], "prev_max": prev, "jump": r["amount"] - prev,
             "deal_date": r["deal_date"], "cancel_date": r["cancel_date"], "days_to_cancel": days,
             "supply": supply_label(type_cache[r["apt_id"]], r["area"]),
+            "dealing_gbn": r["dealing_gbn"] or None,
         })
     items.sort(key=lambda i: (i["cancel_date"], i["jump"]), reverse=True)
     return items

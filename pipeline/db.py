@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     unique_hash VARCHAR(64) UNIQUE,
     is_canceled BOOLEAN DEFAULT FALSE,
     cancel_date DATE,
+    rgst_date DATE,
+    cancel_reported DATE,
+    dealing_gbn TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS transaction_insights (
@@ -134,6 +137,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     _add_column(conn, "transactions", "is_canceled", "BOOLEAN DEFAULT FALSE")
     _add_column(conn, "transactions", "cancel_date", "DATE")
     _add_column(conn, "transactions", "unique_hash", "VARCHAR(64)")
+    _add_column(conn, "transactions", "rgst_date", "DATE")  # 등기일
+    _add_column(conn, "transactions", "cancel_reported", "DATE")  # 정상 줄과 함께 온 해제 신고일 (거래는 유효)
+    _add_column(conn, "transactions", "dealing_gbn", "TEXT")  # 중개거래 | 직거래
     _add_column(conn, "transactions", "created_at", "TIMESTAMP")  # ALTER 는 CURRENT_TIMESTAMP 기본값 불가
     _add_column(conn, "apartments", "apt_seq", "TEXT")
     _add_column(conn, "apartments", "household_count", "INT")
@@ -257,27 +263,42 @@ def _md5(text: str) -> str:
 def insert_trade(conn: sqlite3.Connection, apt_id: int, item: TradeItem) -> bool:
     # 기존 insight_engine.generate_deal_hash 와 동일한 규칙 (과거 행과 중복 판정 유지)
     h = _md5(f"{item.apt_name}|{item.floor}|{item.area}|{item.deal_date}|{item.amount}")
-    row = conn.execute("SELECT id, cancel_date FROM transactions WHERE unique_hash=?", (h,)).fetchone()
+    cols = "id, cancel_date, rgst_date, dealing_gbn, cancel_reported"
+    row = conn.execute(f"SELECT {cols} FROM transactions WHERE unique_hash=?", (h,)).fetchone()
     if row is None:
         # 해시는 단지명을 포함한다. 이름이 바뀐 뒤 같은 거래가 다시 오면 자연키로 찾는다.
         row = conn.execute(
-            "SELECT id, cancel_date FROM transactions WHERE apt_id=? AND deal_date=? AND floor IS ? "
+            f"SELECT {cols} FROM transactions WHERE apt_id=? AND deal_date=? AND floor IS ? "
             "AND round(area, 2)=round(?, 2) AND amount=? ORDER BY id LIMIT 1",
             (apt_id, item.deal_date, item.floor, item.area, item.amount),
         ).fetchone()
     if row is None:
         conn.execute(
             "INSERT INTO transactions(apt_id, amount, area, floor, deal_date, unique_hash, "
-            "is_canceled, cancel_date) VALUES (?,?,?,?,?,?,?,?)",
+            "is_canceled, cancel_date, rgst_date, cancel_reported, dealing_gbn) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (apt_id, item.amount, item.area, item.floor, item.deal_date, h,
-             1 if item.cancel_date else 0, item.cancel_date),
+             1 if item.cancel_date else 0, item.cancel_date,
+             item.rgst_date, item.cancel_reported, item.dealing_gbn),
         )
-    elif item.cancel_date and not row[1]:
+    elif item.cancel_date and not row[1]:  # 단건 해제 줄 = 진짜 취소
         conn.execute(
             "UPDATE transactions SET cancel_date=?, is_canceled=1 WHERE id=?", (item.cancel_date, row[0])
         )
+    elif not item.cancel_date and row[1]:  # 정상 줄이 뒤늦게 오면 취소를 풀고 해제일은 신고일로 남긴다
+        conn.execute(
+            "UPDATE transactions SET cancel_date=NULL, is_canceled=0, "
+            "cancel_reported=COALESCE(?, cancel_date), "
+            "rgst_date=COALESCE(?, rgst_date), dealing_gbn=COALESCE(?, dealing_gbn) WHERE id=?",
+            (item.cancel_reported, item.rgst_date, item.dealing_gbn, row[0]),
+        )
     else:
-        return False
+        new = {"rgst_date": (item.rgst_date, row[2]), "dealing_gbn": (item.dealing_gbn, row[3]),
+               "cancel_reported": (item.cancel_reported, row[4])}
+        diff = {k: v[0] for k, v in new.items() if v[0] is not None and v[0] != v[1]}
+        if not diff:
+            return False
+        sets = ", ".join(f"{k}=?" for k in diff)
+        conn.execute(f"UPDATE transactions SET {sets} WHERE id=?", (*diff.values(), row[0]))
     mark_changed(conn, [apt_id])
     return True
 

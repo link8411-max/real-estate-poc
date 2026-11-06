@@ -5,7 +5,7 @@ import json
 import re
 import sqlite3
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
@@ -60,8 +60,35 @@ def late_months(today: date) -> list[str]:
     return out
 
 
+def _merge_twins(items: list) -> list:
+    """같은 거래의 정상 줄 + 해제 줄(쌍둥이)을 정상 줄 하나로 합친다.
+
+    정상 줄이 있으면 그 줄이 이기고 해제일은 cancel_reported 로만 남긴다.
+    해제 줄만 있는 묶음은 그대로 둔다 (진짜 취소). 입력 순서는 유지한다.
+    """
+    groups: dict[tuple, list] = {}
+    for it in items:
+        key = (it.apt_name, it.lawd_cd, it.dong, it.jibun, it.deal_date, it.floor,
+               round(it.area, 2), it.amount)
+        groups.setdefault(key, []).append(it)
+    out: list = []
+    for g in groups.values():
+        live = [it for it in g if not it.cancel_date]
+        if not live:
+            out.extend(g)
+            continue
+        rep = next((it for it in live if it.rgst_date), live[0])
+        reported = [it.cancel_date for it in g if it.cancel_date]
+        if reported:
+            rep = replace(rep, cancel_reported=max(reported))
+        out.append(rep)
+    return out
+
+
 def _save(conn: sqlite3.Connection, kind: str, items: list) -> int:
     insert = insert_trade if kind == "trade" else insert_rent
+    if kind == "trade":
+        items = _merge_twins(items)
     saved = 0
     for it in items:
         apt_id = upsert_apartment(

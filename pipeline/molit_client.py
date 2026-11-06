@@ -47,6 +47,9 @@ class TradeItem:
     umd_cd: str | None = None  # 법정동코드 5자리 (건축물대장 bjdongCd)
     bonbun: str | None = None  # 지번 본번 4자리
     bubun: str | None = None  # 지번 부번 4자리
+    rgst_date: str | None = None  # 등기일 YYYY-MM-DD (rgstDate)
+    dealing_gbn: str | None = None  # 중개거래 | 직거래 (dealingGbn)
+    cancel_reported: str | None = None  # API 필드 아님: _save 가 해제 줄의 해제일을 채운다
 
 
 @dataclass
@@ -97,12 +100,17 @@ def _deal_date(item: ET.Element) -> str:
     return f"{int(_text(item, 'dealYear')):04d}-{int(_text(item, 'dealMonth')):02d}-{int(_text(item, 'dealDay')):02d}"
 
 
-def _cancel_date(item: ET.Element) -> str | None:
-    v = _text(item, "cdealDay")
+def _yy_date(item: ET.Element, tag: str) -> str | None:
+    """'YY.MM.DD' 형식 태그를 YYYY-MM-DD 로. 빈 값은 None."""
+    v = _text(item, tag)
     if not v:
         return None
     yy, mm, dd = v.split(".")
     return f"20{yy}-{mm}-{dd}"
+
+
+def _cancel_date(item: ET.Element) -> str | None:
+    return _yy_date(item, "cdealDay")
 
 
 def _items(xml: str) -> list[ET.Element]:
@@ -137,6 +145,8 @@ def parse_trade_xml(xml: str, lawd_cd: str) -> ParseResult:
         umd_cd=_opt_str(i, "umdCd"),
         bonbun=_opt_str(i, "bonbun"),
         bubun=_opt_str(i, "bubun"),
+        rgst_date=_yy_date(i, "rgstDate"),
+        dealing_gbn=_opt_str(i, "dealingGbn"),
     ))
 
 

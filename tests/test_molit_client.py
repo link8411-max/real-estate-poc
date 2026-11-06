@@ -43,6 +43,17 @@ def test_parse_trade_sample():
     assert items[0].cancel_date is None
 
 
+def test_parse_trade_등기일과_거래유형():
+    xml = read("trade_sample.xml").replace(
+        "<dealingGbn>중개거래</dealingGbn><excluUseAr>49.86",
+        "<dealingGbn>직거래</dealingGbn><rgstDate>26.10.30</rgstDate><excluUseAr>49.86",
+    )
+    items = parse_trade_xml(xml, "11680")
+    assert items[0].rgst_date == "2026-10-30" and items[0].dealing_gbn == "직거래"
+    assert items[1].rgst_date is None and items[1].dealing_gbn == "중개거래"
+    assert items[0].cancel_reported is None
+
+
 def test_parse_rent_sample_handles_commas_blanks_and_missing_seq():
     items = parse_rent_xml(read("rent_sample.xml"), "11680")
     assert items[0].deposit == 49000 and items[0].monthly_rent == 0 and items[0].contract_type is None
