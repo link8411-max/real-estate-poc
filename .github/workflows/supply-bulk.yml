@@ -47,6 +47,9 @@ jobs:
       - name: Resolve supply areas
         run: python -m pipeline.supply resolve --db real_estate.db --cheongyak-dir pipeline/data/cheongyak --changed-out changed_apts.json
 
+      - name: Upload database to R2 (early, keep ingest result)
+        run: python r2_utils.py upload
+
       - name: Export changed apartments
         run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out
 

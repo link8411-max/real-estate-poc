@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import os
 import re
 import sqlite3
@@ -22,7 +23,7 @@ import requests
 from pipeline.db import connect, migrate
 from pipeline.register_keys import RegisterKey, register_keys
 from pipeline.supply import UnitAccumulator, types_from_units
-from pipeline.supply_fetch import _record
+from pipeline.supply_fetch import _now
 
 BASE = "https://www.hub.go.kr"
 LIST_URL = f"{BASE}/portal/opn/lps/idx-lgcpt-pvsn-srvc-list.do"
@@ -31,6 +32,10 @@ DOWNLOAD_URL = f"{BASE}/cmm/fms/fileOpnDown.do"
 LIST_PAGES = 4
 TIMEOUT = 60
 CHUNK = 1 << 20
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_BACKOFF = 30  # 초, 시도마다 배로
+MAX_SKIP_RATIO = 0.01  # 우리 시군구 줄 중 건너뛴 줄이 이보다 많으면 파일 형식이 바뀐 것으로 본다
+MIN_DONE_RATIO = 0.5  # 키가 있는 단지 중 주택형이 채워진 비율 하한
 
 # 한 줄 39개 필드, 구분자 '|', 헤더 없음. 순서는 API JSON 키와 같다.
 FIELDS = (
@@ -109,6 +114,21 @@ def download(session, file_id: str, dest_path: str) -> int:
     return size
 
 
+def download_with_retry(session, file_id: str, dest_path: str, *, attempts: int = DOWNLOAD_ATTEMPTS) -> int:
+    """download 를 처음부터 다시 시도한다(부분 파일은 매번 지움)."""
+    for n in range(1, attempts + 1):
+        try:
+            return download(session, file_id, dest_path)
+        except (BulkError, requests.RequestException, OSError) as e:
+            if os.path.exists(dest_path):
+                os.remove(dest_path)
+            print(f"다운로드 {n}/{attempts} 실패: {type(e).__name__}: {e}", file=sys.stderr)
+            if n == attempts:
+                raise
+            time.sleep(DOWNLOAD_BACKOFF * n)
+    raise BulkError("unreachable")
+
+
 def build_keys(conn: sqlite3.Connection) -> tuple[dict[RegisterKey, list[int]], set[str]]:
     """키 → 단지 id 목록. 합쳐진 단지(alias old_id)와 키를 못 만드는 단지는 제외."""
     merged = {r[0] for r in conn.execute("SELECT old_id FROM apartment_aliases")}
@@ -123,20 +143,45 @@ def build_keys(conn: sqlite3.Connection) -> tuple[dict[RegisterKey, list[int]], 
 
 
 def _open_text(zf: zipfile.ZipFile):
-    names = [i for i in zf.infolist() if not i.is_dir()]
-    if not names:
-        raise BulkError("zip 안에 파일이 없습니다")
+    names = [i for i in zf.infolist() if i.filename.lower().endswith(".txt")]
+    if len(names) != 1:
+        raise BulkError(f"zip 안에 .txt 가 정확히 1개여야 합니다(현재 {len(names)}개)")
     return zf.open(names[0])
 
 
-def ingest(conn: sqlite3.Connection, zip_path: str) -> dict:
+def _save(conn: sqlite3.Connection, apt_id: int, status: str, types) -> None:
+    """register_types 교체 저장 + register_fetch 기록(커밋은 호출자). empty 면 기존 types 를 지우지 않는다."""
+    if status != "empty":
+        conn.execute("DELETE FROM register_types WHERE apt_id=?", (apt_id,))
+        conn.executemany(
+            "INSERT INTO register_types(apt_id, excl_area, supply_area, sample_n, agreement)"
+            " VALUES (?,?,?,?,?)",
+            [(apt_id, t.excl, t.supply, t.sample_n, t.agreement) for t in types],
+        )
+    conn.execute(
+        "INSERT OR REPLACE INTO register_fetch(apt_id, status, pages, fetched_at) VALUES (?,?,?,?)",
+        (apt_id, status, 0, _now()),
+    )
+
+
+def check_sanity(summary: dict, keyed_apartments: int) -> None:
+    """결과가 비정상이면 BulkError (저장 전에 호출해 DB 를 오염시키지 않는다)."""
+    if summary["matched_keys"] == 0:
+        raise BulkError("파일에서 우리 단지 키가 하나도 매칭되지 않았습니다")
+    if summary["skipped_lines"] > MAX_SKIP_RATIO * max(summary["set_lines"], 1):
+        raise BulkError(f"건너뛴 줄이 너무 많습니다: {summary['skipped_lines']} / {summary['set_lines']}")
+    if keyed_apartments and summary["apartments_done"] < MIN_DONE_RATIO * keyed_apartments:
+        raise BulkError(f"주택형이 채워진 단지가 너무 적습니다: {summary['apartments_done']} / {keyed_apartments}")
+
+
+def ingest(conn: sqlite3.Connection, zip_path: str, *, sanity: bool = True) -> dict:
     """zip 을 스트리밍으로 읽어 우리 단지 키 줄만 집계하고 register_types·register_fetch 를 채운다."""
     t0 = time.monotonic()
     keys, sigungu = build_keys(conn)
     sig_b = {s.encode() for s in sigungu}
     kb = {(k.sigungu_cd.encode(), k.bjdong_cd.encode(), k.bun.encode(), k.ji.encode()): k for k in keys}
     accs: dict[RegisterKey, UnitAccumulator] = {}
-    lines = skipped = 0
+    lines = skipped = set_lines = 0
     with zipfile.ZipFile(zip_path) as zf, _open_text(zf) as raw:
         for line in io.BufferedReader(raw, CHUNK):
             lines += 1
@@ -150,6 +195,7 @@ def ingest(conn: sqlite3.Connection, zip_path: str) -> dict:
                 if len(head) < 10:
                     skipped += 1
                 continue
+            set_lines += 1
             parts = line.split(b"|")
             if len(parts) != N_FIELDS:
                 skipped += 1
@@ -162,6 +208,8 @@ def ingest(conn: sqlite3.Connection, zip_path: str) -> dict:
             try:
                 area = float(parts[_I_AREA])
             except ValueError:
+                area = math.nan
+            if not math.isfinite(area):
                 skipped += 1
                 continue
             row = {n: parts[i].decode("utf-8", "replace") for n, i in _USED_IDX}
@@ -177,16 +225,24 @@ def ingest(conn: sqlite3.Connection, zip_path: str) -> dict:
         if acc is not None:
             acc.close()
             types = types_from_units(acc.finished_units())
-        status = "done" if types else "empty"  # empty 면 _record 가 기존 register_types 를 지우지 않는다
+        status = "done" if types else "empty"  # empty 면 _save 가 기존 register_types 를 지우지 않는다
         for apt_id in apt_ids:
-            _record(conn, apt_id, status, 0, types)
+            _save(conn, apt_id, status, types)
             if types:
                 done += 1
             else:
                 empty += 1
-    return {"lines": lines, "skipped_lines": skipped, "matched_keys": len(accs),
-            "apartments_done": done, "apartments_empty": empty,
-            "seconds": round(time.monotonic() - t0, 1)}
+    summary = {"lines": lines, "set_lines": set_lines, "skipped_lines": skipped,
+               "matched_keys": len(accs), "apartments_done": done, "apartments_empty": empty,
+               "seconds": round(time.monotonic() - t0, 1)}
+    try:
+        if sanity:
+            check_sanity(summary, sum(len(v) for v in keys.values()))
+    except BulkError:
+        conn.rollback()
+        raise
+    conn.commit()
+    return summary
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -202,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.download_to:
         session = new_session()
         file_id, ym = find_latest_file_id(session)
-        size = download(session, file_id, a.download_to)
+        size = download_with_retry(session, file_id, a.download_to)
         print(f"받음: {ym} {size} bytes", file=sys.stderr)
         path = a.download_to
     conn = connect(a.db)

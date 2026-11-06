@@ -89,7 +89,7 @@ def test_bad_lines_skipped_and_counted(conn, tmp_path):
     bad_count = line("11710", "10100", "0019", "0000", 102, "1", 84.8, nfields=38)
     bad_area = line("11710", "10100", "0019", "0000", 103, "1", "abc")
     junk = "a|b"
-    out = ingest(conn, make_zip(tmp_path / "a.zip", [bad_count, bad_area, junk] + good))
+    out = ingest(conn, make_zip(tmp_path / "a.zip", [bad_count, bad_area, junk] + good), sanity=False)
     assert out["skipped_lines"] == 3
     assert types(conn, a) == [(84.8, 111.52, 1)]
 
@@ -99,7 +99,7 @@ def test_empty_keeps_existing_types(conn, tmp_path):
     conn.execute("INSERT INTO register_types VALUES (?,?,?,?,?)", (a, 84.8, 111.0, 3, 1.0))
     only_office = [line("11710", "10100", "0019", "0000", 101, "1", 17.8, purps="오피스텔")]
     only_office[0] = only_office[0].replace("아파트", "오피스텔")
-    out = ingest(conn, make_zip(tmp_path / "a.zip", only_office))
+    out = ingest(conn, make_zip(tmp_path / "a.zip", only_office), sanity=False)
     assert out["apartments_empty"] == 1 and status(conn, a) == "empty"
     assert types(conn, a) == [(84.8, 111.0, 3)]
 
@@ -121,7 +121,7 @@ def test_same_key_two_complexes_and_alias_excluded(conn, tmp_path):
 def test_apartment_without_key_untouched(conn, tmp_path):
     x = upsert_apartment(conn, name="산", lawd_cd="11710", dong="잠실동", jibun="산1",
                          build_year=2000, apt_seq=None)
-    ingest(conn, make_zip(tmp_path / "a.zip", unit("11710", "10100", "0019", "0000", 1, 84.8, 20)))
+    ingest(conn, make_zip(tmp_path / "a.zip", unit("11710", "10100", "0019", "0000", 1, 84.8, 20)), sanity=False)
     assert status(conn, x) is None
 
 
@@ -164,7 +164,7 @@ class FakeSession:
         return Resp(chunks=self.chunks)
 
 
-def test_find_latest_picks_geonchuk_latest(monkeypatch):
+def test_find_latest_picks_geonchuk_latest():
     s = FakeSession()
     assert find_latest_file_id(s) == ("OPN202610201234269800", "2026-09")
     assert [c[2]["params"]["pageIndex"] for c in s.calls] == [1, 2, 3, 4]
@@ -195,3 +195,75 @@ def test_download_empty_or_not_zip_raises(tmp_path):
         download(FakeSession(chunks=[]), "X", str(tmp_path / "e.zip"))
     with pytest.raises(BulkError):
         download(FakeSession(chunks=[b"not a zip"]), "X", str(tmp_path / "n.zip"))
+
+
+def test_nonfinite_area_skipped(conn, tmp_path):
+    add_apt(conn, "엘스")
+    lines = [line("11710", "10100", "0019", "0000", 1, "1", "nan"),
+             line("11710", "10100", "0019", "0000", 2, "1", "inf")] + unit(
+        "11710", "10100", "0019", "0000", 3, 84.8, 26.72)
+    out = ingest(conn, make_zip(tmp_path / "a.zip", lines), sanity=False)
+    assert out["skipped_lines"] == 2
+
+
+def test_guard_no_match(conn, tmp_path):
+    a = add_apt(conn, "엘스")
+    conn.execute("INSERT INTO register_types VALUES (?,?,?,?,?)", (a, 84.8, 111.0, 3, 1.0))
+    z = make_zip(tmp_path / "a.zip", unit("99999", "10100", "0019", "0000", 1, 84.8, 20))
+    with pytest.raises(BulkError, match="매칭"):
+        ingest(conn, z)
+    assert status(conn, a) is None  # 저장 안 됨
+
+
+def test_guard_too_many_skipped(conn, tmp_path):
+    add_apt(conn, "엘스")
+    lines = unit("11710", "10100", "0019", "0000", 1, 84.8, 26.72)
+    lines += [line("11710", "10100", "0019", "0000", i, "1", "x") for i in range(2, 6)]
+    with pytest.raises(BulkError, match="건너뛴"):
+        ingest(conn, make_zip(tmp_path / "a.zip", lines))
+
+
+def test_guard_few_done(conn, tmp_path):
+    add_apt(conn, "엘스", jibun="19")
+    add_apt(conn, "렉슬", jibun="20")
+    offices = [line("11710", "10100", "0019", "0000", 1, "1", 17.8).replace("아파트", "오피스텔"),
+               line("11710", "10100", "0020", "0000", 1, "1", 17.8).replace("아파트", "오피스텔")]
+    with pytest.raises(BulkError, match="주택형"):
+        ingest(conn, make_zip(tmp_path / "a.zip", offices))
+
+
+def test_zip_needs_exactly_one_txt(conn, tmp_path):
+    add_apt(conn, "엘스")
+    p = tmp_path / "m.zip"
+    with zipfile.ZipFile(p, "w") as z:
+        z.writestr("a.txt", "x\n")
+        z.writestr("b.txt", "y\n")
+    with pytest.raises(BulkError):
+        ingest(conn, str(p))
+
+
+def test_download_retries(tmp_path, monkeypatch):
+    monkeypatch.setattr(supply_bulk.time, "sleep", lambda s: None)
+    data = open(make_zip(tmp_path / "src.zip", ["x"]), "rb").read()
+
+    class Flaky(FakeSession):
+        n = 0
+
+        def post(self, url, **kw):
+            if url.endswith("fileOpnDown.do"):
+                Flaky.n += 1
+                if Flaky.n == 1:
+                    return Resp(chunks=[b"PK partial"])  # zip 아님 -> 실패, 부분 파일 삭제
+            return Resp(chunks=[data])
+
+    dest = tmp_path / "d.zip"
+    assert supply_bulk.download_with_retry(Flaky(), "X", str(dest)) == len(data)
+    assert Flaky.n == 2
+
+
+def test_download_gives_up_after_three(tmp_path, monkeypatch):
+    monkeypatch.setattr(supply_bulk.time, "sleep", lambda s: None)
+    dest = tmp_path / "d.zip"
+    with pytest.raises(BulkError):
+        supply_bulk.download_with_retry(FakeSession(chunks=[]), "X", str(dest), attempts=3)
+    assert not dest.exists()
