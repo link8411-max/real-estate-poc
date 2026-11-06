@@ -1,0 +1,63 @@
+# 건축HUB 대용량 파일(전유공용면적, 매월 전국)을 zip 째 받아 스트리밍으로 읽어 register_types 를 채운다.
+# 압축 해제(44GB)는 하지 않는다. zip 만 약 3.3GB 저장.
+name: Supply Bulk
+
+on:
+  schedule:
+    - cron: '23 3 25 * *'   # 매월 25일 KST 12:23 (정각 피함)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  bulk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHON_VERSION: "3.11"
+      PYTHONUNBUFFERED: "1"
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Download database from R2
+        run: python r2_utils.py download
+
+      - name: Ingest bulk building register file
+        run: python -m pipeline.supply_bulk --db real_estate.db --download-to /tmp/epcm.zip
+
+      - name: Resolve supply areas
+        run: python -m pipeline.supply resolve --db real_estate.db --cheongyak-dir pipeline/data/cheongyak --changed-out changed_apts.json
+
+      - name: Export changed apartments
+        run: python -m pipeline.export_json --db real_estate.db --changed changed_apts.json --out out
+
+      - name: Publish to R2
+        run: python -m pipeline.r2_publish --out out --keys out/keys.json
+
+      - name: Sync to Supabase
+        run: python -m pipeline.supabase_sync --db real_estate.db --changed changed_apts.json
+
+      - name: Upload database to R2
+        run: python r2_utils.py upload
+
+      - name: Coverage
+        run: python -m pipeline.supply_fetch coverage --db real_estate.db

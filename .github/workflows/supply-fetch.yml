@@ -4,9 +4,10 @@
 name: Supply Fetch
 
 on:
-  # 2026-11-05 Backfill(trade 202512~202611)로 법정동 코드를 채운 뒤 사용자 승인으로 켰다.
-  schedule:
-    - cron: '0 16 * * *'   # KST 01:00 (다른 수집과 안 겹침)
+  # 2026-11-07 대용량 파일(supply-bulk.yml)로 대체. 수동 실행만 남김.
+  # (2026-11-05 Backfill(trade 202512~202611)로 법정동 코드를 채운 뒤 사용자 승인으로 켰던 스케줄)
+  # schedule:
+  #   - cron: '0 16 * * *'   # KST 01:00 (다른 수집과 안 겹침)
   workflow_dispatch:
     inputs:
       budget:
