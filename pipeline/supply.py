@@ -29,9 +29,12 @@ OLD_BUILD_YEAR = 1995  # 이 연도 이전 준공이면 "약"
 MIN_AGREEMENT = 0.6  # 최빈값 비중이 이보다 낮으면 "약"
 
 
+PYEONG_ROUND_UP = 0.05  # 소수 .95 이상은 올림: 대장과 분양 면적의 0.1㎡ 남짓 차이(24.97평 → 25평)
+
+
 def supply_pyeong(supply_m2: float) -> int:
-    """공급 ㎡ → 평(소수점 버림, 호갱노노와 동일)."""
-    return math.floor(supply_m2 / M2_PER_PYEONG)
+    """공급 ㎡ → 평(소수점 버림, 호갱노노와 동일. 단 .95 이상은 올림)."""
+    return math.floor(supply_m2 / M2_PER_PYEONG + PYEONG_ROUND_UP)
 
 
 def is_residential_common(etc_purps: str | None) -> bool:

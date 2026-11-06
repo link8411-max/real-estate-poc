@@ -10,8 +10,9 @@ export function setSupplyEnabledForTest(v: boolean): void {
 
 const M2_PER_PYEONG = 3.3058;
 
-/** 공급㎡ → 평 (버림). 111.52 → 33 */
-export const supplyPyeong = (m2: number): number => Math.floor(m2 / M2_PER_PYEONG);
+/** 공급㎡ → 평 (버림, 단 소수 .95 이상은 올림 — 대장·분양 면적 오차). 111.52 → 33, 82.55 → 25. 파이프라인 supply_pyeong과 같다. */
+const PYEONG_ROUND_UP = 0.05;
+export const supplyPyeong = (m2: number): number => Math.floor(m2 / M2_PER_PYEONG + PYEONG_ROUND_UP);
 
 /** 전용면적(±0.05㎡)이 같은 주택형. 파이프라인 lookup의 정확 일치 규칙과 같다. */
 export function findType(types: AreaType[], m2: number): AreaType | null {

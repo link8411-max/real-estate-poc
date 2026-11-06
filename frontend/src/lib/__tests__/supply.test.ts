@@ -7,6 +7,8 @@ describe("supplyPyeong", () => {
   test("버림", () => {
     expect(supplyPyeong(111.52)).toBe(33);
     expect(supplyPyeong(84.75)).toBe(25);
+    expect(supplyPyeong(82.55)).toBe(25); // .95 이상은 올림(대장·분양 면적 오차)
+    expect(supplyPyeong(108.82)).toBe(32);
   });
 });
 

@@ -31,6 +31,13 @@ def test_supply_pyeong_floors():
     assert supply_pyeong(149.88) == 45
 
 
+def test_supply_pyeong_rounds_up_from_point95():
+    # 호갱노노 대조(2026-11-07): 고덕그라시움 82.55㎡ 25평, 태강 69.32㎡ 21평, 파크리오 108.82㎡ 32평
+    assert supply_pyeong(82.55) == 25
+    assert supply_pyeong(69.32) == 21
+    assert supply_pyeong(108.82) == 32
+
+
 def test_residential_words():
     for s in ["계단실,승강기", "벽체", "기타", "", None, "  "]:
         assert is_residential_common(s) is True, s
