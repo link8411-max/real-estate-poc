@@ -89,7 +89,7 @@ describe("MapView 미리보기 카드", () => {
     expect(push).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "래미안" })).toBeTruthy();
     expect(screen.getByText("2015년 · 거래 12건")).toBeTruthy();
-    expect(screen.getByText("최근 매매 (25평)")).toBeTruthy();
+    expect(screen.getByText("최근 매매 (84㎡)")).toBeTruthy();
     expect(screen.getByText("10억")).toBeTruthy();
     expect(screen.getByText("26.10.06")).toBeTruthy();
     expect(screen.getByText("최근 전세")).toBeTruthy();

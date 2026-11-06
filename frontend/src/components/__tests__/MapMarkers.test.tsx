@@ -58,7 +58,7 @@ describe("MapMarkers avoid(정비사업 마커 자리)", () => {
     const avoid = [{ left: 950, right: 1050, top: -20, bottom: 20 }];
     const data = apts(apt(1, 123000), apt(2, 90000));
     const { unmount } = render(<MapMarkers map={m} data={data} mode="trade" avoid={avoid} />);
-    expect(texts()).toEqual(["단지2 · 25평9억"]);
+    expect(texts()).toEqual(["단지2 · 84㎡9억"]);
     unmount();
     FakeOverlay.live.clear();
     render(<MapMarkers map={m} data={data} mode="trade" avoid={avoid} selectedId={1} />);
@@ -70,7 +70,7 @@ describe("MapMarkers", () => {
   test("단지 라벨은 윗줄 평수 + 아랫줄 억 한 자리, 클릭하면 onSelect(이동 없음)", () => {
     const onSelect = vi.fn();
     render(<MapMarkers map={m} data={apts(apt(1, 123000), apt(2, 9500))} mode="trade" onSelect={onSelect} />);
-    expect(texts()).toEqual(["단지1 · 25평12.3억", "단지2 · 25평9,500"]);
+    expect(texts()).toEqual(["단지1 · 84㎡12.3억", "단지2 · 84㎡9,500"]);
     [...FakeOverlay.live][0].content.click();
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
     expect(push).not.toHaveBeenCalled();
@@ -97,7 +97,7 @@ describe("MapMarkers", () => {
     const long = { ...apt(1, 10000), name: "가나다라마바사아자차" };
     render(<MapMarkers map={m} data={apts(long)} mode="trade" />);
     const c = [...FakeOverlay.live][0].content;
-    expect(c.textContent).toBe("가나다라마바사… · 25평1억");
+    expect(c.textContent).toBe("가나다라마바사… · 84㎡1억");
     expect(c.title).toBe("가나다라마바사아자차");
     expect(c.querySelector(".hidden")).toBeNull();
   });
@@ -127,7 +127,7 @@ describe("MapMarkers", () => {
     const first = [...FakeOverlay.live].find((o) => o.content.title === "단지1");
     rerender(<MapMarkers map={m} data={apts(apt(1, 10000), apt(3, 30000))} mode="trade" />);
     expect(FakeOverlay.created).toBe(3);
-    expect(texts().sort()).toEqual(["단지1 · 25평1억", "단지3 · 25평3억"]);
+    expect(texts().sort()).toEqual(["단지1 · 84㎡1억", "단지3 · 84㎡3억"]);
     expect(FakeOverlay.live.has(first!)).toBe(true);
   });
 
@@ -136,7 +136,7 @@ describe("MapMarkers", () => {
     const quiet = { ...apt(2, 20000), lng: busy.lng + 0.0001, trade_count: 3 }; // 10px 옆
     const far = apt(3, 30000);
     render(<MapMarkers map={m} data={apts(quiet, busy, far)} mode="trade" />);
-    expect(texts().sort()).toEqual(["단지1 · 25평1억", "단지3 · 25평3억"]);
+    expect(texts().sort()).toEqual(["단지1 · 84㎡1억", "단지3 · 84㎡3억"]);
   });
 
   test("매매→전세 전환 시 라벨 글자가 같아도 다시 그린다(색 변경)", () => {

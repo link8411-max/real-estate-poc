@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useAreaUnit, type AreaUnit } from "@/lib/areaUnit";
 import { type Box, cullLabels } from "@/lib/cullLabels";
-import { areaGroup, areaToPyeong } from "@/lib/format";
+import { areaGroup } from "@/lib/format";
 import { mapSupply } from "@/lib/mapSupply";
 import { SUPPLY_ENABLED, supplyText } from "@/lib/supply";
 import { formatMapLabel, type MapBounds, type MapMode } from "@/lib/mapFilters";
@@ -50,7 +50,8 @@ const amountOf = (a: MapApartment, mode: MapMode) => (mode === "rent" ? a.latest
 
 const shortName = (name: string) => (name.length > NAME_MAX_CHARS ? `${name.slice(0, NAME_MAX_CHARS)}…` : name);
 
-/** 마커 윗줄: "단지명 · 25평"(전세 모드는 "단지명 · 전세"). 면적이 없으면 단지명만. */
+/** 마커 윗줄: "단지명 · 84㎡"(공급평 켜면 "단지명 · 33평", 전세 모드는 "단지명 · 전세"). 면적이 없으면 단지명만.
+ *  공급평 전환 전에는 평 대신 ㎡ — 전용평("25평")이 다른 지도의 공급평과 헷갈리지 않게. */
 function topLine(a: MapApartment, mode: MapMode, unit: AreaUnit): string {
   const name = shortName(a.name);
   if (mode === "rent") return `${name} · 전세`;
@@ -60,7 +61,7 @@ function topLine(a: MapApartment, mode: MapMode, unit: AreaUnit): string {
     const sp = mapSupply(a);
     return `${name} · ${unit === "m2" || !sp ? `${g}㎡` : supplyText(sp)}`;
   }
-  return `${name} · ${unit === "m2" ? `${g}㎡` : `${areaToPyeong(g)}평`}`;
+  return `${name} · ${g}㎡`;
 }
 
 interface AptOpts {
