@@ -1,6 +1,6 @@
 # 건축물대장 공급면적 수집. 스케줄을 켜기 전에 기존 Backfill 워크플로(kind=trade, 최근 12개월)를
 # 한 번 돌려 upsert 가 법정동 코드(umd_cd)를 채우게 한다. 기존 단지는 다시 수집되기 전까지 umd_cd 가 없다.
-# SUPABASE_SUPPLY_COLUMNS 는 일부러 넣지 않는다(사용자 승인 후 따로 켠다).
+# SUPABASE_SUPPLY_COLUMNS 는 2026-11-07 공급평 전환 때 켰다.
 name: Supply Fetch
 
 on:
@@ -37,6 +37,7 @@ jobs:
       R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_SUPPLY_COLUMNS: "1"  # 2026-11-07 공급평 전환(0002 적용됨)
       BUDGET: ${{ github.event.inputs.budget || '6000' }}
     steps:
       - uses: actions/checkout@v4

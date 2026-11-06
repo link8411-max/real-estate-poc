@@ -41,6 +41,7 @@ jobs:
       R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_SUPPLY_COLUMNS: "1"  # 2026-11-07 공급평 전환(0002 적용됨)
       KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
       KIND: ${{ inputs.kind }}
       FROM_YM: ${{ inputs.from }}
