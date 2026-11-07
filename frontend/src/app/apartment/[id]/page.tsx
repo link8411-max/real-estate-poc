@@ -113,6 +113,8 @@ export default async function ApartmentPage({ params }: Props) {
               transactions={data.transactions}
               canceledAbove={Object.fromEntries(aboveMaxByArea)}
               areaTypes={apt.area_types}
+              apt={{ id: apt.id, name: apt.name }}
+              today={today}
               beforeList={<CanceledDeals key="canceled" items={canceled} areaTypes={apt.area_types} />}
             />
           ) : (

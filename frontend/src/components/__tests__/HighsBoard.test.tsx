@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { setShareHighsEnabledForTest } from "@/lib/highShare";
 import type { RecordHigh } from "@/lib/types";
 import HighsBoard from "../HighsBoard";
 
@@ -63,5 +64,28 @@ describe("HighsBoard 평형 묶음·직거래", () => {
     expect(mine[0].textContent).toContain("84㎡");
     expect(mine[0].textContent).not.toContain("85㎡");
     expect(rows.filter((r) => r.textContent?.includes("다른단지")).every((r) => !r.textContent?.includes("직거래"))).toBe(true);
+  });
+});
+
+describe("HighsBoard 공유 버튼", () => {
+  afterEach(() => setShareHighsEnabledForTest(false));
+  const list = [
+    mk({ tx_id: 1, apt_name: "공유가능", shareable: true, held: false }),
+    mk({ tx_id: 2, apt_name: "정정의심", shareable: false, held: true }),
+    mk({ tx_id: 3, apt_name: "최고가아님", shareable: false, held: false }),
+  ];
+  const buttonsIn = (name: string) =>
+    screen.getAllByTestId("high-row").filter((r) => r.textContent?.includes(name)).flatMap((r) => within(r).queryAllByRole("button", { name: "이 거래 공유" }));
+
+  test("플래그 on: shareable 항목만 버튼", () => {
+    setShareHighsEnabledForTest(true);
+    render(<HighsBoard items={list} />);
+    expect(buttonsIn("공유가능").length).toBeGreaterThan(0);
+    expect(buttonsIn("정정의심")).toHaveLength(0);
+    expect(buttonsIn("최고가아님")).toHaveLength(0);
+  });
+  test("플래그 off: 버튼 없음", () => {
+    render(<HighsBoard items={list} />);
+    expect(screen.queryAllByRole("button", { name: "이 거래 공유" })).toHaveLength(0);
   });
 });

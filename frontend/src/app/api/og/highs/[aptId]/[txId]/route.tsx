@@ -9,8 +9,8 @@ import { FONT_FAMILY, options } from "@/lib/ogFont";
 
 // Node 런타임(엣지 아님). 폰트 로더는 lib/ogFont.ts. 카드 C안: 흰 바탕, 왼쪽 숫자, 오른쪽 1년 흐름 선, 아래 출처 띠.
 const BADGE_COLOR = { high: "#DC2626", up: "#EA580C" } as const;
-const CHART_W = 440;
-const CHART_H = 300;
+const CHART_W = 380;
+const CHART_H = 280;
 
 async function message(text: string) {
   return new ImageResponse(
@@ -83,7 +83,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ aptId: 
         }}
       >
         <div style={{ display: "flex", flex: 1, padding: "52px 60px 0 60px" }}>
-          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          <div style={{ display: "flex", flexDirection: "column", width: 700 }}>
             {tx.canceled ? (
               <div style={{ display: "flex" }}>
                 <span style={{ fontSize: 30, color: "#FFFFFF", backgroundColor: "#6B7280", borderRadius: 10, padding: "6px 18px" }}>신고 후 취소</span>
@@ -99,10 +99,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ aptId: 
             <div style={{ display: "flex", marginTop: 10, fontSize: 32, color: "#4B5563" }}>
               {tx.floor != null ? `${area} · ${tx.floor}층` : area}
             </div>
-            <div style={{ display: "flex", alignItems: "baseline", marginTop: 26 }}>
+            <div style={{ display: "flex", alignItems: "baseline", marginTop: 26, whiteSpace: "nowrap" }}>
               <span
                 style={{
-                  fontSize: 80,
+                  fontSize: 76,
                   fontWeight: 700,
                   color: tx.canceled ? "#9CA3AF" : "#111827",
                   textDecoration: tx.canceled ? "line-through" : "none",
@@ -110,13 +110,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ aptId: 
               >
                 {formatPrice(tx.amount)}
               </span>
-              {tx.direct && <span style={{ fontSize: 30, color: "#9CA3AF", marginLeft: 16 }}>직거래</span>}
+              {tx.direct && <span style={{ fontSize: 30, color: "#9CA3AF", marginLeft: 16, whiteSpace: "nowrap" }}>직거래</span>}
             </div>
             {diff && tx.badge && (
               <div style={{ display: "flex", marginTop: 12, fontSize: 36, fontWeight: 700, color: BADGE_COLOR[tx.badge] }}>{diff}</div>
             )}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: CHART_W }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1 }}>
             <Chart tx={tx} />
             <span style={{ fontSize: 22, color: "#9CA3AF", marginTop: 8 }}>같은 평형 최근 1년 거래</span>
           </div>

@@ -113,7 +113,7 @@ export default async function HighSharePage({ params }: Props) {
         {diff && <p className={`text-sm font-semibold ${tx.badge === "high" ? "text-red-600" : "text-orange-600"}`}>{diff}</p>}
         <p className="text-xs text-gray-500">{highShareFooter(tx)}</p>
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          {SHARE_HIGHS_ENABLED && tx.shareable && <ShareButton aptId={apt.id} meta={meta} />}
+          {SHARE_HIGHS_ENABLED && tx.shareable && <ShareButton aptId={apt.id} meta={meta} imageUrl={image} />}
           <Link href={`/apartment/${apt.id}`} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
             단지 전체 보기
           </Link>
