@@ -106,6 +106,9 @@ export interface RegionApartment {
   lng: number | null;
 }
 
+/** 사이트맵 lastmod 용: [단지 id, 마지막 데이터 변경일 YYYY-MM-DD | null] */
+export type SitemapIndexRow = [number, string | null];
+
 export interface RegionFile {
   code: string;
   name: string;

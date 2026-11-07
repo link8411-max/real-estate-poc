@@ -232,6 +232,26 @@ def build_search_index(conn: sqlite3.Connection) -> list[list[Any]]:
     ]
 
 
+def build_sitemap_index(conn: sqlite3.Connection) -> list[list[Any]]:
+    """사이트맵 lastmod 용: [[apt_id, "YYYY-MM-DD" | None], ...] id 오름차순.
+
+    날짜 = 그 단지 거래·전월세 중 가장 늦은 변경일. 줄마다 COALESCE(created_at 날짜, deal_date),
+    거래는 해제일(cancel_date)도 변경으로 센다(transactions 에 updated_at 컬럼은 없다).
+    거래·전월세가 하나도 없는 단지도 빠뜨리지 않고 날짜 None.
+    """
+    latest: dict[int, str] = {}
+    queries = (
+        "SELECT apt_id, MAX(COALESCE(substr(created_at,1,10), deal_date)) FROM transactions GROUP BY apt_id",
+        "SELECT apt_id, MAX(substr(cancel_date,1,10)) FROM transactions GROUP BY apt_id",
+        "SELECT apt_id, MAX(COALESCE(substr(created_at,1,10), deal_date)) FROM rents GROUP BY apt_id",
+    )
+    for q in queries:
+        for apt_id, d in conn.execute(q):
+            if d and d > latest.get(apt_id, ""):
+                latest[apt_id] = str(d)
+    return [[r[0], latest.get(r[0])] for r in conn.execute("SELECT id FROM apartments ORDER BY id")]
+
+
 def build_meta(conn: sqlite3.Connection, today: date) -> dict[str, Any]:
     return {
         "data_updated_at": datetime.now(timezone.utc).isoformat(),
@@ -282,6 +302,7 @@ def export(
     put(f"{PREFIX}/highs/recent.json", build_highs_recent(conn, today))
     put(f"{PREFIX}/redevelopment/zones.json", build_zones_json_safe(conn, today))
     put(f"{PREFIX}/search/index.json", build_search_index(conn))
+    put(f"{PREFIX}/sitemap/apartments.json", build_sitemap_index(conn))
     put(f"{PREFIX}/meta.json", build_meta(conn, today))
     return keys
 

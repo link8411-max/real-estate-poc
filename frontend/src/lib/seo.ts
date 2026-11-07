@@ -1,4 +1,4 @@
-import { areaGroup } from "./format";
+import { areaGroup, formatPrice } from "./format";
 import { browseHref, districtFullName, regionHref, resolveRegionCode } from "./regions";
 import type { Apartment, AreaStat, Metrics, RegionApartment, RegionStat, Rent, Transaction } from "./types";
 
@@ -46,6 +46,26 @@ export function aptTitle(apt: Apartment, latest?: Transaction): string {
   const gu = shortDistrict(aptDistrict(apt));
   const place = (withDong: boolean) => (gu ? ` · ${gu}${withDong && apt.dong ? ` ${apt.dong}` : ""}` : "");
   return firstFit([`${head}${place(true)}`, `${head}${place(false)}`, head, `${apt.name} 실거래가`], MAX_APT_TITLE);
+}
+
+/** 받침 있는 한글로 끝나면 "은", 그 밖(받침 없음·숫자·영문)은 "는" */
+const eunNeun = (word: string): string => {
+  const c = word.charCodeAt(word.length - 1) - 0xac00;
+  return c >= 0 && c <= 11171 && c % 28 !== 0 ? "은" : "는";
+};
+
+/**
+ * 단지 페이지 첫 문단(본문 문장, 길이 제한 없음). 검색 미리보기에 번지·준공연도 대신 완결된 문장이 나오게 한다.
+ * `areaLabel`은 최근 매매 평형 표기(예: "전용 59㎡·18평"), 없으면 생략.
+ */
+export function aptIntro(apt: Apartment, latest: Transaction | undefined, areaCount: number, areaLabel: string | null): string {
+  const place = [apt.city, aptDistrict(apt), apt.dong].filter(Boolean).join(" ");
+  const built = apt.build_year ? `${apt.build_year}년 준공 ` : "";
+  const deal = latest
+    ? `최근 매매는 ${areaLabel ? `${areaLabel} ` : ""}${formatPrice(latest.amount)}(${latest.deal_date})입니다.`
+    : "최근 매매 거래는 아직 없습니다.";
+  const areas = areaCount > 0 ? `${areaCount}개 평형의 ` : "";
+  return `${place}에 있는 ${apt.name}${eunNeun(apt.name)} ${built}아파트로, ${deal} ${areas}실거래가와 전세·월세 내역을 볼 수 있습니다.`;
 }
 
 /** 평형별 최근가 요약(거래 많은 평형 n개, 면적순). "59㎡ 28억(25.11), 80㎡ 35억(25.10)" */
@@ -184,6 +204,24 @@ export function aptCrumbs(apt: Apartment): Crumb[] {
     ...(r.kind === "ok" && apt.dong ? [{ name: apt.dong, url: dongHref(r.code, apt.dong) }] : []),
     { name: apt.name, url: `/apartment/${apt.id}` },
   ];
+}
+
+/**
+ * 단지 페이지 하단 링크용 이웃 단지 고르기. 같은 동(자기 제외)을 최근 거래일순으로 최대 `limit`개,
+ * 같은 동이 `minSameDong`개 미만이면 같은 시군구 다른 단지(거래 많은 순)로 `limit`개까지 채운다.
+ */
+export function pickNearby(all: RegionApartment[], apt: Pick<Apartment, "id" | "dong">, limit = 12, minSameDong = 3): { apartments: RegionApartment[]; sameDong: boolean } {
+  const others = all.filter((a) => a.id !== apt.id);
+  const same = others
+    .filter((a) => a.dong === apt.dong)
+    .sort((a, b) => (b.latest_trade_date ?? "").localeCompare(a.latest_trade_date ?? "") || b.trade_count - a.trade_count)
+    .slice(0, limit);
+  if (same.length >= minSameDong) return { apartments: same, sameDong: true };
+  const fill = others
+    .filter((a) => a.dong !== apt.dong)
+    .sort((a, b) => b.trade_count - a.trade_count)
+    .slice(0, limit - same.length);
+  return { apartments: [...same, ...fill], sameDong: false };
 }
 
 /** schema.org BreadcrumbList (홈 › 시도 › 구 › 단지) */

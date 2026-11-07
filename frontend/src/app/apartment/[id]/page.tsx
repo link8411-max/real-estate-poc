@@ -9,17 +9,19 @@ import DealTabs from "@/components/DealTabs";
 import InsightBadges from "@/components/InsightBadges";
 import MiniMap from "@/components/MiniMap";
 import JsonLd from "@/components/JsonLd";
+import NearbyApartments from "@/components/NearbyApartments";
 import RentSection from "@/components/RentSection";
 import ShareButton from "@/components/ShareButton";
 import { ZoneBadge } from "@/components/ZoneChips";
 import { analyzeCanceled, countSince } from "@/lib/canceled";
-import { fetchAptRent, fetchAptTrade } from "@/lib/data";
+import { fetchAptRent, fetchAptTrade, fetchRegion } from "@/lib/data";
 import { areaGroup, areaToPyeong, formatArea, formatPrice } from "@/lib/format";
 import { exactLabel, SUPPLY_ENABLED } from "@/lib/supply";
 import { kstToday, liveMetrics } from "@/lib/metrics";
 import { fetchZoneItems, zonesForApartment } from "@/lib/redevelopment";
 import { isMoved } from "@/lib/types";
-import { aptCrumbs, aptJsonLd, breadcrumbJsonLd, SITE_URL } from "@/lib/seo";
+import { districtFullName, regionHref, resolveRegionCode } from "@/lib/regions";
+import { aptCrumbs, aptIntro, aptJsonLd, breadcrumbJsonLd, dongHref, pickNearby, SITE_URL } from "@/lib/seo";
 
 /** ISR: 첫 요청 때 생성, 한 시간마다 갱신. 최근가·평형별 시세는 서버 HTML에 텍스트로 들어간다. */
 export const revalidate = 3600;
@@ -39,6 +41,11 @@ export default async function ApartmentPage({ params }: Props) {
   if (!data) notFound();
   // 합쳐진 단지: 남은 단지로 영구 이동. 페이지가 ISR 이라 쿼리(?tab=)는 서버에서 볼 수 없다 — 탭은 기본값으로 열린다.
   if (isMoved(data)) permanentRedirect(`/apartment/${data.moved_to}`);
+
+  // 같은 동 다른 단지 링크용 지역 JSON. lawd_cd 를 trade.json 에서 알아야 해서 한 단계 뒤에 받는다.
+  // 폐지 코드(ok 아님)는 섹션 생략, 받기 실패해도 페이지는 그대로.
+  const route = resolveRegionCode(data.apartment.lawd_cd);
+  const regionFile = route.kind === "ok" ? await fetchRegion(route.code, init).catch(() => null) : null;
 
   const rentData = isMoved(rentRaw) ? null : rentRaw;
   const apt = data.apartment;
@@ -68,17 +75,18 @@ export default async function ApartmentPage({ params }: Props) {
       <Breadcrumbs items={crumbs} />
       <section className="space-y-3 rounded-2xl border border-gray-100 bg-white p-5">
         <ApartmentHeader apartment={apt} actions={<ShareButton aptId={apt.id} meta={share} />} />
-        {latest && (
-          <p className="text-sm text-gray-700">
-            최근 매매 <strong className="text-gray-900">{formatPrice(latest.amount)}</strong>{" "}
-            <span className="text-gray-500">
-              ({SUPPLY_ENABLED
+        <p className="text-sm text-gray-700">
+          {aptIntro(
+            apt,
+            latest,
+            data.area_stats.length,
+            latest
+              ? SUPPLY_ENABLED
                 ? formatArea(latest.area, "pyeong", exactLabel(apt.area_types, latest.area))
-                : `전용 ${areaGroup(latest.area)}㎡·${areaToPyeong(areaGroup(latest.area))}평`}
-              , {latest.deal_date})
-            </span>
-          </p>
-        )}
+                : `전용 ${areaGroup(latest.area)}㎡·${areaToPyeong(areaGroup(latest.area))}평`
+              : null,
+          )}
+        </p>
         <InsightBadges metrics={metrics} />
         {zones.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -125,6 +133,15 @@ export default async function ApartmentPage({ params }: Props) {
           wolse: <RentSection rent={rent} tab="wolse" today={today} />,
         }}
       />
+      {route.kind === "ok" && regionFile && (
+        <NearbyApartments
+          {...pickNearby(regionFile.apartments, apt)}
+          dong={apt.dong}
+          dongHref={apt.dong ? dongHref(route.code, apt.dong) : null}
+          regionName={districtFullName(route.code)}
+          regionHref={regionHref(route.code)}
+        />
+      )}
     </main>
   );
 }
