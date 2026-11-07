@@ -15,9 +15,12 @@ const href = (i: RecordHigh) => `/apartment/${i.apt_id}`;
 const pill = (on: boolean) =>
   `rounded-full px-3 py-1.5 text-sm font-medium transition ${on ? "bg-rose-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`;
 
-export default function HighsBoard({ items }: { items: RecordHigh[] }) {
+const PAGE = 100;
+
+export default function HighsBoard({ items, intro }: { items: RecordHigh[]; intro?: string }) {
   const [unit] = useAreaUnit();
   const [city, setCity] = useState<CityFilter>("전체");
+  const [limit, setLimit] = useState(PAGE);
 
   const shown = useMemo(
     () =>
@@ -35,11 +38,15 @@ export default function HighsBoard({ items }: { items: RecordHigh[] }) {
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <div className="rounded-2xl bg-rose-50 p-6">
         <h1 className="text-2xl font-extrabold text-rose-600 sm:text-3xl">{headline}</h1>
+        {intro && <p className="mt-2 text-sm text-gray-700">{intro}</p>}
       </div>
 
       <div role="group" aria-label="지역" className="flex gap-2">
         {CITY_FILTERS.map((c) => (
-          <button key={c} aria-pressed={city === c} onClick={() => setCity(c)} className={pill(city === c)}>
+          <button key={c} aria-pressed={city === c} onClick={() => {
+              setCity(c);
+              setLimit(PAGE);
+            }} className={pill(city === c)}>
             {c}
           </button>
         ))}
@@ -67,7 +74,7 @@ export default function HighsBoard({ items }: { items: RecordHigh[] }) {
       {shown.length > 0 && (
         <section className="rounded-2xl border border-gray-100 bg-white p-5">
           <ul className="space-y-3 md:hidden">
-            {shown.map((i) => (
+            {shown.slice(0, limit).map((i) => (
               <li key={i.tx_id} data-testid="high-row">
                 <Link href={href(i)} className="block rounded-xl border border-gray-100 p-3 hover:bg-gray-50">
                   <p className="font-semibold text-gray-900">{i.apt_name}</p>
@@ -96,7 +103,7 @@ export default function HighsBoard({ items }: { items: RecordHigh[] }) {
               </tr>
             </thead>
             <tbody>
-              {shown.map((i) => (
+              {shown.slice(0, limit).map((i) => (
                 <tr key={i.tx_id} data-testid="high-row" className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-2">
                     <Link href={href(i)} className="font-semibold text-gray-900 hover:underline">
@@ -113,6 +120,15 @@ export default function HighsBoard({ items }: { items: RecordHigh[] }) {
               ))}
             </tbody>
           </table>
+          {shown.length > limit && (
+            <button
+              type="button"
+              onClick={() => setLimit((l) => l + PAGE)}
+              className="mt-4 w-full rounded-xl bg-gray-100 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
+            >
+              더 보기 (남은 {shown.length - limit}건)
+            </button>
+          )}
         </section>
       )}
 

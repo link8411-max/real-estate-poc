@@ -6,10 +6,9 @@ import MiniMap from "@/components/MiniMap";
 import RecentHighsSection from "@/components/RecentHighsSection";
 import RegionApartmentList from "@/components/RegionApartmentList";
 import { fetchRegion } from "@/lib/data";
-import { formatDeal } from "@/lib/format";
 import { fetchHighItems, recentHighsFor } from "@/lib/highs";
-import { districtFullName, regionHref, resolveRegionCode } from "@/lib/regions";
-import { breadcrumbJsonLd, dongCrumbs, dongDescription, dongFromParam, dongHref, dongTitle } from "@/lib/seo";
+import { regionHref, resolveRegionCode } from "@/lib/regions";
+import { breadcrumbJsonLd, dongCrumbs, dongDescription, dongFromParam, dongHref, dongIntro, dongTitle } from "@/lib/seo";
 
 /** 지역 파일은 하루 한 번 바뀐다. 첫 요청 때 만들고 한 시간마다 갱신. */
 export const revalidate = 3600;
@@ -58,10 +57,7 @@ export default async function DongPage({ params }: Props) {
   if (!data) notFound();
 
   const { region, apartments, highs } = data;
-  const name = districtFullName(region.code) || region.name;
   const crumbs = dongCrumbs(region, dong);
-  const latestDate = apartments.reduce((m, a) => (a.latest_trade_date && a.latest_trade_date > m ? a.latest_trade_date : m), "");
-  const facts = [`단지 ${apartments.length.toLocaleString("en-US")}개`, latestDate && `최근 거래 ${formatDeal(latestDate)}`].filter(Boolean);
 
   // 좌표 있는 단지의 평균 위치가 지도 중심. 하나도 없으면 지도를 그리지 않는다.
   const located = apartments.filter((a) => a.lat != null && a.lng != null);
@@ -78,9 +74,7 @@ export default async function DongPage({ params }: Props) {
       <Breadcrumbs items={crumbs} />
       <header className="space-y-1">
         <h1 className="text-2xl font-bold text-gray-900">{dong} 아파트 실거래가</h1>
-        <p className="text-sm text-gray-600">
-          {region.city} {name} {dong} · {facts.join(" · ")}
-        </p>
+        <p className="text-sm text-gray-600">{dongIntro(region, dong, apartments)}</p>
       </header>
       {center && (
         <section className="space-y-2">

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { analyzeCanceled, countSince, pickHeadline, toIsoDate, topJumps } from "@/lib/canceled";
+import { analyzeCanceled, canceledIntro, countSince, pickHeadline, toIsoDate, topJumps } from "@/lib/canceled";
 import type { CanceledHigh, Transaction } from "@/lib/types";
 
 let seq = 0;
@@ -118,5 +118,26 @@ describe("topJumps", () => {
     const items = [item("2026-11-01", 5), item("2026-11-01", 50), item("2026-11-01", 20), item("2026-11-01", 1)];
     expect(topJumps(items).map((i) => i.jump)).toEqual([50, 20, 5]);
     expect(topJumps(items, 1)).toHaveLength(1);
+  });
+});
+
+describe("canceledIntro", () => {
+  const today = "2026-11-04";
+  const c = (d: string, city: CanceledHigh["city"]) => ({ ...item(d, 1), city });
+  test("7일 기준이면 30일 건수를 괄호로, 0건 도시는 뺀다", () => {
+    const items = [c("2026-11-03", "서울"), c("2026-11-01", "서울"), c("2026-10-30", "경기"), c("2026-10-10", "인천"), c("2026-09-01", "서울")];
+    expect(canceledIntro(items, today)).toBe(
+      "최근 7일 동안 수도권 아파트 신고가 3건이 신고 후 취소됐습니다(최근 30일 4건). 서울 2건, 경기 1건이며, 거래 해제는 대출 불발·계약 합의 해지 등 여러 이유로 생깁니다.",
+    );
+  });
+  test("30일 기준이면 괄호 없음", () => {
+    const items = [c("2026-10-20", "경기"), c("2026-10-15", "인천")];
+    expect(canceledIntro(items, today)).toBe(
+      "최근 30일 동안 수도권 아파트 신고가 2건이 신고 후 취소됐습니다. 경기 1건, 인천 1건이며, 거래 해제는 대출 불발·계약 합의 해지 등 여러 이유로 생깁니다.",
+    );
+  });
+  test("0건", () => {
+    expect(canceledIntro([], today)).toBe("최근 30일 수도권 아파트 신고가 중 취소된 거래가 없습니다.");
+    expect(canceledIntro([c("2026-01-01", "서울")], today)).toBe("최근 30일 수도권 아파트 신고가 중 취소된 거래가 없습니다.");
   });
 });

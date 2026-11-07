@@ -83,4 +83,9 @@ describe("CanceledBoard", () => {
     expect(screen.getAllByText(/경기 성남수정/).length).toBeGreaterThan(0);
     expect(container.textContent).not.toContain("경기 경기");
   });
+
+  test("intro 문단을 렌더", () => {
+    render(<CanceledBoard items={items} today={TODAY} intro="취소 소개 문장입니다." />);
+    expect(screen.getByText("취소 소개 문장입니다.")).toBeInTheDocument();
+  });
 });

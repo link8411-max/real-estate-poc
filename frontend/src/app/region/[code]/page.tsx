@@ -10,7 +10,7 @@ import { fetchRegion, fetchStats } from "@/lib/data";
 import { fetchHighItems, recentHighsFor } from "@/lib/highs";
 import { fetchZoneItems, zonesForRegion } from "@/lib/redevelopment";
 import { browseHref, districtFullName, regionHref, resolveRegionCode } from "@/lib/regions";
-import { breadcrumbJsonLd, type Crumb, dongHref, regionDescription, regionTitle, shortPrice } from "@/lib/seo";
+import { breadcrumbJsonLd, type Crumb, dongHref, regionDescription, regionIntro, regionTitle } from "@/lib/seo";
 
 /** 지역 파일은 하루 한 번 바뀐다. 첫 요청 때 만들고 한 시간마다 갱신. */
 export const revalidate = 3600;
@@ -59,13 +59,6 @@ export default async function RegionPage({ params }: Props) {
     { name: region.city, url: browseHref(region.city) },
     { name, url: regionHref(region.code) },
   ];
-  const facts = [
-    `단지 ${region.apartments.length.toLocaleString("en-US")}개`,
-    stat?.avg_amount != null && `최근 12개월 평균 ${shortPrice(stat.avg_amount)}`,
-    stat && `거래 ${stat.tx_count_12m.toLocaleString("en-US")}건`,
-    stat?.yoy_change != null && `전년 대비 ${stat.yoy_change > 0 ? "+" : ""}${stat.yoy_change}%`,
-  ].filter(Boolean);
-
   // 동별 단지 수(많은 동 먼저, 같으면 가나다순)
   const dongCounts = new Map<string, number>();
   for (const a of region.apartments) if (a.dong) dongCounts.set(a.dong, (dongCounts.get(a.dong) ?? 0) + 1);
@@ -77,9 +70,7 @@ export default async function RegionPage({ params }: Props) {
       <Breadcrumbs items={crumbs} />
       <header className="space-y-1">
         <h1 className="text-2xl font-bold text-gray-900">{name} 아파트 실거래가</h1>
-        <p className="text-sm text-gray-600">
-          {region.city} {name} · {facts.join(" · ")}
-        </p>
+        <p className="text-sm text-gray-600">{regionIntro(region, region.apartments.length, stat)}</p>
       </header>
       {dongs.length > 0 && (
         <section>

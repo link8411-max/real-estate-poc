@@ -9,7 +9,8 @@ import { fetchCanceledRecent, fetchHighsRecent, fetchStats } from "@/lib/data";
 import { fetchZoneItems } from "@/lib/redevelopment";
 import { DEFAULT_CENTER, DEFAULT_LEVEL } from "@/lib/mapFilters";
 import { kstToday } from "@/lib/metrics";
-import { browseHref, CITIES } from "@/lib/regions";
+import { REGION_NAMES } from "@/lib/regionNames";
+import { browseHref, CITIES, districtFullName, districtLabel, regionHref } from "@/lib/regions";
 import { HOME_TITLE, websiteJsonLd } from "@/lib/seo";
 import JsonLd from "@/components/JsonLd";
 
@@ -21,6 +22,15 @@ export const metadata: Metadata = {
     types: { "application/rss+xml": [{ url: "/rss.xml", title: "집시세 신고가·취소 소식" }] },
   },
 };
+
+/** 도시별 시군구(코드순). 통계와 무관한 정적 목록이라 크롤러가 항상 시군구 페이지로 들어올 수 있다. */
+const DISTRICTS_BY_CITY = CITIES.map((city) => ({
+  city,
+  districts: Object.keys(REGION_NAMES)
+    .filter((code) => districtLabel(code).startsWith(`${city} `))
+    .sort()
+    .map((code) => ({ code, name: districtFullName(code) })),
+}));
 
 const KEYWORDS = ["잠실", "반포", "래미안", "판교", "ㄹㅁㅇ"];
 
@@ -140,6 +150,25 @@ export default async function Home() {
               <p className="font-semibold text-gray-900">{city}</p>
               {stats && <p className="text-xs text-gray-500">{districtCount(city)}개 시·구</p>}
             </Link>
+          ))}
+        </div>
+        <div className="mt-5 space-y-4">
+          {DISTRICTS_BY_CITY.map(({ city, districts }) => (
+            <div key={city}>
+              <p className="mb-2 text-xs font-semibold text-gray-500">{city}</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {districts.map(({ code, name }) => (
+                  <li key={code}>
+                    <Link
+                      href={regionHref(code)}
+                      className="inline-block rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 transition hover:border-blue-200 hover:text-blue-600"
+                    >
+                      {name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
         </div>
       </section>

@@ -52,4 +52,28 @@ describe("HighsBoard", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("최근 30일 신고가가 없습니다");
     expect(screen.queryAllByTestId("top-card")).toHaveLength(0);
   });
+
+  test("intro 문단을 h1 아래에 렌더", () => {
+    render(<HighsBoard items={items} intro="소개 문장입니다." />);
+    expect(screen.getByText("소개 문장입니다.")).toBeInTheDocument();
+  });
+
+  test("목록은 100건씩, 더 보기로 늘리고 도시를 바꾸면 처음으로", () => {
+    const many = Array.from({ length: 250 }, (_, i) =>
+      mk({ tx_id: 100 + i, apt_id: 100 + i, apt_name: `대량${i}`, city: i < 150 ? "서울" : "경기", deal_date: "2026-10-01" }),
+    );
+    render(<HighsBoard items={many} />);
+    const rows = () => screen.getAllByTestId("high-row").length / 2; // 모바일 목록 + 데스크톱 표
+    expect(rows()).toBe(100);
+    fireEvent.click(screen.getByRole("button", { name: "더 보기 (남은 150건)" }));
+    expect(rows()).toBe(200);
+    fireEvent.click(screen.getByRole("button", { name: "더 보기 (남은 50건)" }));
+    expect(rows()).toBe(250);
+    expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "서울" }));
+    expect(rows()).toBe(100);
+    fireEvent.click(screen.getByRole("button", { name: "경기" }));
+    expect(rows()).toBe(100);
+    expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
+  });
 });

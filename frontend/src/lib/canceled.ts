@@ -63,14 +63,28 @@ export function countSince(c: CanceledTx[], sinceIso: string): { total: number; 
 const minusDays = (todayIso: string, days: number): string =>
   new Date(Date.parse(todayIso) - days * DAY_MS).toISOString().slice(0, 10);
 
+const withinDays = (items: CanceledHigh[], todayIso: string, n: number): CanceledHigh[] => {
+  const since = minusDays(todayIso, n);
+  return items.filter((i) => toIsoDate(i.cancel_date) >= since);
+};
+
 /** 7일 건수 ≥3 이면 7일, 아니면 30일. 창은 cancel_date >= todayIso − N일(오늘 포함). */
 export function pickHeadline(items: CanceledHigh[], todayIso: string): { days: 7 | 30; items: CanceledHigh[] } {
-  const within = (n: number) => {
-    const since = minusDays(todayIso, n);
-    return items.filter((i) => toIsoDate(i.cancel_date) >= since);
-  };
-  const w7 = within(7);
-  return w7.length >= 3 ? { days: 7, items: w7 } : { days: 30, items: within(30) };
+  const w7 = withinDays(items, todayIso, 7);
+  return w7.length >= 3 ? { days: 7, items: w7 } : { days: 30, items: withinDays(items, todayIso, 30) };
+}
+
+/** /canceled 첫 문단(본문 문장). pickHeadline 이 고른 기간 기준. */
+export function canceledIntro(items: CanceledHigh[], todayIso: string): string {
+  const head = pickHeadline(items, todayIso);
+  if (head.items.length === 0) return "최근 30일 수도권 아파트 신고가 중 취소된 거래가 없습니다.";
+  const n = head.items.length.toLocaleString("en-US");
+  const w30 = head.days === 7 ? `(최근 30일 ${withinDays(items, todayIso, 30).length.toLocaleString("en-US")}건)` : "";
+  const byCity = ["서울", "경기", "인천"]
+    .map((c) => [c, head.items.filter((i) => i.city === c).length] as const)
+    .filter(([, k]) => k > 0)
+    .map(([c, k]) => `${c} ${k.toLocaleString("en-US")}건`);
+  return `최근 ${head.days}일 동안 수도권 아파트 신고가 ${n}건이 신고 후 취소됐습니다${w30}. ${byCity.join(", ")}이며, 거래 해제는 대출 불발·계약 합의 해지 등 여러 이유로 생깁니다.`;
 }
 
 /** jump 내림차순 상위 n건 */

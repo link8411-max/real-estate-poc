@@ -12,9 +12,11 @@ import {
   dongDescription,
   dongFromParam,
   dongHref,
+  dongIntro,
   dongTitle,
   jsonLdHtml,
   regionDescription,
+  regionIntro,
   regionTitle,
   shortPrice,
   SITE_URL,
@@ -406,5 +408,40 @@ describe("pickNearby", () => {
     const r = pickNearby(all, { id: 1, dong: "d" });
     expect(r.sameDong).toBe(false);
     expect(r.apartments.map((x) => x.id)).toEqual([2, 4, 3]);
+  });
+});
+
+describe("dongIntro / regionIntro", () => {
+  const gu = { code: "11680", name: "강남구", city: "서울" };
+  const ra = (id: number, name: string, o: Partial<RegionApartment> = {}): RegionApartment => ({
+    id, name, dong: "삼성동", build_year: 2000, trade_count: 3, latest_trade_amount: 100000, latest_trade_date: "2026-10-01",
+    latest_jeonse_deposit: null, lat: null, lng: null, ...o,
+  });
+  test("동: 단지 수 + 가장 최근 매매 단지(동률이면 거래 많은 쪽)", () => {
+    const s = dongIntro(gu, "삼성동", [
+      ra(1, "오래된", { latest_trade_date: "2026-08-01" }),
+      ra(2, "적게", { latest_trade_date: "2026-11-05", latest_trade_amount: 280000, trade_count: 1 }),
+      ra(3, "많이", { latest_trade_date: "2026-11-05", latest_trade_amount: 245000, trade_count: 9 }),
+    ]);
+    expect(s).toBe(
+      "서울 강남구 삼성동에는 아파트 3개 단지가 있습니다. 가장 최근 매매는 많이 24억 5,000만원(2026-11-05)입니다. 단지별 실거래가·전세·최근 신고가를 최근 거래순으로 볼 수 있습니다.",
+    );
+  });
+  test("동: 거래 단지가 없으면 최근 매매 문장 생략, 경기 구는 정식 이름", () => {
+    const s = dongIntro({ code: "41135", name: "성남분당", city: "경기" }, "정자동", [ra(1, "a", { latest_trade_amount: null, latest_trade_date: null })]);
+    expect(s).toBe("경기 성남시 분당구 정자동에는 아파트 1개 단지가 있습니다. 단지별 실거래가·전세·최근 신고가를 최근 거래순으로 볼 수 있습니다.");
+  });
+  test("지역: 단지 수·평균가·거래량·전년 대비", () => {
+    const s = regionIntro(gu, 1234, { code: "11680", name: "강남구", city: "서울", avg_amount: 285000, tx_count_12m: 3456, yoy_change: 5 });
+    expect(s).toBe(
+      "서울 강남구 아파트 1,234개 단지의 실거래가입니다. 최근 12개월 평균 매매가는 28억 5,000만원, 거래는 3,456건이며 전년 대비 +5%입니다. 동별·단지별 실거래가와 최근 신고가, 재건축·재개발 현황을 볼 수 있습니다.",
+    );
+  });
+  test("지역: 통계 없음/평균 없음/전년 대비 없음/음수", () => {
+    expect(regionIntro(gu, 3)).toBe("서울 강남구 아파트 3개 단지의 실거래가입니다. 동별·단지별 실거래가와 최근 신고가, 재건축·재개발 현황을 볼 수 있습니다.");
+    const base = { code: "11680", name: "강남구", city: "서울", avg_amount: null, tx_count_12m: 0, yoy_change: null };
+    expect(regionIntro(gu, 3, base)).not.toContain("평균");
+    expect(regionIntro(gu, 3, { ...base, avg_amount: 90000, tx_count_12m: 10 })).toContain("최근 12개월 평균 매매가는 9억원, 거래는 10건입니다.");
+    expect(regionIntro(gu, 3, { ...base, avg_amount: 90000, tx_count_12m: 10, yoy_change: -2.5 })).toContain("전년 대비 -2.5%");
   });
 });

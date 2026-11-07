@@ -125,6 +125,28 @@ export function regionDescription(region: RegionLike, apartmentCount: number, st
   return clip(parts.join(" "), MAX_DESCRIPTION);
 }
 
+/** 동 페이지 첫 문단(본문 문장). 가장 최근 매매 단지는 최근 거래일 최신, 같으면 거래 많은 쪽. */
+export function dongIntro(region: RegionLike, dong: string, apartments: RegionApartment[]): string {
+  const head = `${region.city} ${regionDisplay(region)} ${dong}에는 아파트 ${apartments.length.toLocaleString("en-US")}개 단지가 있습니다.`;
+  const latest = apartments
+    .filter((a) => a.latest_trade_amount != null && a.latest_trade_date)
+    .sort((a, b) => (b.latest_trade_date as string).localeCompare(a.latest_trade_date as string) || b.trade_count - a.trade_count)[0];
+  const deal = latest ? ` 가장 최근 매매는 ${latest.name} ${formatPrice(latest.latest_trade_amount as number)}(${latest.latest_trade_date})입니다.` : "";
+  return `${head}${deal} 단지별 실거래가·전세·최근 신고가를 최근 거래순으로 볼 수 있습니다.`;
+}
+
+/** 시군구 페이지 첫 문단(본문 문장). 통계는 있는 값만 쓴다. */
+export function regionIntro(region: RegionLike, apartmentCount: number, stat?: RegionStat): string {
+  const head = `${region.city} ${regionDisplay(region)} 아파트 ${apartmentCount.toLocaleString("en-US")}개 단지의 실거래가입니다.`;
+  const parts = [
+    stat?.avg_amount != null ? `최근 12개월 평균 매매가는 ${formatPrice(stat.avg_amount)}` : null,
+    stat && stat.tx_count_12m > 0 ? `거래는 ${stat.tx_count_12m.toLocaleString("en-US")}건` : null,
+  ].filter(Boolean);
+  const yoy = parts.length > 0 && stat?.yoy_change != null ? `이며 전년 대비 ${stat.yoy_change > 0 ? "+" : ""}${stat.yoy_change}%` : "";
+  const stats = parts.length > 0 ? ` ${parts.join(", ")}${yoy}입니다.` : "";
+  return `${head}${stats} 동별·단지별 실거래가와 최근 신고가, 재건축·재개발 현황을 볼 수 있습니다.`;
+}
+
 /** 동 페이지 경로. 동 이름의 괄호·공백·한글은 인코딩한다. */
 export const dongHref = (code: string, dong: string): string => `/region/${code}/${encodeURIComponent(dong)}`;
 

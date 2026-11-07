@@ -16,7 +16,7 @@ const href = (i: CanceledHigh) => `/canceled/${i.apt_id}/${i.tx_id}`;
 const pill = (on: boolean) =>
   `rounded-full px-3 py-1.5 text-sm font-medium transition ${on ? "bg-rose-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`;
 
-export default function CanceledBoard({ items, today }: { items: CanceledHigh[]; today: string }) {
+export default function CanceledBoard({ items, today, intro }: { items: CanceledHigh[]; today: string; intro?: string }) {
   const [unit] = useAreaUnit();
   const [days, setDays] = useState<7 | 30>(() => pickHeadline(items, today).days);
   const [city, setCity] = useState<CityFilter>("전체");
@@ -39,6 +39,7 @@ export default function CanceledBoard({ items, today }: { items: CanceledHigh[];
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <div className="rounded-2xl bg-rose-50 p-6">
         <h1 className="text-2xl font-extrabold text-rose-600 sm:text-3xl">{headline}</h1>
+        {intro && <p className="mt-2 text-sm text-gray-700">{intro}</p>}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">

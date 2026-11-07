@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import HighsBoard from "@/components/HighsBoard";
-import { fetchHighItems } from "@/lib/highs";
+import { fetchHighItems, highsIntro } from "@/lib/highs";
 import { SITE_NAME } from "@/lib/seo";
 
 export const revalidate = 3600;
@@ -20,5 +20,5 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HighsPage() {
   const items = await fetchHighItems({ next: { revalidate } } as RequestInit);
-  return <HighsBoard items={items} />;
+  return <HighsBoard items={items} intro={highsIntro(items)} />;
 }

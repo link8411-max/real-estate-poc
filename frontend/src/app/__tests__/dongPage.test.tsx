@@ -61,7 +61,7 @@ describe("동 페이지", () => {
   test("H1·요약·단지 목록(최근 거래일 최신순, 거래 없는 단지는 맨 뒤)·단지 링크·전세", async () => {
     render(await dongPage.default(params(encodeURIComponent("역삼동"))));
     expect(screen.getByRole("heading", { level: 1, name: "역삼동 아파트 실거래가" })).toBeInTheDocument();
-    expect(screen.getByText(/단지 3개/)).toBeInTheDocument();
+    expect(screen.getByText(/역삼동에는 아파트 3개 단지가 있습니다/)).toBeInTheDocument();
     const links = screen.getAllByRole("link").filter((a) => a.getAttribute("href")?.startsWith("/apartment/"));
     expect(links.map((a) => a.getAttribute("href"))).toEqual(["/apartment/2", "/apartment/1", "/apartment/3"]);
     expect(screen.getAllByText(/전세 6억/)).toHaveLength(2); // 좌표 없음 단지는 전세 없음
@@ -77,7 +77,7 @@ describe("동 페이지", () => {
     fetchRegion.mockResolvedValue({ ...file, apartments: [apt(4, "혼자", "중앙동(1)", { lat: null, lng: null })] });
     render(await dongPage.default(params(encodeURIComponent("중앙동(1)"))));
     expect(screen.getByRole("heading", { level: 1, name: "중앙동(1) 아파트 실거래가" })).toBeInTheDocument();
-    expect(screen.getByText(/단지 1개/)).toBeInTheDocument();
+    expect(screen.getByText(/중앙동\(1\)에는 아파트 1개 단지가 있습니다/)).toBeInTheDocument();
     expect(screen.queryAllByRole("link").some((a) => a.getAttribute("href")?.startsWith("/map?"))).toBe(false);
   });
 
@@ -96,6 +96,18 @@ describe("동 페이지", () => {
     expect(m.alternates?.canonical).toBe(`/region/11680/${encodeURIComponent("중앙동(1)")}`);
     const none = await dongPage.generateMetadata(params("없는동"));
     expect(none.robots).toMatchObject({ index: false });
+  });
+});
+
+describe("첫 문단 완결 문장", () => {
+  test("동 페이지: 가장 최근 매매 단지를 문장으로", async () => {
+    render(await dongPage.default(params(encodeURIComponent("역삼동"))));
+    expect(screen.getByText(/가장 최근 매매는 최근거래 28억 5,000만원\(2026-10-20\)입니다/)).toBeInTheDocument();
+  });
+  test("지역 페이지: 단지 수·평균가·거래량·전년 대비", async () => {
+    fetchStats.mockResolvedValue({ regions: [{ code: "11680", name: "강남", city: "서울", avg_amount: 285000, tx_count_12m: 3456, yoy_change: 5 }] });
+    render(await regionPage.default({ params: Promise.resolve({ code: "11680" }) }));
+    expect(screen.getByText(/서울 강남구 아파트 6개 단지의 실거래가입니다\. 최근 12개월 평균 매매가는 28억 5,000만원, 거래는 3,456건이며 전년 대비 \+5%입니다/)).toBeInTheDocument();
   });
 });
 
