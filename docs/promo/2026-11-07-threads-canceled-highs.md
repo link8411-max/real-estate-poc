@@ -8,7 +8,7 @@
 
 ## 쓰레드 본문 (주제 태그: 부동산)
 
-용산 동부센트레빌 101㎡가 10월 14일에 26억 2천에 계약됐어요.
+용산 동부센트레빌 40평(전용 101㎡)이 10월 14일에 26억 2천에 계약됐어요.
 직전 최고가(23억 5천)보다 2억 7천 높은 신고가였죠.
 그 거래가 11월 2일에 해제됐어요. 계약 19일 만이에요.
 
@@ -23,6 +23,8 @@
 (답글 2/2)
 어느 단지가 해제됐는지 전체 목록 👇
 https://zipsise.com/canceled?utm_source=threads&utm_medium=social&utm_campaign=canceled
+동부센트레빌 건: https://zipsise.com/canceled/9745/11435004?utm_source=threads&utm_medium=social&utm_campaign=canceled
+(OG 카드 제목 "동부센트레빌 40평 26억 2,000만원 신고 후 취소" 확인됨)
 
 ## X 본문 (280자 안)
 
@@ -33,8 +35,8 @@ https://zipsise.com/canceled?utm_source=threads&utm_medium=social&utm_campaign=c
 https://zipsise.com/canceled?utm_source=x&utm_medium=social&utm_campaign=canceled
 
 ## 게시 전 확인
-- [ ] 사이트 /canceled 페이지가 새 발행본(7일 11건, 역삼 없음)을 보여주는지 (ISR 10분)
-- [ ] 동부센트레빌 공유 페이지 링크·OG 카드 확인 후 답글에 추가
+- [x] 사이트 /canceled 페이지 새 발행본 반영 확인 (7일 12건, 역삼 없음)
+- [x] 동부센트레빌 공유 페이지 링크·OG 카드 확인 (2026-11-07)
 - [ ] utm이 GA 집시세 속성(G-DTQ3S086V7)에 잡히는지 — 게시 다음 날
-- [ ] 계정: 집시세 전용 신규 계정 vs 기존 unse.ai — 사용자 결정
+- [x] 계정: 집시세 전용 신규 계정 (사용자 결정 2026-11-07). 생성·로그인은 사용자, 게시는 Aside 로그인 뒤 Claude
 - [ ] 쓰레드는 게시 후 15분까지만 수정 가능
