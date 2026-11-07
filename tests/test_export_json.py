@@ -334,3 +334,18 @@ def test_region_latest_supply_uses_group(tmp_path):
     c.commit()
     entry = build_region(c, "11680", TODAY)["apartments"][0]
     assert entry["latest_trade_amount"] == 100000 and entry["latest_supply_min"] == 34
+
+
+def test_trade_json_share_field(tmp_path):
+    c = connect(str(tmp_path / "sh.db"))
+    migrate(c)
+    a = upsert_apartment(c, name="B", lawd_cd="11680", dong="역삼동", jibun="9", build_year=2000, apt_seq=None)
+    _trade(c, a, 90000, 84.97, "2026-03-01")
+    _trade(c, a, 100000, 84.97, "2026-10-20")
+    c.commit()
+    d = build_apt_trade(c, a, TODAY)
+    by_amount = {t["amount"]: t for t in d["transactions"]}
+    assert "share" not in by_amount[90000]
+    assert by_amount[100000]["share"] == {
+        "badge": "high", "base": 90000, "diff": 10000, "pct": 11.1, "shareable": True, "held": False,
+    }

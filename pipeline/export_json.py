@@ -12,6 +12,7 @@ from typing import Any
 from pipeline.area_class import all_area_classes, apt_area_classes, class_of
 from pipeline.canceled import build_canceled_recent
 from pipeline.highs import build_highs_recent
+from pipeline.share import apt_share_info
 from pipeline.redevelopment import build_zones_json_safe
 from pipeline.collect import kst_today
 from pipeline.db import connect
@@ -55,11 +56,14 @@ def build_apt_trade(
         (apt_id,),
     ).fetchall()
     classes = apt_area_classes(conn, apt_id)
+    shares = apt_share_info(conn, apt_id, today, classes)
     txs = []
     for r in rows:
         d = dict(r)
         d["grp"] = class_of(classes, d["area"])  # 평형 묶음 (프런트는 다시 계산하지 않음)
         d["direct"] = d.pop("dealing_gbn") == "직거래"
+        if d["id"] in shares:
+            d["share"] = shares[d["id"]]  # 신고가/상승 배지·비교값·공유 가능 (최근 30일 거래만)
         txs.append(d)
     return {
         "apartment": _apartment_block(conn, s),

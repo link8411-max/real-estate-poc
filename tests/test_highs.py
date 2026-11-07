@@ -35,7 +35,7 @@ def test_record_highs_definition_and_keys(hconn):
     assert it["area_group"] == 84 and it["city"] == "서울" and it["lawd_cd"] == "11680" and it["dong"] == "역삼동"
     assert set(it) == {
         "tx_id", "apt_id", "apt_name", "region_name", "city", "lawd_cd", "dong", "area", "area_group",
-        "floor", "amount", "prev_max", "jump", "jump_pct", "deal_date", "supply",
+        "floor", "amount", "prev_max", "jump", "jump_pct", "deal_date", "supply", "direct", "shareable", "held",
     }
 
 
@@ -122,3 +122,11 @@ def test_boundary_areas_same_group(tmp_path):
     items = record_highs(c, since="2026-10-01")
     assert len(items) == 1
     assert items[0]["area_group"] == 84 and items[0]["prev_max"] == 90000
+
+
+def test_recent_items_have_share_flags(hconn):
+    hconn.execute("UPDATE transactions SET dealing_gbn='직거래' WHERE amount=120000")
+    hconn.commit()
+    items = record_highs(hconn, since="2026-10-01")
+    it = items[0]
+    assert it["direct"] is True and it["shareable"] is True and it["held"] is False
