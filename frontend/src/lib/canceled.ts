@@ -1,4 +1,4 @@
-import { areaGroup } from "./format";
+import { txGroup } from "./format";
 import type { CanceledHigh, Transaction } from "./types";
 
 const DAY_MS = 86_400_000;
@@ -20,7 +20,7 @@ export function analyzeCanceled(txs: Transaction[]): { canceled: CanceledTx[]; a
   const live = new Map<number, Transaction[]>();
   for (const t of txs) {
     if (t.cancel_date != null) continue;
-    const g = areaGroup(t.area);
+    const g = txGroup(t);
     const arr = live.get(g);
     if (arr) arr.push(t);
     else live.set(g, [t]);
@@ -30,7 +30,7 @@ export function analyzeCanceled(txs: Transaction[]): { canceled: CanceledTx[]; a
   const aboveMaxByArea = new Map<number, number>();
   for (const t of txs) {
     if (t.cancel_date == null) continue;
-    const g = areaGroup(t.area);
+    const g = txGroup(t);
     const peers = live.get(g) ?? [];
     let prev: number | null = null;
     let liveMax: number | null = null;

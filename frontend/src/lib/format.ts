@@ -22,6 +22,9 @@ export const formatDeal = (d: string): string => d.slice(2).replaceAll("-", ".")
 /** 평형 그룹 키: 전용면적 정수부(버림). 파이프라인의 CAST(area AS INTEGER)와 같다. 59.53, 59.4 → 59 */
 export const areaGroup = (m2: number): number => Math.floor(m2);
 
+/** 거래의 평형 묶음: 파이프라인이 실어 준 grp(84.97·85.01 → 84), 옛 JSON 이면 버림 면적. */
+export const txGroup = (t: { area: number; grp?: number }): number => t.grp ?? areaGroup(t.area);
+
 /**
  * 평형 그룹 기준 표시. 84.88 → 평: "전용 25평 (84㎡)", ㎡: "84㎡ (전용 25평)"
  * 공급평 플래그 on: 평 "33평 · 전용 84㎡", ㎡ "84㎡ (33평)". 공급 정보 없으면 "84㎡"만 (전용평 금지).

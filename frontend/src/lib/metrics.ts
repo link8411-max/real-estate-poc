@@ -1,10 +1,10 @@
-import { areaGroup } from "./format";
+import { txGroup } from "./format";
 import type { AptRent, AptTrade, Metrics, Transaction } from "./types";
 
 /**
  * 시간 창(최근 3개월·마지막 거래 경과일) 지표는 렌더 시점에 계산한다.
  * 조용한 단지의 trade.json/rent.json 은 다시 내보내지지 않으므로, 내보낸 날 기준 값(pipeline/summary.py)은 낡는다.
- * 규칙은 pipeline/summary.py 와 같다: 평형 그룹 = 전용면적 정수부, 최근 = today 포함 90일 전부터.
+ * 규칙은 pipeline/summary.py 와 같다: 평형 그룹 = 파이프라인 평형 묶음(grp, 옛 JSON 은 전용면적 정수부), 최근 = today 포함 90일 전부터.
  */
 export const RECENT_DAYS = 90;
 export const BARGAIN_MIN_RECENT = 3;
@@ -23,6 +23,7 @@ const minusDays = (today: string, days: number): string => new Date(Date.parse(t
 
 interface Dated {
   area: number;
+  grp?: number;
   deal_date: string;
   cancel_date?: string | null;
 }
@@ -37,7 +38,7 @@ export function recentWindow<T extends Dated, K extends keyof T>(
   let count = 0;
   for (const it of items) {
     if (it.cancel_date) continue;
-    if (area != null && areaGroup(it.area) !== area) continue;
+    if (area != null && txGroup(it) !== area) continue;
     if (it.deal_date < cutoff) continue;
     sum += Number(it[valueKey]);
     count += 1;
@@ -57,8 +58,8 @@ export function liveMetrics(trade: AptTrade, rent: AptRent | null, today: string
   if (live.length === 0) return {};
   // 그룹별 최신 날짜가 가장 늦은 그룹, 같으면 작은 평형 (summary.py: 면적순 정렬 후 max)
   const latestDate = live[0].deal_date;
-  const group = Math.min(...live.filter((t) => t.deal_date === latestDate).map((t) => areaGroup(t.area)));
-  const deals = live.filter((t) => areaGroup(t.area) === group);
+  const group = Math.min(...live.filter((t) => t.deal_date === latestDate).map((t) => txGroup(t)));
+  const deals = live.filter((t) => txGroup(t) === group);
   const latest = deals[0];
 
   const out: Metrics = {};

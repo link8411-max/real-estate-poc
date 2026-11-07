@@ -2,7 +2,7 @@
 
 import { useAreaUnit } from "@/lib/areaUnit";
 import type { CanceledTx } from "@/lib/canceled";
-import { areaGroup, formatArea, formatDeal, formatPrice } from "@/lib/format";
+import { formatArea, formatDeal, formatPrice, txGroup } from "@/lib/format";
 import { groupLabel } from "@/lib/supply";
 import type { AreaType } from "@/lib/types";
 
@@ -16,7 +16,7 @@ export default function CanceledDeals({ items, areaTypes }: { items: CanceledTx[
         {items.map((t) => (
           <li key={t.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-gray-700">
             <span className="text-gray-500">{formatDeal(t.deal_date)}</span>
-            <span>{formatArea(t.area, unit, groupLabel(areaTypes, areaGroup(t.area)))}</span>
+            <span>{formatArea(txGroup(t), unit, groupLabel(areaTypes, txGroup(t)))}</span>
             {t.floor != null && <span>{t.floor}층</span>}
             <span className="font-semibold text-gray-900">{formatPrice(t.amount)}</span>
             <span className="text-gray-500">{formatDeal(t.cancel_iso)} 취소</span>

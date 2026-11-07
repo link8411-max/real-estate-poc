@@ -109,3 +109,27 @@ describe("DealList", () => {
     expect(rows()).toHaveLength(80);
   });
 });
+
+describe("DealList 평형 묶음·직거래", () => {
+  test("merges boundary areas (grp 기준)", () => {
+    const txs: Transaction[] = [
+      { ...tx(1, 84.97), grp: 84 },
+      { ...tx(2, 85.01), grp: 84 },
+      { ...tx(3, 59.9), grp: 59 },
+    ];
+    render(<DealList transactions={txs} area={84} />);
+    expect(rows()).toHaveLength(2);
+  });
+
+  test("grp 없는 옛 JSON 은 버림 면적", () => {
+    render(<DealList transactions={[tx(1, 84.97), tx(2, 85.01)]} area={84} />);
+    expect(rows()).toHaveLength(1);
+  });
+
+  test("직거래 행에 '직거래' 표시", () => {
+    render(<DealList transactions={[{ ...tx(1, 84.97), direct: true }, tx(2, 84.97)]} area={null} />);
+    const [first, second] = rows();
+    expect(within(first).getByText("직거래")).toBeInTheDocument();
+    expect(within(second).queryByText("직거래")).toBeNull();
+  });
+});

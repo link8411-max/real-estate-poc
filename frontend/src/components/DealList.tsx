@@ -3,13 +3,13 @@
 import { useMemo } from "react";
 import { LoadMoreButton, useLoadMore } from "@/components/LoadMore";
 import { useAreaUnit } from "@/lib/areaUnit";
-import { areaGroup, formatDeal, formatExactArea, formatManwon } from "@/lib/format";
+import { formatDeal, formatExactArea, formatManwon, txGroup } from "@/lib/format";
 import { exactLabel } from "@/lib/supply";
 import type { AreaType, Transaction } from "@/lib/types";
 
 interface Props {
   transactions: Transaction[];
-  /** 평형 그룹(버림 면적). null이면 전체. */
+  /** 평형 묶음(grp). null이면 전체. */
   area: number | null;
   areaTypes?: AreaType[];
 }
@@ -17,7 +17,7 @@ interface Props {
 export default function DealList({ transactions, area, areaTypes }: Props) {
   const [unit] = useAreaUnit();
   const filtered = useMemo(
-    () => (area == null ? transactions : transactions.filter((t) => areaGroup(t.area) === area)),
+    () => (area == null ? transactions : transactions.filter((t) => txGroup(t) === area)),
     [transactions, area],
   );
 
@@ -49,6 +49,7 @@ export default function DealList({ transactions, area, areaTypes }: Props) {
                 <span className={`font-semibold ${cancelled ? "text-gray-400 line-through" : "text-gray-900"}`}>
                   {formatManwon(t.amount)}
                 </span>
+                {t.direct && <span className="text-xs text-gray-400">직거래</span>}
               </div>
             </li>
           );

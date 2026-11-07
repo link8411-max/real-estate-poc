@@ -53,3 +53,15 @@ describe("HighsBoard", () => {
     expect(screen.queryAllByTestId("top-card")).toHaveLength(0);
   });
 });
+
+describe("HighsBoard 평형 묶음·직거래", () => {
+  test("면적은 area_group(평형 묶음)으로, 직거래면 가격 옆 '직거래'", () => {
+    render(<HighsBoard items={[mk({ tx_id: 1, area: 85.01, area_group: 84, direct: true }), mk({ tx_id: 2, apt_name: "다른단지" })]} />);
+    const rows = screen.getAllByTestId("high-row");
+    const mine = rows.filter((r) => r.textContent?.includes("직거래"));
+    expect(mine.length).toBeGreaterThan(0);
+    expect(mine[0].textContent).toContain("84㎡");
+    expect(mine[0].textContent).not.toContain("85㎡");
+    expect(rows.filter((r) => r.textContent?.includes("다른단지")).every((r) => !r.textContent?.includes("직거래"))).toBe(true);
+  });
+});

@@ -122,3 +122,10 @@ def test_blank_dong_same_ho_different_pk_kept():
                   _row(2, "101호", "1", 60.0), _row(2, "101호", "2", 10.0)])
     acc.close()
     assert sorted(acc.finished_units().values()) == [(60.0, 70.0), (80.0, 100.0)]
+
+
+def test_supply_label_fallback_uses_area_class():
+    from pipeline.supply import supply_label
+    types = [{"excl": 84.97, "supply": 111.52, "approx": False}, {"excl": 85.01, "supply": 115.0, "approx": False}]
+    # 85.3 은 어느 주택형과도 ±0.05 밖 → 같은 묶음(84.97·85.01) 범위
+    assert supply_label(types, 85.3) == {"min": 33, "max": 34, "approx": False}

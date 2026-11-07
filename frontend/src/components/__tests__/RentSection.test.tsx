@@ -146,3 +146,13 @@ describe("RentSection", () => {
     expect(screen.queryByRole("button", { name: /더 보기/ })).not.toBeInTheDocument();
   });
 });
+
+describe("RentSection 평형 묶음", () => {
+  test("grp 가 같으면 84.97/85.01 이 한 평형", async () => {
+    const d = data([rent(1, { area: 84.97, grp: 84 }), rent(2, { area: 85.01, grp: 84, deal_date: "2026-09-01" })]);
+    d.rent_area_stats = [{ area: 84, jeonse_count: 2, wolse_count: 0, latest_deposit: 50000, latest_monthly_rent: 0, latest_date: "2026-10-06", recent_jeonse_avg: 50000 }];
+    render(<RentSection rent={d} tab="jeonse" today={TODAY} />);
+    await userEvent.click(screen.getByRole("row", { name: /84㎡/ }));
+    expect(items()).toHaveLength(2);
+  });
+});

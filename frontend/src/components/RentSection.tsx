@@ -5,7 +5,7 @@ import { LoadMoreButton, useLoadMore } from "@/components/LoadMore";
 import PriceChart from "@/components/PriceChart";
 import SelectableRow from "@/components/SelectableRow";
 import { useAreaUnit } from "@/lib/areaUnit";
-import { areaGroup, formatArea, formatDeal, formatExactArea, formatManwon } from "@/lib/format";
+import { formatArea, formatDeal, formatExactArea, formatManwon, txGroup } from "@/lib/format";
 import { monthlyHistory } from "@/lib/history";
 import { recentWindow } from "@/lib/metrics";
 import { exactLabel, groupLabel } from "@/lib/supply";
@@ -30,7 +30,7 @@ function AreaTable({ rows, avg, tab, selected, onSelect, areaTypes }: {
   const [unit] = useAreaUnit();
   const groups = useMemo(() => {
     const by = new Map<number, Rent[]>();
-    for (const r of rows) by.set(areaGroup(r.area), [...(by.get(areaGroup(r.area)) ?? []), r]);
+    for (const r of rows) by.set(txGroup(r), [...(by.get(txGroup(r)) ?? []), r]);
     return [...by.entries()]
       .sort(([a], [b]) => a - b)
       .map(([area, rs]) => ({ area, count: rs.length, latest: rs.reduce((a, b) => (b.deal_date > a.deal_date ? b : a)) }));
@@ -125,11 +125,11 @@ export default function RentSection({
   );
   // 3개월 평균은 내보낸 날이 아니라 오늘 기준으로 계산한다 (조용한 단지의 rent.json 은 다시 안 나간다)
   const avg = useMemo(() => {
-    const groups = new Set(rows.map((r) => areaGroup(r.area)));
+    const groups = new Set(rows.map((r) => txGroup(r)));
     return new Map([...groups].map((g) => [g, recentWindow(rows, { area: g, valueKey: "deposit", today }).avg]));
   }, [rows, today]);
   const history = useMemo(() => monthlyHistory(rows, { area, valueKey: "deposit" }), [rows, area]);
-  const shown = useMemo(() => (area == null ? rows : rows.filter((r) => areaGroup(r.area) === area)), [rows, area]);
+  const shown = useMemo(() => (area == null ? rows : rows.filter((r) => txGroup(r) === area)), [rows, area]);
   const areaTypes = rent.apartment.area_types;
   const scope = area == null ? "전체 평형" : formatArea(area, unit, groupLabel(areaTypes, area));
   const label = tab === "jeonse" ? "전세" : "월세";
