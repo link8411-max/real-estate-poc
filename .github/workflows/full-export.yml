@@ -1,0 +1,51 @@
+# 모든 단지 JSON·요약을 다시 내보내고 R2·Supabase 에 반영한다(수집 없음, DB 는 읽기만).
+# 평형 묶음(area_class)처럼 모든 단지 라벨이 바뀌는 배포 뒤에 수동으로 한 번 돌린다.
+# concurrency 그룹 collect 를 같이 써서 Daily Collection 과 겹치지 않고 차례를 기다린다.
+name: Full Export
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHON_VERSION: "3.11"
+      PYTHONUNBUFFERED: "1"
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_SUPPLY_COLUMNS: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Download database from R2
+        run: python r2_utils.py download
+
+      - name: Export all apartments
+        run: python -m pipeline.export_json --db real_estate.db --all --out out
+
+      - name: Publish to R2
+        run: python -m pipeline.r2_publish --out out --keys out/keys.json
+
+      - name: Sync all to Supabase
+        run: python -m pipeline.supabase_sync --db real_estate.db --all
