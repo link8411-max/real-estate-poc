@@ -4,6 +4,7 @@ import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from pipeline.area_class import apt_area_classes, class_of
 from pipeline.regions import city_of
 
 RECENT_DAYS = 90
@@ -17,17 +18,21 @@ def _cutoff(today: date) -> str:
     return (today - timedelta(days=RECENT_DAYS)).isoformat()
 
 
-def trade_area_stats(conn: sqlite3.Connection, apt_id: int, today: date) -> list[AreaStat]:
-    """취소되지 않은 매매를 전용면적 정수부(㎡, 버림)별로 묶어 시세 요약을 만든다."""
+def trade_area_stats(
+    conn: sqlite3.Connection, apt_id: int, today: date, classes: dict[float, int] | None = None
+) -> list[AreaStat]:
+    """취소되지 않은 매매를 평형 묶음(pipeline.area_class)별로 묶어 시세 요약을 만든다."""
     cutoff = _cutoff(today)
+    if classes is None:
+        classes = apt_area_classes(conn, apt_id)
     rows = conn.execute(
-        "SELECT CAST(area AS INTEGER) AS grp, amount, deal_date FROM transactions "
+        "SELECT area, amount, deal_date FROM transactions "
         "WHERE apt_id = ? AND cancel_date IS NULL ORDER BY deal_date DESC, id DESC",
         (apt_id,),
     ).fetchall()
     groups: dict[int, list[tuple[int, str]]] = {}
-    for grp, amount, deal_date in rows:  # 최신순
-        groups.setdefault(grp, []).append((amount, deal_date))
+    for area, amount, deal_date in rows:  # 최신순
+        groups.setdefault(class_of(classes, area), []).append((amount, deal_date))
     stats: list[AreaStat] = []
     for grp in sorted(groups):
         deals = groups[grp]
@@ -49,17 +54,21 @@ def trade_area_stats(conn: sqlite3.Connection, apt_id: int, today: date) -> list
     return stats
 
 
-def rent_area_stats(conn: sqlite3.Connection, apt_id: int, today: date) -> list[RentAreaStat]:
-    """전세(월세 0)와 월세를 전용면적 정수부(버림)별로 묶어 요약한다."""
+def rent_area_stats(
+    conn: sqlite3.Connection, apt_id: int, today: date, classes: dict[float, int] | None = None
+) -> list[RentAreaStat]:
+    """전세(월세 0)와 월세를 평형 묶음(매매와 같은 지도)별로 묶어 요약한다."""
     cutoff = _cutoff(today)
+    if classes is None:
+        classes = apt_area_classes(conn, apt_id)
     rows = conn.execute(
-        "SELECT CAST(area AS INTEGER) AS grp, deposit, monthly_rent, deal_date FROM rents "
+        "SELECT area, deposit, monthly_rent, deal_date FROM rents "
         "WHERE apt_id = ? ORDER BY deal_date DESC, id DESC",
         (apt_id,),
     ).fetchall()
     groups: dict[int, list[tuple[int, int, str]]] = {}
-    for grp, deposit, monthly, deal_date in rows:
-        groups.setdefault(grp, []).append((deposit, monthly, deal_date))
+    for area, deposit, monthly, deal_date in rows:
+        groups.setdefault(class_of(classes, area), []).append((deposit, monthly, deal_date))
     stats: list[RentAreaStat] = []
     for grp in sorted(groups):
         deals = groups[grp]
@@ -105,8 +114,9 @@ def apartment_summary(conn: sqlite3.Connection, apt_id: int, today: date) -> dic
         "FROM apartments WHERE id = ?",
         (apt_id,),
     ).fetchone()
-    trade_stats = trade_area_stats(conn, apt_id, today)
-    rent_stats = rent_area_stats(conn, apt_id, today)
+    classes = apt_area_classes(conn, apt_id)
+    trade_stats = trade_area_stats(conn, apt_id, today, classes)
+    rent_stats = rent_area_stats(conn, apt_id, today, classes)
     m = metrics(trade_stats, rent_stats, today)
     latest = max(trade_stats, key=lambda s: s["latest_date"]) if trade_stats else None
     jeonse = conn.execute(

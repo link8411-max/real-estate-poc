@@ -9,8 +9,10 @@ import sys
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from pipeline.area_class import all_area_classes, apt_area_classes, class_of
 from pipeline.canceled import build_canceled_recent
 from pipeline.highs import build_highs_recent
+from pipeline.share import apt_share_info
 from pipeline.redevelopment import build_zones_json_safe
 from pipeline.collect import kst_today
 from pipeline.db import connect
@@ -49,15 +51,25 @@ def build_apt_trade(
 ) -> dict[str, Any]:
     s = summary or apartment_summary(conn, apt_id, today)
     rows = conn.execute(
-        "SELECT id, amount, area, floor, deal_date, cancel_date FROM transactions "
+        "SELECT id, amount, area, floor, deal_date, cancel_date, dealing_gbn FROM transactions "
         "WHERE apt_id = ? ORDER BY deal_date DESC, id DESC",
         (apt_id,),
     ).fetchall()
+    classes = apt_area_classes(conn, apt_id)
+    shares = apt_share_info(conn, apt_id, today, classes)
+    txs = []
+    for r in rows:
+        d = dict(r)
+        d["grp"] = class_of(classes, d["area"])  # 평형 묶음 (프런트는 다시 계산하지 않음)
+        d["direct"] = d.pop("dealing_gbn") == "직거래"
+        if d["id"] in shares:
+            d["share"] = shares[d["id"]]  # 신고가/상승 배지·비교값·공유 가능 (최근 30일 거래만)
+        txs.append(d)
     return {
         "apartment": _apartment_block(conn, s),
         "area_stats": s["area_stats"],
         "metrics": s["metrics"],
-        "transactions": [dict(r) for r in rows],
+        "transactions": txs,
     }
 
 
@@ -77,10 +89,16 @@ def build_apt_rent(
         "pre_deposit, pre_monthly_rent FROM rents WHERE apt_id = ? ORDER BY deal_date DESC, id DESC",
         (apt_id,),
     ).fetchall()
+    classes = apt_area_classes(conn, apt_id)
+    rents = []
+    for r in rows:
+        d = _rent_row(r)
+        d["grp"] = class_of(classes, d["area"])
+        rents.append(d)
     return {
         "apartment": _apartment_block(conn, s),
         "rent_area_stats": s["rent_area_stats"],
-        "rents": [_rent_row(r) for r in rows],
+        "rents": rents,
     }
 
 
@@ -115,12 +133,14 @@ def _slim_all(conn: sqlite3.Connection, codes: set[str] | None = None) -> dict[s
     count: dict[int, int] = {}
     best: dict[int, tuple[str, int, int, float]] = {}  # apt -> (최신일, 평형, 금액, 전용)
     seen: set[tuple[int, int]] = set()
-    for apt_id, grp, amount, deal_date, area in conn.execute(
-        "SELECT apt_id, CAST(area AS INTEGER), amount, deal_date, area FROM transactions "
+    class_maps = all_area_classes(conn, None if codes is None else apts)
+    for apt_id, amount, deal_date, area in conn.execute(
+        "SELECT apt_id, amount, deal_date, area FROM transactions "
         "WHERE cancel_date IS NULL ORDER BY deal_date DESC, id DESC"
     ):
         if apt_id not in apts:
             continue
+        grp = class_of(class_maps.get(apt_id, {}), area)
         count[apt_id] = count.get(apt_id, 0) + 1
         if (apt_id, grp) in seen:
             continue  # 평형별 최신 거래만

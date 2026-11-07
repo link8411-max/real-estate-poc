@@ -133,3 +133,17 @@ describe("liveMetrics", () => {
     expect(liveMetrics(trade([tx("2026-10-01", 1, { cancel_date: "2026-10-02" })]), null, TODAY)).toEqual({});
   });
 });
+
+describe("평형 묶음(grp)", () => {
+  test("liveMetrics 는 grp 로 최신 평형 묶음을 고른다", () => {
+    const t = trade([
+      tx("2026-10-01", 100000, { area: 85.01, grp: 84 }),
+      tx("2026-09-01", 200000, { area: 84.97, grp: 84 }),
+    ]);
+    expect(liveMetrics(t, null, TODAY).recovery_rate).toBe(50);
+  });
+  test("recentWindow area 비교도 grp", () => {
+    const items = [{ area: 85.01, grp: 84, deal_date: "2026-10-01", amount: 100 }];
+    expect(recentWindow(items, { area: 84, valueKey: "amount", today: TODAY }).count).toBe(1);
+  });
+});

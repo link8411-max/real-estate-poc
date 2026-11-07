@@ -58,6 +58,23 @@ export interface Transaction {
   floor: number | null;
   deal_date: string;
   cancel_date: string | null;
+  /** 평형 묶음 라벨(pipeline/area_class.py). 옛 JSON 에는 없다 → txGroup 이 버림 면적으로 대신. */
+  grp?: number;
+  /** 직거래 여부 (dealing_gbn == '직거래') */
+  direct?: boolean;
+  /** 신고가/상승 배지·비교값·공유 가능 (최근 30일 정상 매매 중 배지가 붙는 것만, pipeline/share.py) */
+  share?: ShareInfo;
+}
+
+export interface ShareInfo {
+  badge: "high" | "up";
+  /** 비교 기준 금액: 신고가면 이전 최고가, 상승이면 직전 거래 */
+  base: number;
+  diff: number;
+  pct: number;
+  shareable: boolean;
+  /** 정정 의심(같은 층·계약일에 다른 금액) */
+  held: boolean;
 }
 
 export interface Rent {
@@ -71,6 +88,8 @@ export interface Rent {
   use_rr_right: boolean | number | null;
   pre_deposit: number | null;
   pre_monthly_rent: number | null;
+  /** 평형 묶음 라벨. 옛 JSON 에는 없다. */
+  grp?: number;
 }
 
 /** 다른 단지에 합쳐져 사라진 단지의 trade.json / rent.json 내용. */
@@ -205,6 +224,10 @@ export interface RecordHigh {
   jump_pct: number;
   deal_date: string;
   supply?: SupplyLabel | null;
+  /** 아래 셋은 공유 판정(pipeline/share.py). 옛 JSON 에는 없다. */
+  direct?: boolean;
+  shareable?: boolean;
+  held?: boolean;
 }
 
 export interface HighsRecentFile {

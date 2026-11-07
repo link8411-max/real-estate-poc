@@ -1,4 +1,4 @@
-import { areaGroup } from "./format";
+import { txGroup } from "./format";
 
 export interface MonthPoint {
   month: string; // "YYYY-MM"
@@ -6,9 +6,9 @@ export interface MonthPoint {
   count: number;
 }
 
-type Item = { area: number; deal_date: string; cancel_date?: string | null; amount?: number; deposit?: number };
+type Item = { area: number; grp?: number; deal_date: string; cancel_date?: string | null; amount?: number; deposit?: number };
 
-/** 월별 평균가·건수. 취소 거래 제외, area는 평형 그룹(버림 면적)과 비교, 월 오름차순. */
+/** 월별 평균가·건수. 취소 거래 제외, area는 평형 묶음(grp)과 비교, 월 오름차순. */
 export function monthlyHistory(
   items: Item[],
   { area, valueKey }: { area?: number | null; valueKey: "amount" | "deposit" },
@@ -16,7 +16,7 @@ export function monthlyHistory(
   const acc = new Map<string, { sum: number; count: number }>();
   for (const it of items) {
     if (it.cancel_date) continue;
-    if (area != null && areaGroup(it.area) !== area) continue;
+    if (area != null && txGroup(it) !== area) continue;
     const value = it[valueKey];
     if (value == null) continue;
     const month = it.deal_date.slice(0, 7);

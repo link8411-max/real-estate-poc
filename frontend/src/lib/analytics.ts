@@ -5,9 +5,9 @@ import { SITE_URL } from "@/lib/seo";
 
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "";
 
-export type ShareMethod = "kakao" | "share" | "link";
+export type ShareMethod = "kakao" | "share" | "link" | "image";
 
-const UTM_SOURCE: Record<ShareMethod, string> = { kakao: "kakaotalk", share: "share_sheet", link: "link_copy" };
+const UTM_SOURCE: Record<ShareMethod, string> = { kakao: "kakaotalk", share: "share_sheet", link: "link_copy", image: "image_save" };
 
 /** 공유 링크에 UTM 을 붙인다 — 카톡·인스타 인앱 브라우저는 레퍼러를 지워서 유입 경로를 UTM 으로 구분한다.
  *  페이지마다 canonical 이 있어 검색 색인에는 영향이 없다. */

@@ -217,3 +217,17 @@ def test_supabase_row_omits_supply_without_flag(conn, monkeypatch):
     a = _supply_setup(conn)
     row = _sync_rows(conn, a)[0]
     assert not any(k.startswith("latest_supply") for k in row)
+
+
+def test_supabase_row_latest_supply_boundary_group(conn, monkeypatch):
+    monkeypatch.setenv("SUPABASE_SUPPLY_COLUMNS", "1")
+    a = _apt(conn, "B", "11440", "9", 37.0, 127.0)
+    for h, area, d in [("b1", 84.97, "2026-05-01"), ("b2", 84.97, "2026-06-01"), ("b3", 85.01, "2026-09-01")]:
+        conn.execute(
+            "INSERT INTO transactions(apt_id, amount, area, floor, deal_date, unique_hash) VALUES (?,?,?,?,?,?)",
+            (a, 100000, area, 5, d, h))
+    conn.execute("INSERT INTO apartment_area_types VALUES (?,?,?,'register',0,5,'x')", (a, 85.01, 112.4))
+    conn.commit()
+    row = _sync_rows(conn, a)[0]
+    assert row["latest_trade_area"] == 84
+    assert row["latest_supply_min"] == 34

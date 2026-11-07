@@ -23,6 +23,8 @@ pipeline/            Python 파이프라인 (아래 CLI 표)
   molit_client.py    MOLIT API 클라이언트
   regions.py         수집 대상 시군구(REGIONS)
   db.py              스키마·멱등 마이그레이션 (connect, migrate)
+  area_class.py      같은 평형대 묶음 규칙(84.97·85.01, 84A·84B → 하나; 매매+전월세 면적으로 단지별 지도). frontend/src/lib/areaClass.ts 와 공용 픽스처 tests/fixtures/area_class_cases.json
+  share.py           거래별 신고가/상승 배지·비교값·공유 가능(최근 30일·정정 의심 보류·현재 최고가) → trade.json transactions[].share, highs/recent.json
   summary.py         단지 요약 지표 계산 (시간 창 지표는 프론트 lib/metrics.ts 가 오늘 기준으로 다시 계산)
   export_json.py     단지/지역/통계/검색 인덱스 JSON 내보내기
   r2_publish.py      out/ → R2 public 버킷 업로드(변경분만)
@@ -51,7 +53,7 @@ cp frontend/.env.example frontend/.env.local
 ```
 
 - 루트 `.env` 키: MOLIT_API_KEY, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_BUCKET, R2_PUBLIC_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, KAKAO_REST_API_KEY (선택: DB_PATH)
-- `frontend/.env.local` 키: NEXT_PUBLIC_DATA_URL, NEXT_PUBLIC_KAKAO_JS_KEY, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SITE_URL
+- `frontend/.env.local` 키: NEXT_PUBLIC_DATA_URL, NEXT_PUBLIC_KAKAO_JS_KEY, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SITE_URL (선택: NEXT_PUBLIC_SHARE_HIGHS=1 이면 신고가 공유 버튼 공개 — 취소 Backfill 완료 뒤 켬)
 - 값은 절대 문서·커밋에 쓰지 않는다 (`.env*` 는 gitignore).
 - 로컬 데이터로 프론트 확인: `out/` 에 JSON 을 내보낸 뒤
   ```bash
@@ -105,9 +107,10 @@ gh workflow enable "Daily Collection" -R link8411-max/real-estate-poc    # uploa
 
 Next.js 16 (App Router) + Tailwind, 데이터는 `NEXT_PUBLIC_DATA_URL` 의 정적 JSON(ISR 10분)과 Supabase.
 
-- 페이지: `/` `/search` `/browse` `/region/[code]` `/stats` `/compare` `/apartment/[id]`(매매/전세/월세 탭) `/map`(카카오 지도 + 필터), `robots.ts`, `sitemap.ts`, `/rss.xml`(최근 신고가·취소 피드, lib/rss.ts; 서치어드바이저 RSS 제출용), IndexNow 키 파일 `public/<키>.txt`, OG 이미지 `/api/og/[id]`
+- 페이지: `/` `/search` `/browse` `/region/[code]` `/stats` `/compare` `/apartment/[id]`(매매/전세/월세 탭) `/map`(카카오 지도 + 필터), `robots.ts`, `sitemap.ts`, `/rss.xml`(최근 신고가·취소 피드, lib/rss.ts; 서치어드바이저 RSS 제출용), IndexNow 키 파일 `public/<키>.txt`, OG 이미지 `/api/og/[id]`, 신고가 공유 페이지 `/highs/[aptId]/[txId]`(noindex) + 카드 `/api/og/highs/[aptId]/[txId]`(취소 공유 `/canceled/[aptId]/[txId]` 와 같은 구조)
 - 주요 컴포넌트(`src/components`): MapView / KakaoMap / MapMarkers / FilterPanel (지도), DealTabs / ApartmentTrades / RentSection / PriceChart / InsightBadges (상세), SearchBox / SearchPanel, RegionBrowser / RegionStatsTable, CompareTable, AreaUnitToggle·AreaLabel (평/㎡ 전환)
-- `src/lib`: data.ts(JSON fetch), types.ts, useMapData.ts, mapFilters.ts·filters.ts, seo.ts, supabase/, areaUnit.ts
+- 평형 묶음은 파이프라인이 거래마다 실어 주는 `grp` 를 쓴다(`txGroup`, 옛 JSON 은 버림 면적). 프런트에서 평형을 다시 정수 버림으로 묶지 않는다.
+- `src/lib`: highShare.ts(신고가 공유 값·플래그), areaClass.ts, data.ts(JSON fetch), types.ts, useMapData.ts, mapFilters.ts·filters.ts, seo.ts, supabase/, areaUnit.ts
 - 명령: `npm run dev` / `npm run build` / `npm test`(vitest) / `npx tsc --noEmit` / `npm run lint`
 
 ## API v1
@@ -128,4 +131,5 @@ cd frontend && npm test && npx tsc --noEmit      # 프론트 (배포 전 npm run
 - R2 public 버킷은 r2.dev 주소를 쓰므로 요청 제한이 있다. 트래픽이 늘면 커스텀 도메인으로 교체하고 `NEXT_PUBLIC_DATA_URL` 변경.
 - Supabase 무료 플랜은 DB 500MB 제한, 7일 무활동 시 일시정지 — 매일 수집의 sync 가 활동을 유지한다.
 - Vercel Hobby 는 비상업 용도만 허용. 수익화 시 Pro 필요.
+- 평형 묶음(area_class) 첫 배포 때는 모든 단지 JSON·요약 라벨이 바뀌므로 Daily Collection 을 잠시 끄고 `export_json --all` + `r2_publish` + `supabase_sync --all` 을 한 번 돌린다(안 하면 조용한 단지만 옛 버림 라벨로 남아 /highs 와 단지 탭이 어긋남).
 - `real_estate.db`, `*.db` 는 커밋하지 않는다. 이전 작업 중에는 CI 를 비활성화한다.

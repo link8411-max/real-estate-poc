@@ -150,13 +150,17 @@ def lookup(types: list[dict], area: float) -> dict | None:
 def supply_label(types: list[dict], area: float) -> dict | None:
     """그 거래 전용면적의 공급평 표시값 {"min","max","approx"} (내보내기 세 곳 공통).
 
-    lookup 이 맞으면 min=max, 아니면 같은 정수 묶음(전용 소수점 버림)의 주택형 범위, 없으면 None.
+    lookup 이 맞으면 min=max, 아니면 그 면적과 같은 평형 묶음(pipeline.area_class, 84.97·85.01 은 하나)의
+    주택형 범위, 없으면 None. 프런트 supply.ts exactLabel 과 같은 규칙.
     """
+    from pipeline.area_class import area_class_map
+
     hit = lookup(types, area)
     if hit is not None:
         p = supply_pyeong(hit["supply"])
         return {"min": p, "max": p, "approx": bool(hit["approx"])}
-    group = [t for t in types if int(t["excl"]) == int(area)]
+    cls = area_class_map([*((t["excl"], 1) for t in types), (area, 0)])
+    group = [t for t in types if cls[float(t["excl"])] == cls[float(area)]]
     if not group:
         return None
     pyeongs = [supply_pyeong(t["supply"]) for t in group]

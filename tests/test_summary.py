@@ -156,3 +156,19 @@ def test_summary_for_rent_only_apartment_has_null_trade_fields(conn, rent_only_i
     assert row["recent_avg"] is None and row["peak_amount"] is None and row["jeonse_ratio"] is None
     assert row["latest_jeonse_deposit"] == 30000
     assert row["metrics"] == {} and row["area_stats"] == []
+
+
+def test_area_stats_merge_boundary(tmp_path):
+    c = connect(str(tmp_path / "b.db"))
+    migrate(c)
+    a = upsert_apartment(c, name="B", lawd_cd="11680", dong="역삼동", jibun="9", build_year=2000, apt_seq=None)
+    _trade(c, a, 90000, 85.01, "2026-05-01")
+    _trade(c, a, 100000, 84.97, "2026-09-01")
+    _trade(c, a, 95000, 84.97, "2026-08-01")
+    _rent(c, a, 50000, 0, 85.01, "2026-09-02")
+    c.commit()
+    stats = trade_area_stats(c, a, TODAY)
+    assert [(s["area"], s["count"], s["max_amount"]) for s in stats] == [(84, 3, 100000)]
+    rstats = rent_area_stats(c, a, TODAY)
+    assert [r["area"] for r in rstats] == [84]  # 매매와 같은 묶음 라벨 -> 전세가율 짝이 맞는다
+    assert "jeonse_ratio" in metrics(stats, rstats, TODAY)
