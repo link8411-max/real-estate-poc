@@ -9,7 +9,7 @@ import pytest
 from pipeline import export_json
 from pipeline.db import connect, migrate, upsert_apartment
 from pipeline.export_json import (
-    build_apt_rent, build_apt_trade, build_meta, build_region, build_search_index,
+    build_apt_rent, build_apt_trade, build_meta, build_region, build_search_index, build_sitemap_index,
     build_stats, export, main,
 )
 from pipeline.summary import apartment_summary
@@ -349,3 +349,36 @@ def test_trade_json_share_field(tmp_path):
     assert by_amount[100000]["share"] == {
         "badge": "high", "base": 90000, "diff": 10000, "pct": 11.1, "shareable": True, "held": False,
     }
+
+
+def test_sitemap_index_uses_latest_change_date(conn):
+    # 거래 created_at 이 서로 다른 단지 1: created_at 2026-10-20, 거래·전월세 deal_date 는 그보다 이전
+    conn.execute("UPDATE transactions SET created_at='2026-10-03 01:00:00' WHERE apt_id=1")
+    conn.execute("UPDATE transactions SET created_at='2026-10-20 09:00:00' WHERE apt_id=1 AND deal_date='2026-09-01'")
+    conn.execute("UPDATE rents SET created_at='2026-10-25 00:00:00' WHERE apt_id=1")
+    # 단지 2: created_at 없음 → deal_date 로 대체
+    conn.execute("UPDATE transactions SET created_at=NULL WHERE apt_id=2")
+    # 단지 3: 전월세만, created_at 없음 → deal_date
+    conn.execute("UPDATE rents SET created_at=NULL WHERE apt_id=3")
+    conn.commit()
+    assert build_sitemap_index(conn) == [[1, "2026-10-25"], [2, "2026-10-10"], [3, "2026-10-01"]]
+
+
+def test_sitemap_index_cancel_date_counts_and_empty_apt_is_null(conn):
+    a4 = upsert_apartment(conn, name="빈단지", lawd_cd="11440", dong="망원동", jibun="4",
+                          build_year=2001, apt_seq="A4")
+    conn.execute("UPDATE transactions SET created_at='2026-10-03 00:00:00' WHERE apt_id=1")
+    conn.execute("UPDATE rents SET created_at='2026-10-04 00:00:00' WHERE apt_id=1")
+    conn.commit()
+    rows = dict(build_sitemap_index(conn))
+    assert rows[1] == "2026-10-05"  # 해제일(2026-10-05)이 더 늦다
+    assert rows[a4] is None
+
+
+def test_export_writes_sitemap_index(conn, tmp_path):
+    for ids in ([1], None):
+        out = tmp_path / ("o1" if ids else "o2")
+        keys = export(conn, str(out), apt_ids=ids, today=TODAY)
+        assert "v1/sitemap/apartments.json" in keys
+        data = json.loads(gzip.decompress((out / "v1/sitemap/apartments.json.gz").read_bytes()))
+        assert [r[0] for r in data] == [1, 2, 3]

@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import {
   aptCrumbs,
   aptDescription,
+  aptIntro,
+  pickNearby,
   latestJeonse,
   aptJsonLd,
   aptTitle,
@@ -20,7 +22,7 @@ import {
   shortDistrict,
   websiteJsonLd,
 } from "../seo";
-import type { Apartment, AreaStat, Rent, Transaction } from "../types";
+import type { Apartment, AreaStat, RegionApartment, Rent, Transaction } from "../types";
 
 const apt: Apartment = {
   id: 764,
@@ -359,5 +361,50 @@ describe("동 페이지 헬퍼", () => {
       { name: "강남구", url: "/region/11680" },
       { name: "역삼동", url: dongHref("11680", "역삼동") },
     ]);
+  });
+});
+
+describe("aptIntro", () => {
+  const a = { ...apt, name: "용진2", lawd_cd: "28710", region_name: "인천 강화군", city: "인천", dong: "갑곳리", build_year: 1990 };
+  const label = "전용 59㎡·18평";
+
+  test("완결된 한 문장 묶음: 지역·준공·최근 매매·평형 수", () => {
+    expect(aptIntro(a, tx(5100, "2026-11-05", 59.9), 3, label)).toBe(
+      "인천 강화군 갑곳리에 있는 용진2는 1990년 준공 아파트로, 최근 매매는 전용 59㎡·18평 5,100만원(2026-11-05)입니다. 3개 평형의 실거래가와 전세·월세 내역을 볼 수 있습니다.",
+    );
+  });
+  test("준공연도 없으면 준공 구절 생략", () => {
+    expect(aptIntro({ ...a, build_year: null }, tx(5100, "2026-11-05"), 1, label)).toContain("용진2는 아파트로, 최근 매매는");
+  });
+  test("거래 없으면 거래 없음 문장, 평형 0이면 평형 수 생략", () => {
+    const t = aptIntro(a, undefined, 0, null);
+    expect(t).toContain("최근 매매 거래는 아직 없습니다.");
+    expect(t).toContain("실거래가와 전세·월세 내역을 볼 수 있습니다.");
+    expect(t).not.toContain("개 평형");
+  });
+  test("조사는 받침 유무로: 받침 있으면 은, 없으면 는, 숫자·영문 끝은 는", () => {
+    expect(aptIntro({ ...a, name: "래미안" }, undefined, 1, null)).toContain("래미안은 ");
+    expect(aptIntro({ ...a, name: "푸르지오" }, undefined, 1, null)).toContain("푸르지오는 ");
+    expect(aptIntro({ ...a, name: "용진2" }, undefined, 1, null)).toContain("용진2는 ");
+    expect(aptIntro({ ...a, name: "e편한세상A" }, undefined, 1, null)).toContain("e편한세상A는 ");
+  });
+});
+
+describe("pickNearby", () => {
+  const ra = (id: number, dong: string, trade_count = 1, latest_trade_date: string | null = null): RegionApartment => ({
+    id, name: `n${id}`, dong, build_year: null, trade_count, latest_trade_amount: null, latest_trade_date,
+    latest_jeonse_deposit: null, lat: null, lng: null,
+  });
+  test("같은 동 3개 이상: 자기 제외, 최근 거래일순, 최대 12개", () => {
+    const all = [ra(1, "d"), ra(2, "d", 1, "2026-01-01"), ra(3, "d", 1, "2026-02-01"), ra(4, "d"), ra(5, "x", 99)];
+    const r = pickNearby(all, { id: 1, dong: "d" });
+    expect(r.sameDong).toBe(true);
+    expect(r.apartments.map((x) => x.id)).toEqual([3, 2, 4]);
+  });
+  test("같은 동 3개 미만: 다른 동을 거래 많은 순으로 채움", () => {
+    const all = [ra(1, "d"), ra(2, "d"), ra(3, "x", 5), ra(4, "y", 9)];
+    const r = pickNearby(all, { id: 1, dong: "d" });
+    expect(r.sameDong).toBe(false);
+    expect(r.apartments.map((x) => x.id)).toEqual([2, 4, 3]);
   });
 });

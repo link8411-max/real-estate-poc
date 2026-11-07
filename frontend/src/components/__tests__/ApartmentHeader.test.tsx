@@ -28,4 +28,11 @@ describe("ApartmentHeader 모바일 레이아웃", () => {
     render(<ApartmentHeader apartment={apartment} />);
     expect(screen.getByRole("heading", { level: 1 }).className).toContain("break-keep");
   });
+
+  test("주소와 준공연도 사이에 구분자가 있어 텍스트로 읽으면 '주소 · 2023년 준공'", () => {
+    const { container } = render(<ApartmentHeader apartment={apartment} />);
+    expect(container.textContent).toMatch(/구갈동 1\s*·\s*2023년 준공/);
+    render(<ApartmentHeader apartment={{ ...apartment, build_year: null }} />);
+    expect(screen.getAllByText("·")).toHaveLength(1); // 준공연도 없으면 구분자도 없다
+  });
 });

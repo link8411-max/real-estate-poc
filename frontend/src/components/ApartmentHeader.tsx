@@ -38,6 +38,8 @@ export default function ApartmentHeader({
             <MapPin className="h-4 w-4" aria-hidden />
             {apartment.region_name} {apartment.dong}
             {apartment.jibun ? ` ${apartment.jibun}` : ""}
+            {/* 화면엔 안 보이는 구분자: 검색엔진이 텍스트로 읽을 때 "갑곳리 349 · 1990년 준공"이 되게 한다. 눈에 보이게 두면 모바일 줄바꿈 때 줄 앞에 점이 온다 */}
+            {apartment.build_year && <span className="sr-only" aria-hidden> · </span>}
           </span>
           {apartment.build_year && (
             <span className="inline-flex items-center gap-1">
