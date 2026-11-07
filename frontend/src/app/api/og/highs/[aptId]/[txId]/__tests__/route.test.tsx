@@ -81,6 +81,18 @@ describe("신고가 공유 OG", () => {
     expect(fetchAptTrade).toHaveBeenCalledWith(9);
     expect(all).toContain("남은단지");
   });
+  test("정상 카드도 짧은 캐시(취소·정정 뒤 낡은 신고가 카드가 1년 남지 않게)", async () => {
+    fetchAptTrade.mockResolvedValue({ ...base, transactions: [tx({ share })] });
+    optsSeen.length = 0;
+    await run();
+    expect(optsSeen[0]?.headers?.["cache-control"]).toBe("public, max-age=600, s-maxage=600");
+  });
+  test("정정 의심(held)이면 배지·차이 숨김", async () => {
+    fetchAptTrade.mockResolvedValue({ ...base, transactions: [tx({ share: { ...share, held: true, shareable: false } })] });
+    const { all } = await run();
+    expect(all).not.toContain("이전 최고보다");
+    expect(all).not.toMatch(/신고가(?! )/);
+  });
   test("없으면 대체 이미지, 짧은 캐시", async () => {
     fetchAptTrade.mockResolvedValue(null);
     optsSeen.length = 0;

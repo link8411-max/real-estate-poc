@@ -131,4 +131,5 @@ cd frontend && npm test && npx tsc --noEmit      # 프론트 (배포 전 npm run
 - R2 public 버킷은 r2.dev 주소를 쓰므로 요청 제한이 있다. 트래픽이 늘면 커스텀 도메인으로 교체하고 `NEXT_PUBLIC_DATA_URL` 변경.
 - Supabase 무료 플랜은 DB 500MB 제한, 7일 무활동 시 일시정지 — 매일 수집의 sync 가 활동을 유지한다.
 - Vercel Hobby 는 비상업 용도만 허용. 수익화 시 Pro 필요.
+- 평형 묶음(area_class) 첫 배포 때는 모든 단지 JSON·요약 라벨이 바뀌므로 Daily Collection 을 잠시 끄고 `export_json --all` + `r2_publish` + `supabase_sync --all` 을 한 번 돌린다(안 하면 조용한 단지만 옛 버림 라벨로 남아 /highs 와 단지 탭이 어긋남).
 - `real_estate.db`, `*.db` 는 커밋하지 않는다. 이전 작업 중에는 CI 를 비활성화한다.

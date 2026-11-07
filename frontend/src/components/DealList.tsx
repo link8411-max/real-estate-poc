@@ -44,7 +44,7 @@ export default function DealList({ transactions, area, areaTypes, apt, today }: 
       <ul>
         {filtered.slice(0, count).map((t) => {
           const cancelled = t.cancel_date != null;
-          const badge = !cancelled ? t.share?.badge : undefined;
+          const badge = !cancelled && !t.share?.held ? t.share?.badge : undefined; // 정정 의심은 배지 숨김
           const canShare = SHARE_HIGHS_ENABLED && apt != null && today != null && isShareable(t, today);
           return (
             <li key={t.id} className="flex items-center justify-between border-b border-gray-100 py-3 last:border-b-0">

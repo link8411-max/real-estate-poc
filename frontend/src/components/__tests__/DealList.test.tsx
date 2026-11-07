@@ -154,7 +154,7 @@ describe("DealList 신고가 공유", () => {
     expect(within(r[0]).getByText("신고가")).toBeInTheDocument();
     expect(within(r[0]).getByRole("button", { name: "이 거래 공유" })).toBeInTheDocument();
     expect(within(r[1]).getByText("상승")).toBeInTheDocument();
-    expect(within(r[2]).getByText("신고가")).toBeInTheDocument();
+    expect(within(r[2]).queryByText("신고가")).toBeNull(); // 정정 의심(held)은 배지 숨김
     expect(within(r[2]).queryByRole("button", { name: "이 거래 공유" })).toBeNull();
     expect(within(r[3]).queryByText(/신고가|상승/)).toBeNull();
   });

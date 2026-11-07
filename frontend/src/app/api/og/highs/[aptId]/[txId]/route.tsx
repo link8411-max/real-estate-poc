@@ -134,6 +134,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ aptId: 
         </div>
       </div>
     ),
-    await options(),
+    // 기본값(1년 immutable)이면 취소·정정 뒤에도 낡은 "신고가" 카드가 CDN·브라우저에 남는다 → 10분
+    { ...(await options()), headers: { "cache-control": "public, max-age=600, s-maxage=600" } },
   );
 }

@@ -56,7 +56,8 @@ export const isShareable = (tx: Transaction, todayIso: string): boolean =>
 export function buildHighShareTx(tx: Transaction, transactions: Transaction[], areaTypes: AreaType[] | undefined, todayIso: string): HighShareTx {
   const m2 = txGroup(tx);
   const canceled = tx.cancel_date != null;
-  const share = canceled ? undefined : tx.share;
+  // 취소되면, 또는 정정 의심(같은 층·계약일에 다른 금액)이면 배지·비교값을 숨긴다(틀릴 수 있는 숫자를 내보내지 않음)
+  const share = canceled || tx.share?.held ? undefined : tx.share;
   const from = minusDays(tx.deal_date, 365);
   const series = transactions
     .filter((t) => t.cancel_date == null && txGroup(t) === m2 && t.deal_date >= from)

@@ -49,6 +49,14 @@ describe("highShareTx", () => {
     expect(s.shareable).toBe(false);
   });
 
+  test("정정 의심(held)이면 배지·비교값 숨김", () => {
+    const d = data([t({ id: 5, amount: 100000, deal_date: "2026-11-01", share: { ...high, held: true, shareable: false } }), t({ id: 2 })]);
+    const s = highShareTx(d, 5, TODAY)!;
+    expect(s.badge).toBeNull();
+    expect(s.diff).toBeNull();
+    expect(s.shareable).toBe(false);
+  });
+
   test("share 없으면 배지 없음·공유 불가", () => {
     const s = highShareTx(sample, 2, TODAY)!;
     expect(s.badge).toBeNull();
