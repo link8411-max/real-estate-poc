@@ -1,5 +1,5 @@
 import { analyzeCanceled } from "./canceled";
-import { areaGroup, areaToPyeong } from "./format";
+import { areaToPyeong, txGroup } from "./format";
 import { exactLabel, SUPPLY_ENABLED, supplyText } from "./supply";
 import type { AptTrade, SupplyLabel } from "./types";
 
@@ -9,7 +9,7 @@ export interface ShareTx {
   amount: number;
   /** 전용 평(반올림). 공급평 플래그가 꺼져 있을 때만 화면에 쓴다. */
   pyeong: number;
-  /** 전용 ㎡(정수 묶음) */
+  /** 전용 ㎡(평형 묶음 grp) */
   m2: number;
   /** 공급평. 공급 정보가 없으면 null */
   supply: SupplyLabel | null;
@@ -26,7 +26,7 @@ export interface ShareTx {
 export function shareTx(data: AptTrade, txId: number): ShareTx | null {
   const tx = data.transactions.find((t) => t.id === txId);
   if (!tx) return null;
-  const m2 = areaGroup(tx.area);
+  const m2 = txGroup(tx);
   const pyeong = areaToPyeong(m2);
   const supply = exactLabel(data.apartment.area_types, tx.area);
   const c = analyzeCanceled(data.transactions).canceled.find((x) => x.id === txId);

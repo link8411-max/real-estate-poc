@@ -46,3 +46,16 @@ describe("exactLabel / groupLabel", () => {
     expect(exactLabel(undefined, 84.5)).toBeNull();
   });
 });
+
+describe("groupLabel 평형 묶음", () => {
+  const boundary = [
+    { excl: 84.97, supply: 111.52, approx: false },
+    { excl: 85.01, supply: 115.0, approx: false },
+  ];
+  test("84 묶음에 85.01 주택형도 들어간다", () => {
+    expect(groupLabel(boundary, 84)).toEqual({ min: 33, max: 34, approx: false });
+  });
+  test("exactLabel 일치 실패 시 같은 묶음 범위", () => {
+    expect(exactLabel(boundary, 85.3)).toEqual({ min: 33, max: 34, approx: false });
+  });
+});

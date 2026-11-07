@@ -35,7 +35,7 @@ def test_record_highs_definition_and_keys(hconn):
     assert it["area_group"] == 84 and it["city"] == "서울" and it["lawd_cd"] == "11680" and it["dong"] == "역삼동"
     assert set(it) == {
         "tx_id", "apt_id", "apt_name", "region_name", "city", "lawd_cd", "dong", "area", "area_group",
-        "floor", "amount", "prev_max", "jump", "jump_pct", "deal_date", "supply",
+        "floor", "amount", "prev_max", "jump", "jump_pct", "deal_date", "supply", "direct", "shareable", "held",
     }
 
 
@@ -110,3 +110,23 @@ def test_highs_entry_supply_range(hconn):
 
 def test_highs_entry_supply_null_when_unknown(hconn):
     assert record_highs(hconn, since="2026-10-01")[0]["supply"] is None
+
+
+def test_boundary_areas_same_group(tmp_path):
+    c = connect(str(tmp_path / "b.db"))
+    migrate(c)
+    c.execute("INSERT INTO apartments(name, lawd_cd, dong, jibun) VALUES ('B','11680','역삼동','9')")
+    _tx(c, 1, 90000, 85.01, "2026-05-01")
+    _tx(c, 1, 100000, 84.97, "2026-10-10")
+    c.commit()
+    items = record_highs(c, since="2026-10-01")
+    assert len(items) == 1
+    assert items[0]["area_group"] == 84 and items[0]["prev_max"] == 90000
+
+
+def test_recent_items_have_share_flags(hconn):
+    hconn.execute("UPDATE transactions SET dealing_gbn='직거래' WHERE amount=120000")
+    hconn.commit()
+    items = record_highs(hconn, since="2026-10-01")
+    it = items[0]
+    assert it["direct"] is True and it["shareable"] is True and it["held"] is False

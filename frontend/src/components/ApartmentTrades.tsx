@@ -17,6 +17,8 @@ export default function ApartmentTrades({
   beforeList,
   canceledAbove,
   areaTypes,
+  apt,
+  today,
 }: {
   stats: AreaStat[];
   transactions: Transaction[];
@@ -24,6 +26,9 @@ export default function ApartmentTrades({
   canceledAbove?: Record<number, number>;
   /** 단지 주택형(공급면적). 공급평 표기에 쓴다. */
   areaTypes?: AreaType[];
+  /** 거래 행 공유 버튼용 (DealList 로 넘긴다) */
+  apt?: { id: number; name: string };
+  today?: string;
 }) {
   const [unit] = useAreaUnit();
   const [area, setArea] = useState<number | null>(null);
@@ -49,7 +54,7 @@ export default function ApartmentTrades({
         <h2 className="mb-3 font-bold text-gray-900">
           실거래 내역 <span className="text-sm font-normal text-gray-500">{scope}</span>
         </h2>
-        <DealList transactions={transactions} area={area} areaTypes={areaTypes} />
+        <DealList transactions={transactions} area={area} areaTypes={areaTypes} apt={apt} today={today} />
       </section>
     </div>
   );

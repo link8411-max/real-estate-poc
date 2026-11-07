@@ -141,3 +141,15 @@ describe("canceledIntro", () => {
     expect(canceledIntro([c("2026-01-01", "서울")], today)).toBe("최근 30일 수도권 아파트 신고가 중 취소된 거래가 없습니다.");
   });
 });
+
+describe("analyzeCanceled 평형 묶음", () => {
+  test("grp 가 같으면 경계 면적끼리 비교", () => {
+    const txs: Transaction[] = [
+      { ...tx("2026-01-10", 95000, null, 85.01), grp: 84 },
+      { ...tx("2026-03-10", 99000, "2026-03-20", 84.97), grp: 84 },
+    ];
+    const { canceled } = analyzeCanceled(txs);
+    expect(canceled[0].prev_max).toBe(95000);
+    expect(canceled[0].is_high).toBe(true);
+  });
+});

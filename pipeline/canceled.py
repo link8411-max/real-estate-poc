@@ -58,7 +58,7 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
     from pipeline.regions import city_of
 
     sql = (
-        "SELECT t.id, t.apt_id, a.name, a.lawd_cd, t.area, CAST(t.area AS INTEGER) AS grp, t.floor, "
+        "SELECT t.id, t.apt_id, a.name, a.lawd_cd, t.area, t.floor, "
         "t.amount, t.deal_date, t.cancel_date, t.dealing_gbn FROM transactions t JOIN apartments a ON a.id = t.apt_id "
         "WHERE t.cancel_date >= ?"
     )
@@ -67,25 +67,32 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
         sql += " AND t.cancel_date <= ?"
         args.append(until)
     rows = conn.execute(sql, args).fetchall()
+    from pipeline.area_class import all_area_classes, class_of
     from pipeline.supply import apt_area_types, supply_label
 
+    class_maps = all_area_classes(conn, {r["apt_id"] for r in rows})
     type_cache: dict[int, list[dict]] = {}
     region_cache: dict[str, str] = {}
     items: list[dict[str, Any]] = []
     for r in rows:
+        classes = class_maps.get(r["apt_id"], {})
+        grp = class_of(classes, r["area"])
+        # 같은 묶음에 속한 면적 목록 (묶음 지도는 취소 포함 전체 거래로 만들어 r 자신의 면적도 들어 있다)
+        areas = [a for a, g in classes.items() if g == grp] or [r["area"]]
+        in_areas = f"area IN ({','.join('?' * len(areas))})"
         prev = conn.execute(
-            "SELECT MAX(amount) FROM transactions WHERE apt_id = ? AND CAST(area AS INTEGER) = ? "
+            f"SELECT MAX(amount) FROM transactions WHERE apt_id = ? AND {in_areas} "
             "AND deal_date < ? AND cancel_date IS NULL",
-            (r["apt_id"], r["grp"], r["deal_date"]),
+            (r["apt_id"], *areas, r["deal_date"]),
         ).fetchone()[0]
         if prev is None or r["amount"] <= prev:
             continue
         # 재신고: 해제일 +30일 안에 같은 단지·면적군·층·금액의 정상 거래가 뒤 계약일로 다시 올라왔으면 제외
         refiled = conn.execute(
-            "SELECT 1 FROM transactions WHERE apt_id = ? AND CAST(area AS INTEGER) = ? AND floor IS ? "
+            f"SELECT 1 FROM transactions WHERE apt_id = ? AND {in_areas} AND floor IS ? "
             "AND amount = ? AND cancel_date IS NULL AND deal_date > ? "
             "AND deal_date <= date(?, '+30 days') LIMIT 1",
-            (r["apt_id"], r["grp"], r["floor"], r["amount"], r["deal_date"], r["cancel_date"]),
+            (r["apt_id"], *areas, r["floor"], r["amount"], r["deal_date"], r["cancel_date"]),
         ).fetchone()
         if refiled:
             continue
@@ -98,7 +105,7 @@ def canceled_highs(conn: sqlite3.Connection, since: str, until: str | None = Non
         items.append({
             "tx_id": r["id"], "apt_id": r["apt_id"], "apt_name": r["name"],
             "region_name": region_cache[code], "city": city_of(code),
-            "area": r["area"], "area_group": r["grp"], "floor": r["floor"],
+            "area": r["area"], "area_group": grp, "floor": r["floor"],
             "amount": r["amount"], "prev_max": prev, "jump": r["amount"] - prev,
             "deal_date": r["deal_date"], "cancel_date": r["cancel_date"], "days_to_cancel": days,
             "supply": supply_label(type_cache[r["apt_id"]], r["area"]),

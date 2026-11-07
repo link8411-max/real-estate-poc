@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 import requests
 
+from pipeline.area_class import apt_area_classes, class_of
 from pipeline.db import connect
 from pipeline.export_json import build_stats
 from pipeline.regions import REGIONS, SUCCEEDED_BY, city_of
@@ -124,13 +125,17 @@ def _with_supply(conn: sqlite3.Connection, s: dict[str, Any]) -> dict[str, Any]:
         return s
     sup = None
     if s["latest_trade_date"] is not None:
-        row = conn.execute(  # 최신 거래의 실제 전용면적 (summary 의 area 는 정수 묶음)
-            "SELECT area FROM transactions WHERE apt_id=? AND cancel_date IS NULL AND deal_date=? "
-            "AND CAST(area AS INTEGER)=? ORDER BY id DESC LIMIT 1",
-            (s["id"], s["latest_trade_date"], s["latest_trade_area"]),
-        ).fetchone()
-        if row:
-            sup = supply_label(apt_area_types(conn, s["id"]), row[0])
+        classes = apt_area_classes(conn, s["id"])
+        # 최신 거래의 실제 전용면적 (summary 의 area 는 평형 묶음 라벨)
+        area = next((
+            a for (a,) in conn.execute(
+                "SELECT area FROM transactions WHERE apt_id=? AND cancel_date IS NULL AND deal_date=? "
+                "ORDER BY id DESC",
+                (s["id"], s["latest_trade_date"]),
+            ) if class_of(classes, a) == s["latest_trade_area"]
+        ), None)
+        if area is not None:
+            sup = supply_label(apt_area_types(conn, s["id"]), area)
     return {
         **s,
         "latest_supply_min": sup["min"] if sup else None,

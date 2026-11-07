@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { setShareHighsEnabledForTest } from "@/lib/highShare";
 import type { AreaStat, Transaction } from "@/lib/types";
 import AreaStatsTable from "../AreaStatsTable";
 import DealList from "../DealList";
@@ -107,5 +108,66 @@ describe("DealList", () => {
     rows().forEach((r) => expect(r).toHaveTextContent("전용 25.5평"));
     await userEvent.click(screen.getByRole("button", { name: /더 보기/ }));
     expect(rows()).toHaveLength(80);
+  });
+});
+
+describe("DealList 평형 묶음·직거래", () => {
+  test("merges boundary areas (grp 기준)", () => {
+    const txs: Transaction[] = [
+      { ...tx(1, 84.97), grp: 84 },
+      { ...tx(2, 85.01), grp: 84 },
+      { ...tx(3, 59.9), grp: 59 },
+    ];
+    render(<DealList transactions={txs} area={84} />);
+    expect(rows()).toHaveLength(2);
+  });
+
+  test("grp 없는 옛 JSON 은 버림 면적", () => {
+    render(<DealList transactions={[tx(1, 84.97), tx(2, 85.01)]} area={84} />);
+    expect(rows()).toHaveLength(1);
+  });
+
+  test("직거래 행에 '직거래' 표시", () => {
+    render(<DealList transactions={[{ ...tx(1, 84.97), direct: true }, tx(2, 84.97)]} area={null} />);
+    const [first, second] = rows();
+    expect(within(first).getByText("직거래")).toBeInTheDocument();
+    expect(within(second).queryByText("직거래")).toBeNull();
+  });
+});
+
+describe("DealList 신고가 공유", () => {
+  afterEach(() => setShareHighsEnabledForTest(false));
+  const share = (badge: "high" | "up", shareable = true) => ({ badge, base: 40000, diff: 10000, pct: 25, shareable, held: !shareable });
+  const recent: Transaction[] = [
+    { ...tx(1, 84.97), deal_date: "2026-11-01", share: share("high") },
+    { ...tx(2, 84.97), deal_date: "2026-10-30", share: share("up") },
+    { ...tx(3, 84.97), deal_date: "2026-10-29", share: share("high", false) },
+    { ...tx(4, 84.97), deal_date: "2026-10-28" },
+  ];
+  const apt = { id: 7, name: "래미안" };
+
+  test("플래그 on: shareable 행에만 공유 버튼, 배지 텍스트", () => {
+    setShareHighsEnabledForTest(true);
+    render(<DealList transactions={recent} area={null} apt={apt} today="2026-11-07" />);
+    expect(screen.getAllByRole("button", { name: "이 거래 공유" })).toHaveLength(2);
+    const r = rows();
+    expect(within(r[0]).getByText("신고가")).toBeInTheDocument();
+    expect(within(r[0]).getByRole("button", { name: "이 거래 공유" })).toBeInTheDocument();
+    expect(within(r[1]).getByText("상승")).toBeInTheDocument();
+    expect(within(r[2]).queryByText("신고가")).toBeNull(); // 정정 의심(held)은 배지 숨김
+    expect(within(r[2]).queryByRole("button", { name: "이 거래 공유" })).toBeNull();
+    expect(within(r[3]).queryByText(/신고가|상승/)).toBeNull();
+  });
+
+  test("플래그 off: 공유 버튼 0개, 배지는 보임", () => {
+    render(<DealList transactions={recent} area={null} apt={apt} today="2026-11-07" />);
+    expect(screen.queryAllByRole("button", { name: "이 거래 공유" })).toHaveLength(0);
+    expect(within(rows()[0]).getByText("신고가")).toBeInTheDocument();
+  });
+
+  test("30일 지난 거래는 share 가 남아 있어도 버튼 없음", () => {
+    setShareHighsEnabledForTest(true);
+    render(<DealList transactions={[{ ...recent[0], deal_date: "2026-09-28" }]} area={null} apt={apt} today="2026-11-07" />);
+    expect(screen.queryAllByRole("button", { name: "이 거래 공유" })).toHaveLength(0);
   });
 });
