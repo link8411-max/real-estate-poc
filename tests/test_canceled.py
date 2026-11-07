@@ -131,3 +131,27 @@ def test_dealing_gbn이_항목에_실린다(cconn):
     cconn.execute("UPDATE transactions SET dealing_gbn='직거래' WHERE amount=120000")
     cconn.commit()
     assert canceled_highs(cconn, since="2026-01-01")[0]["dealing_gbn"] == "직거래"
+
+
+def test_boundary_areas_same_group(tmp_path):
+    c = connect(str(tmp_path / "b.db"))
+    migrate(c)
+    c.execute("INSERT INTO apartments(name, lawd_cd, dong, jibun) VALUES ('B','11680','역삼동','9')")
+    _tx(c, 1, 90000, 84.97, "2026-01-05")
+    _tx(c, 1, 95000, 85.01, "2026-02-01")  # 같은 묶음 -> 이전 최고가 9.5억
+    _tx(c, 1, 93000, 84.97, "2026-03-01", "2026-03-20")  # 9.5억보다 낮음 -> 아님
+    _tx(c, 1, 99000, 84.97, "2026-04-01", "2026-04-20")  # 9.5억 초과 -> 취소 신고가
+    c.commit()
+    items = canceled_highs(c, since="2026-01-01")
+    assert [(i["amount"], i["prev_max"], i["area_group"]) for i in items] == [(99000, 95000, 84)]
+
+
+def test_boundary_refiled_same_group(tmp_path):
+    c = connect(str(tmp_path / "r.db"))
+    migrate(c)
+    c.execute("INSERT INTO apartments(name, lawd_cd, dong, jibun) VALUES ('B','11680','역삼동','9')")
+    _tx(c, 1, 90000, 84.97, "2026-01-05")
+    _tx(c, 1, 99000, 85.01, "2026-04-01", "2026-04-20")
+    _tx(c, 1, 99000, 84.97, "2026-04-25")  # 같은 묶음·층·금액 재신고 -> 제외
+    c.commit()
+    assert canceled_highs(c, since="2026-01-01") == []

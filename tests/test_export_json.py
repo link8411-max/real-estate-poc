@@ -67,7 +67,7 @@ def test_build_apt_trade_keeps_cancelled_in_list_but_not_in_stats(conn):
     assert [t["deal_date"] for t in d["transactions"]] == ["2026-10-01", "2026-09-01", "2025-05-01"]
     assert d["transactions"][0] == {
         "id": 2, "amount": 120000, "area": 84.0, "floor": 5, "deal_date": "2026-10-01",
-        "cancel_date": "2026-10-05",
+        "cancel_date": "2026-10-05", "grp": 84, "direct": False,
     }
     assert d["area_stats"][0]["count"] == 2 and d["area_stats"][0]["max_amount"] == 100000
     assert "metrics" in d
@@ -78,7 +78,7 @@ def test_build_apt_rent_fields(conn):
     assert d["rents"] == [{
         "id": 1, "deposit": 60000, "monthly_rent": 0, "area": 84.0, "floor": 5,
         "deal_date": "2026-10-02", "contract_type": "신규", "use_rr_right": False,
-        "pre_deposit": None, "pre_monthly_rent": None,
+        "pre_deposit": None, "pre_monthly_rent": None, "grp": 84,
     }]
     assert d["apartment"]["id"] == 1 and d["rent_area_stats"][0]["jeonse_count"] == 1
 
@@ -305,3 +305,32 @@ def test_build_stats_recent_has_supply(conn):
     s = build_stats(conn, TODAY)
     assert s["recent"][0]["supply"] == {"min": 24, "max": 24, "approx": True}
     assert s["recent"][1]["supply"] is None
+
+
+def test_trade_json_has_grp_and_direct(tmp_path):
+    c = connect(str(tmp_path / "g.db"))
+    migrate(c)
+    a = upsert_apartment(c, name="B", lawd_cd="11680", dong="역삼동", jibun="9", build_year=2000, apt_seq=None)
+    _trade(c, a, 90000, 85.01, "2026-05-01")
+    _trade(c, a, 100000, 84.97, "2026-09-01")
+    c.execute("UPDATE transactions SET dealing_gbn='직거래' WHERE amount=100000")
+    _rent(c, a, 50000, 0, 84.97, "2026-09-02")  # 묶음 지도는 매매+전월세 면적을 함께 센다
+    c.commit()
+    d = build_apt_trade(c, a, TODAY)
+    assert [(t["grp"], t["direct"]) for t in d["transactions"]] == [(84, True), (84, False)]
+    assert [s["area"] for s in d["area_stats"]] == [84]
+    r = build_apt_rent(c, a, TODAY)
+    assert [x["grp"] for x in r["rents"]] == [84]
+
+
+def test_region_latest_supply_uses_group(tmp_path):
+    c = connect(str(tmp_path / "s.db"))
+    migrate(c)
+    a = upsert_apartment(c, name="B", lawd_cd="11680", dong="역삼동", jibun="9", build_year=2000, apt_seq=None)
+    _trade(c, a, 90000, 84.97, "2026-05-01")
+    _trade(c, a, 91000, 84.97, "2026-06-01")
+    _trade(c, a, 100000, 85.01, "2026-09-01")
+    _area_type(c, a, 85.01, 112.4)
+    c.commit()
+    entry = build_region(c, "11680", TODAY)["apartments"][0]
+    assert entry["latest_trade_amount"] == 100000 and entry["latest_supply_min"] == 34
