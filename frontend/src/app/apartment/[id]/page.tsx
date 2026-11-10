@@ -23,8 +23,8 @@ import { isMoved } from "@/lib/types";
 import { districtFullName, regionHref, resolveRegionCode } from "@/lib/regions";
 import { aptCrumbs, aptIntro, aptJsonLd, breadcrumbJsonLd, dongHref, pickNearby, SITE_URL } from "@/lib/seo";
 
-/** ISR: 첫 요청 때 생성, 한 시간마다 갱신. 최근가·평형별 시세는 서버 HTML에 텍스트로 들어간다. */
-export const revalidate = 3600;
+/** ISR: 첫 요청 때 생성, 하루마다 갱신(데이터가 하루 한 번 바뀌고, 로봇이 2만 단지를 돌 때 다시 만드는 CPU를 줄인다). 최근가·평형별 시세는 서버 HTML에 텍스트로 들어간다. */
+export const revalidate = 86400;
 
 /** 빌드 때는 아무것도 만들지 않고, 첫 요청 때 만들어 캐시한다(dynamicParams 기본 true). 이게 있어야 ISR(●)이 된다. */
 export function generateStaticParams() {

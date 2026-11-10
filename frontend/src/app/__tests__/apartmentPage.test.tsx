@@ -110,8 +110,8 @@ describe("apartment 페이지", () => {
     expect(screen.queryByRole("heading", { name: /다른 단지/ })).toBeNull();
   });
 
-  test("ISR: revalidate 3600 + 빈 generateStaticParams", () => {
-    expect(page.revalidate).toBe(3600);
+  test("ISR: 단지 revalidate 86400(지역은 3600) + 빈 generateStaticParams", () => {
+    expect(page.revalidate).toBe(86400);
     expect(page.generateStaticParams()).toEqual([]);
     expect(regionPage.revalidate).toBe(3600);
     expect(regionPage.generateStaticParams()).toEqual([]);

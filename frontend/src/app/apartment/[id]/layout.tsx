@@ -3,8 +3,8 @@ import { fetchAptRent, fetchAptTrade } from "@/lib/data";
 import { isMoved } from "@/lib/types";
 import { aptDescription, aptTitle, latestJeonse } from "@/lib/seo";
 
-/** 단지 페이지는 첫 요청 때 만들고 한 시간마다 다시 만든다(generateStaticParams 없음). */
-export const revalidate = 3600;
+/** 단지 페이지는 첫 요청 때 만들고 하루마다 다시 만든다(generateStaticParams 없음). */
+export const revalidate = 86400;
 
 type Props = { params: Promise<{ id: string }> };
 
