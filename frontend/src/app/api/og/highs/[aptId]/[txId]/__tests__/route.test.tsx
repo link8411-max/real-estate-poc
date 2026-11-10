@@ -60,11 +60,11 @@ describe("신고가 공유 OG", () => {
     expect(all).not.toMatch(/\d+평/); // 전용평 금지
     expect(all).toContain("직거래");
   });
-  test("공급평 있으면 33평 · 전용 84㎡", async () => {
+  test("공급평 있으면 33평 · 84㎡", async () => {
     setSupplyEnabledForTest(true);
     fetchAptTrade.mockResolvedValue({ ...base, apartment: { ...apartment, area_types: [{ excl: 84.97, supply: 111.52, approx: false }] }, transactions: [tx({ share })] });
     const { all } = await run();
-    expect(all).toContain("33평 · 전용 84㎡");
+    expect(all).toContain("33평 · 84㎡");
   });
   test("취소되면 신고 후 취소, 배지·차이 숨김", async () => {
     fetchAptTrade.mockResolvedValue({ ...base, transactions: [tx({ share, cancel_date: "2026-11-05" })] });

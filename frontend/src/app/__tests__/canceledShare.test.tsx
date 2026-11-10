@@ -156,6 +156,6 @@ describe("공급평 플래그 on", () => {
     fetchAptTrade.mockResolvedValue(withTypes);
     setSupplyEnabledForTest(true);
     render(await page.default(props("1554", "1")));
-    expect(screen.getByText("래미안 34평 · 전용 84㎡")).toBeTruthy();
+    expect(screen.getByText("래미안 34평 · 84㎡")).toBeTruthy();
   });
 });

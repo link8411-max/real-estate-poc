@@ -27,23 +27,23 @@ export const txGroup = (t: { area: number; grp?: number }): number => t.grp ?? a
 
 /**
  * 평형 그룹 기준 표시. 84.88 → 평: "전용 25평 (84㎡)", ㎡: "84㎡ (전용 25평)"
- * 공급평 플래그 on: 평 "33평 · 전용 84㎡", ㎡ "84㎡ (33평)". 공급 정보 없으면 "84㎡"만 (전용평 금지).
+ * 공급평 플래그 on: 평 "33평 · 84㎡", ㎡ "84㎡ (33평)". 공급 정보 없으면 "84㎡"만 (전용평 금지).
  */
 export const formatArea = (m2: number, unit: AreaUnit = "pyeong", sp?: SupplyLabel | null): string => {
   const g = areaGroup(m2);
   if (SUPPLY_ENABLED) {
     if (!sp) return `${g}㎡`;
-    return unit === "pyeong" ? `${supplyText(sp)} · 전용 ${g}㎡` : `${g}㎡ (${supplyText(sp)})`;
+    return unit === "pyeong" ? `${supplyText(sp)} · ${g}㎡` : `${g}㎡ (${supplyText(sp)})`;
   }
   return unit === "pyeong" ? `전용 ${areaToPyeong(g)}평 (${g}㎡)` : `${g}㎡ (전용 ${areaToPyeong(g)}평)`;
 };
 
-/** 개별 거래의 실제 면적. 80.87 → 평: "전용 24.5평", ㎡: "80.87㎡". 플래그 on: "33평 · 전용 80.87㎡" */
+/** 개별 거래의 실제 면적. 80.87 → 평: "전용 24.5평", ㎡: "80.87㎡". 플래그 on: "33평 · 80.87㎡" */
 export const formatExactArea = (m2: number, unit: AreaUnit = "pyeong", sp?: SupplyLabel | null): string => {
   const exact = `${+m2.toFixed(2)}㎡`;
   if (SUPPLY_ENABLED) {
     if (!sp) return exact;
-    return unit === "pyeong" ? `${supplyText(sp)} · 전용 ${exact}` : `${exact} (${supplyText(sp)})`;
+    return unit === "pyeong" ? `${supplyText(sp)} · ${exact}` : `${exact} (${supplyText(sp)})`;
   }
   return unit === "pyeong" ? `전용 ${(m2 / M2_PER_PYEONG).toFixed(1)}평` : exact;
 };

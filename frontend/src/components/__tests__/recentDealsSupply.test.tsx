@@ -12,7 +12,7 @@ const deal = (o: Partial<RecentTrade>): RecentTrade => ({
 });
 
 describe("홈 최근 거래 공급평", () => {
-  test("플래그 on: supply 있으면 '33평 · 전용 84㎡', null이면 '84㎡'", () => {
+  test("플래그 on: supply 있으면 '33평 · 84㎡', null이면 '84㎡'", () => {
     setSupplyEnabledForTest(true);
     render(
       <RecentDeals
@@ -20,7 +20,7 @@ describe("홈 최근 거래 공급평", () => {
       />,
     );
     const rows = screen.getAllByRole("listitem").map((r) => r.textContent ?? "");
-    expect(rows[0]).toContain("33평 · 전용 84㎡");
+    expect(rows[0]).toContain("33평 · 84㎡");
     expect(rows[1]).toContain("84㎡");
     expect(rows[1]).not.toContain("평");
   });

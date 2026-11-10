@@ -28,9 +28,9 @@ const stat = (area: number): AreaStat => ({
 });
 
 describe("공급평 표기(플래그 on)", () => {
-  test("평형 표: 33평 · 전용 84㎡, 전용평은 없다", () => {
+  test("평형 표: 33평 · 84㎡, 전용평은 없다", () => {
     render(<AreaStatsTable stats={[stat(84)]} selected={null} onSelect={() => {}} areaTypes={types} />);
-    expect(screen.getByText("33평 · 전용 84㎡")).toBeInTheDocument();
+    expect(screen.getByText("33평 · 84㎡")).toBeInTheDocument();
     expect(screen.queryByText(/전용 25평/)).not.toBeInTheDocument();
   });
 
@@ -39,10 +39,10 @@ describe("공급평 표기(플래그 on)", () => {
     expect(screen.getByText("84㎡")).toBeInTheDocument();
   });
 
-  test("거래 목록 한 줄: 25평 · 전용 59.96㎡", () => {
+  test("거래 목록 한 줄: 25평 · 59.96㎡", () => {
     const t: Transaction = { id: 1, amount: 50000, area: 59.96, floor: 3, deal_date: "2026-01-06", cancel_date: null };
     render(<DealList transactions={[t]} area={null} areaTypes={types} />);
-    expect(screen.getByText("25평 · 전용 59.96㎡")).toBeInTheDocument();
+    expect(screen.getByText("25평 · 59.96㎡")).toBeInTheDocument();
   });
 
   test("전월세 표·목록: 같은 규칙", () => {
@@ -56,8 +56,8 @@ describe("공급평 표기(플래그 on)", () => {
       rents: [r],
     };
     render(<RentSection rent={rent} tab="jeonse" today="2026-10-27" />);
-    expect(screen.getByRole("row", { name: /33평 · 전용 84㎡/ })).toBeInTheDocument();
-    expect(screen.getByText("33평 · 전용 84.8㎡")).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /33평 · 84㎡/ })).toBeInTheDocument();
+    expect(screen.getByText("33평 · 84.8㎡")).toBeInTheDocument();
   });
 
   test("취소 거래 목록", () => {
@@ -65,7 +65,7 @@ describe("공급평 표기(플래그 on)", () => {
       { id: 1, amount: 50000, area: 84.8, floor: 3, deal_date: "2026-01-06", cancel_date: "2026-01-20", cancel_iso: "2026-01-20", prev_max: null, is_high: false },
     ];
     render(<CanceledDeals items={items as never} areaTypes={types} />);
-    expect(screen.getByText("33평 · 전용 84㎡")).toBeInTheDocument();
+    expect(screen.getByText("33평 · 84㎡")).toBeInTheDocument();
   });
 
   test("비교 표: 두 단지 각자의 area_types", () => {
@@ -80,6 +80,6 @@ describe("공급평 표기(플래그 on)", () => {
     });
     render(<CompareTable items={[mk(1, types), mk(2, [{ excl: 84.9, supply: 105, approx: true }])]} today="2026-10-27" />);
     const row = screen.getByRole("row", { name: /^대표 평형/ });
-    expect(within(row).getAllByRole("cell").map((c) => c.textContent)).toEqual(["33평 · 전용 84㎡", "약 31평 · 전용 84㎡"]);
+    expect(within(row).getAllByRole("cell").map((c) => c.textContent)).toEqual(["33평 · 84㎡", "약 31평 · 84㎡"]);
   });
 });

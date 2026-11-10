@@ -18,7 +18,7 @@ const high = (o: Partial<RecordHigh>): RecordHigh => ({
 });
 
 describe("신고가 모음(플래그 on)", () => {
-  test("supply 있으면 '33평 · 전용 84㎡', null이면 '84㎡'", () => {
+  test("supply 있으면 '33평 · 84㎡', null이면 '84㎡'", () => {
     render(
       <HighsBoard
         items={[
@@ -30,7 +30,7 @@ describe("신고가 모음(플래그 on)", () => {
     const rows = screen.getAllByTestId("high-row").map((r) => r.textContent ?? "");
     const a = rows.find((r) => r.includes("가단지"))!;
     const b = rows.find((r) => r.includes("나단지"))!;
-    expect(a).toContain("33평 · 전용 84㎡");
+    expect(a).toContain("33평 · 84㎡");
     expect(b).toContain("84㎡");
     expect(b).not.toContain("전용");
     expect(b).not.toContain("평");
@@ -45,7 +45,7 @@ describe("취소 모음(플래그 on)", () => {
       days_to_cancel: 33, supply: { min: 34, max: 34, approx: true },
     };
     render(<CanceledBoard items={[c]} today="2026-11-04" />);
-    expect(screen.getAllByText(/약 34평 · 전용 84㎡/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/약 34평 · 84㎡/).length).toBeGreaterThan(0);
   });
 });
 

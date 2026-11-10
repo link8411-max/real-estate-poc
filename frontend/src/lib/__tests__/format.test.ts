@@ -72,22 +72,22 @@ describe("공급평 플래그", () => {
   });
   test("flag on exact", () => {
     setSupplyEnabledForTest(true);
-    expect(formatArea(84.88, "pyeong", exact)).toBe("33평 · 전용 84㎡");
+    expect(formatArea(84.88, "pyeong", exact)).toBe("33평 · 84㎡");
     expect(formatArea(84.88, "m2", exact)).toBe("84㎡ (33평)");
-    expect(formatExactArea(80.87, "pyeong", exact)).toBe("33평 · 전용 80.87㎡");
+    expect(formatExactArea(80.87, "pyeong", exact)).toBe("33평 · 80.87㎡");
     expect(formatExactArea(80.87, "m2", exact)).toBe("80.87㎡ (33평)");
   });
   test("flag on approx", () => {
     setSupplyEnabledForTest(true);
     const a = { min: 34, max: 34, approx: true };
-    expect(formatArea(84.88, "pyeong", a)).toBe("약 34평 · 전용 84㎡");
+    expect(formatArea(84.88, "pyeong", a)).toBe("약 34평 · 84㎡");
     expect(formatArea(84.88, "m2", a)).toBe("84㎡ (약 34평)");
   });
   test("flag on range", () => {
     setSupplyEnabledForTest(true);
     const r = { min: 33, max: 34, approx: false };
-    expect(formatArea(84.88, "pyeong", r)).toBe("33~34평 · 전용 84㎡");
-    expect(formatExactArea(80.87, "pyeong", r)).toBe("33~34평 · 전용 80.87㎡");
+    expect(formatArea(84.88, "pyeong", r)).toBe("33~34평 · 84㎡");
+    expect(formatExactArea(80.87, "pyeong", r)).toBe("33~34평 · 80.87㎡");
   });
   test("flag on missing never shows 전용평", () => {
     setSupplyEnabledForTest(true);
