@@ -119,8 +119,42 @@ describe("sitemap lastmod", () => {
 describe("robots", () => {
   test("API만 차단(검색·비교는 noindex 메타로), OG 이미지는 허용, 사이트맵은 SITE_URL 기준", () => {
     const r = robots();
-    expect(r.rules).toEqual({ userAgent: "*", allow: ["/", "/api/og/"], disallow: ["/api/"] });
+    expect(r.rules).toEqual([
+      { userAgent: "*", allow: ["/", "/api/og/"], disallow: ["/api/"] },
+      { userAgent: ["ExaSearchBot", "ElevenlabsCrawler", "SERankingBacklinksBot"], disallow: "/" },
+    ]);
     expect(r.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
+  });
+
+  test("vercel.json: 같은 로봇 셋은 서버에 닿기 전에 거절, 위장 브라우저는 확인 절차", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const cfg = JSON.parse(readFileSync(resolve(process.cwd(), "vercel.json"), "utf8"));
+    const ua = (i: number) => new RegExp(cfg.routes[i].has[0].value.re);
+    expect(cfg.routes.map((x: { mitigate: { action: string } }) => x.mitigate.action)).toEqual(["deny", "challenge"]);
+    // robots.txt 는 거절 대상 로봇도 읽을 수 있어야 스스로 멈춘다.
+    expect(new RegExp(`^${cfg.routes[0].src}$`).test("/robots.txt")).toBe(false);
+    expect(new RegExp(`^${cfg.routes[0].src}$`).test("/apartment/676")).toBe(true);
+    const deny = ua(0);
+    for (const bot of ["ExaSearchBot", "ElevenlabsCrawler", "SERankingBacklinksBot"]) {
+      expect(deny.test(`Mozilla/5.0 (compatible; ${bot}/1.0; +https://example.com)`)).toBe(true);
+    }
+    const googlebot = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.38 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+    const yeti = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko; compatible; Yeti/1.1; +https://naver.me/spd) Chrome/153.0.0.0 Safari/537.36";
+    const realChrome = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
+    const realIphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Mobile/15E148 Safari/604.1";
+    const challenge = ua(1);
+    for (const ok of [googlebot, yeti, realChrome, realIphone]) {
+      expect(deny.test(ok)).toBe(false);
+      expect(challenge.test(ok)).toBe(false);
+    }
+    for (const fake of [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+    ]) {
+      expect(challenge.test(fake)).toBe(true);
+    }
   });
 });
 
